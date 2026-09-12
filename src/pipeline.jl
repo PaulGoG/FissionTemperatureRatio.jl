@@ -1,6 +1,30 @@
 # The pipeline: from experimental multiplicity data to a parameterized temperature ratio.
 
 """
+    Parameterization
+
+One piecewise-linear description of the multiplicity ratio, and the temperature ratio obtained
+from it.
+
+A run produces several: one per experimental data set, and one following the systematic behaviour
+of the ratio. They are alternatives, not an ensemble to be averaged — a prompt emission code takes
+one of them as input, and which one describes reality is settled downstream, by comparing the
+multiplicity distributions and yields that code produces against experiment.
+
+# Fields
+
+- `label`: the data set the parameterization came from, or `"systematic trend"`.
+- `fit`: the piecewise-linear fit of `r_ν`.
+- `r_ν`, `R_T`: the parameterized multiplicity ratio and the temperature ratio from it.
+"""
+struct Parameterization
+    label::String
+    fit::SegmentedFit
+    r_ν::RatioCurve
+    R_T::RatioCurve
+end
+
+"""
     PipelineResult
 
 Everything a run produces, held together so that it can be inspected interactively as well as
@@ -12,13 +36,13 @@ written to disk.
 - `data_sets`: the experimental multiplicity data that was read.
 - `r_ν`, `R_T`: the multiplicity and temperature ratios extracted from each data set.
 - `R_a`: the level density parameter ratio against heavy-fragment mass number.
-- `fit`: the piecewise-linear parameterization of the pooled multiplicity ratio.
-- `r_ν_fitted`, `R_T_fitted`: the parameterized multiplicity ratio and the temperature ratio
-  obtained from it.
-- `range_mean_R_T`: the inverse-variance weighted mean of the parameterized temperature ratio
-  over the fragment mass range, with its uncertainty. This is *not* the total average quoted in
-  the literature, which is taken over a fission fragment mass yield distribution `Y(A)`;
-  computing that requires `Y(A)` as an additional input, which this package does not take.
+- `parameterizations`: one per data set that supports a fit, followed by the systematic-trend
+  curve. Alternatives offered to a prompt emission code, not an ensemble.
+- `range_mean_R_T`: for each parameterization, the inverse-variance weighted mean of its
+  temperature ratio over the fragment mass range, with its uncertainty. This is *not* the total
+  average quoted in the literature, which is taken over a fission fragment mass yield
+  distribution `Y(A)`; computing that requires `Y(A)` as an additional input, which this package
+  does not take.
 - `diagnostics`: checks of the exact identities at the symmetric split.
 """
 struct PipelineResult
@@ -27,11 +51,21 @@ struct PipelineResult
     r_ν::Vector{RatioCurve}
     R_T::Vector{RatioCurve}
     R_a::Dict{Int,Float64}
-    fit::SegmentedFit
-    r_ν_fitted::RatioCurve
-    R_T_fitted::RatioCurve
-    range_mean_R_T::Tuple{Float64,Float64}
+    parameterizations::Vector{Parameterization}
+    range_mean_R_T::Dict{String,Tuple{Float64,Float64}}
     diagnostics::Dict{String,Any}
+end
+
+"""
+    systematic_trend(result) -> Parameterization
+
+The parameterization that follows the systematic behaviour of the ratio rather than any single
+data set.
+"""
+function systematic_trend(result::PipelineResult)
+    index = findfirst(p -> p.label == TREND_LABEL, result.parameterizations)
+    index === nothing && throw(ArgumentError("this result carries no systematic-trend curve"))
+    return result.parameterizations[index]
 end
 
 """
@@ -64,9 +98,11 @@ end
 
 Concatenate ratio curves from several data sets into one, sorted by mass number.
 
-The parameterization is fitted to the pooled ratio rather than to each set separately: the sets
-of one fissioning nucleus measure the same quantity, and where they disagree that disagreement is
-information about the uncertainty of the parameterization, not a reason to choose between them.
+Used for the systematic-trend curve, which is meant to follow the general behaviour of the ratio
+rather than any one measurement. The per-set parameterizations are fitted to their own data: where
+the sets of one fissioning nucleus disagree, as they do markedly for some nuclei, a curve fitted
+through all of them at once describes none of them, and a prompt emission code has nothing to
+validate it against.
 """
 function pool(curves::Vector{RatioCurve}; label::AbstractString = "pooled")
     A_H = reduce(vcat, (curve.A_H for curve in curves); init = Int[])
@@ -81,11 +117,19 @@ end
 
 Execute the extraction for one configuration.
 
-The steps are: read the mass excesses and the experimental multiplicity data; build the
+The steps are: read the tabulated data and the experimental multiplicity data; build the
 fragmentation range and the isobaric charge distribution; form the multiplicity ratio
-`r_ν = ν_H/(ν_L + ν_H)` of every data set and the temperature ratio from it; fit the pooled
-multiplicity ratio by joined straight segments; and obtain the parameterized temperature ratio
-from the fitted multiplicity ratio.
+`r_ν = ν_H/(ν_L + ν_H)` of every data set and the temperature ratio from it; and parameterize the
+multiplicity ratio by joined straight segments, once per data set and once more following its
+systematic behaviour.
+
+A run therefore returns several parameterizations rather than one. Where the data sets of a
+fissioning nucleus disagree — as they do markedly for some — a curve fitted through all of them
+describes none of them, and a prompt emission code has nothing to validate it against. They are
+offered as alternatives: the code takes one as input, and which one describes reality is settled
+by comparing the multiplicity distributions and yields it produces against experiment. The
+systematic-trend curve is the one to use where a data set is too sparse or too scattered to
+determine the shape on its own.
 
 The temperature ratio is parameterized by transforming the fitted multiplicity ratio, not by
 fitting segments to the temperature ratio a second time. The transformation is exact, whereas a
@@ -134,29 +178,45 @@ function run_pipeline(configuration::Configuration; write_output::Bool = true)
         throw(ArgumentError("no data set provides both fragments of any pair within \
                        $(first(range)):$(last(range))"))
 
-    pooled = pool(r_ν[usable]; label = "pooled data")
-    fit = fit_segments(
-        pooled.A_H,
-        pooled.value,
-        pooled.σ;
-        max_segments = configuration.segments.max_segments,
-        min_points_per_segment = configuration.segments.min_points_per_segment,
-        pinned_value = configuration.segments.pin_symmetric_split ? 0.5 : nothing,
-        required_windows = configuration.segments.required_windows,
-        bounds = (0.0, 1.0),
-    )
-    @info "parameterization selected" segments = segments(fit) breakpoints = fit.breakpoints reduced_chi_squared =
-        fit.wrss / fit.dof bic = fit.bic
+    settings = configuration.segments
+    parameterizations = Parameterization[]
 
-    fitted_range = first(pooled.A_H):last(pooled.A_H)
-    r_ν_fitted = evaluate(fit, fitted_range; label = "Segments")
-    R_T_fitted = temperature_ratio(r_ν_fitted, R_a)
-    isempty(R_T_fitted) && throw(
-        ArgumentError("the parameterized multiplicity ratio yields no temperature ratio; the \
-                       level density parameter ratio is undefined over the fitted range"),
-    )
+    # One curve per data set. These are the alternatives a prompt emission code chooses between.
+    for index in usable
+        curve = r_ν[index]
+        parameterization = _parameterize(curve, R_a, settings, curve.label, UnitRange{Int}[])
+        parameterization === nothing && continue
+        push!(parameterizations, parameterization)
+    end
 
-    diagnostics = _symmetry_diagnostics(configuration, domain, R_a, fit)
+    # One curve following the systematic behaviour of the ratio: the minimum at the heavy magic
+    # fragment placed rather than fitted, and the rise above the most probable fragmentation taken
+    # through the whole body of data, so its slope falls between those of the individual sets.
+    # This is the curve to use where a data set is too sparse or too scattered to determine the
+    # shape on its own.
+    pooled = pool(r_ν[usable]; label = TREND_LABEL)
+    trend = _parameterize(pooled, R_a, settings, TREND_LABEL, settings.required_windows)
+    if trend === nothing && !isempty(settings.required_windows)
+        @warn "no parameterization satisfies the required windows; the systematic-trend curve \
+               was fitted without them" windows = settings.required_windows
+        trend = _parameterize(pooled, R_a, settings, TREND_LABEL, UnitRange{Int}[])
+    end
+    trend === nothing || push!(parameterizations, trend)
+
+    isempty(parameterizations) &&
+        throw(ArgumentError("no data set supports a parameterization with \
+                       min_points_per_segment = $(settings.min_points_per_segment)"))
+
+    for parameterization in parameterizations
+        @info "parameterization" set = parameterization.label segments = segments(
+            parameterization.fit
+        ) breakpoints = parameterization.fit.breakpoints reduced_chi_squared =
+            parameterization.fit.wrss / parameterization.fit.dof
+    end
+
+    diagnostics = _symmetry_diagnostics(
+        configuration, domain, R_a, first(parameterizations).fit
+    )
     for (key, message) in diagnostics["warnings"]
         @warn message identity = key
     end
@@ -167,15 +227,45 @@ function run_pipeline(configuration::Configuration; write_output::Bool = true)
         r_ν,
         R_T,
         R_a,
-        fit,
-        r_ν_fitted,
-        R_T_fitted,
-        weighted_mean(R_T_fitted),
+        parameterizations,
+        Dict(p.label => weighted_mean(p.R_T) for p in parameterizations),
         diagnostics,
     )
 
     write_output && write_results(result)
     return result
+end
+
+# Fit one ratio curve and carry it through to the temperature ratio. Returns nothing when the
+# curve cannot support a fit at all, which happens for data sets covering only a few mass pairs.
+function _parameterize(
+    curve::RatioCurve,
+    R_a::AbstractDict{Int,Float64},
+    settings::SegmentSettings,
+    label::AbstractString,
+    windows::Vector{UnitRange{Int}},
+)
+    fit = try
+        fit_segments(
+            curve.A_H,
+            curve.value,
+            curve.σ;
+            max_segments = settings.max_segments,
+            min_points_per_segment = settings.min_points_per_segment,
+            pinned_value = settings.pin_symmetric_split ? 0.5 : nothing,
+            required_windows = windows,
+            bounds = (0.0, 1.0),
+        )
+    catch err
+        err isa ArgumentError || rethrow()
+        @warn "no parameterization for this data set" set = label reason = err.msg
+        return nothing
+    end
+
+    r_ν = evaluate(fit, first(curve.A_H):last(curve.A_H); label = label)
+    R_T = temperature_ratio(r_ν, R_a)
+    isempty(R_T) && return nothing
+    return Parameterization(String(label), fit, r_ν, R_T)
 end
 
 # The identities that hold by construction at the symmetric split, checked rather than assumed.
@@ -261,25 +351,31 @@ function write_results(result::PipelineResult)
         end
     end
 
-    parameterization = DataFrame(;
-        A_H = [pivot[1] for pivot in pivots(result.fit)],
-        r_nu = [round(pivot[2]; digits = digits) for pivot in pivots(result.fit)],
-    )
-    path = _unused_path(joinpath(results_root, "r_nu_segments_$(identifier).csv"))
-    mkpath(dirname(path))
-    CSV.write(path, parameterization)
-    written["r_nu/segments"] = path
-
-    for (curve, name) in
-        ((result.r_ν_fitted, "r_nu_parameterized"), (result.R_T_fitted, "R_T_parameterized"))
-        table = DataFrame(;
-            A_H = curve.A_H,
-            value = round.(curve.value; digits = digits),
-            uncertainty = round.(curve.σ; digits = digits),
+    for parameterization in result.parameterizations
+        token = _file_token(parameterization.label)
+        points = pivots(parameterization.fit)
+        segment_table = DataFrame(;
+            A_H = [point[1] for point in points],
+            r_nu = [round(point[2]; digits = digits) for point in points],
         )
-        path = _unused_path(joinpath(results_root, "$(name)_$(identifier).csv"))
-        CSV.write(path, table)
-        written[name] = path
+        path = _unused_path(joinpath(results_root, "segments_$(token)_$(identifier).csv"))
+        mkpath(dirname(path))
+        CSV.write(path, segment_table)
+        written["segments/$(parameterization.label)"] = path
+
+        for (curve, name) in (
+            (parameterization.r_ν, "r_nu_parameterized"),
+            (parameterization.R_T, "R_T_parameterized"),
+        )
+            table = DataFrame(;
+                A_H = curve.A_H,
+                value = round.(curve.value; digits = digits),
+                uncertainty = round.(curve.σ; digits = digits),
+            )
+            path = _unused_path(joinpath(results_root, "$(name)_$(token)_$(identifier).csv"))
+            CSV.write(path, table)
+            written["$(name)/$(parameterization.label)"] = path
+        end
     end
 
     with_theme(publication_theme()) do
@@ -291,37 +387,44 @@ function write_results(result::PipelineResult)
             joinpath(plots_root, "r_nu_$(identifier).pdf"),
             plot_ratio(
                 filter(!isempty, result.r_ν),
-                result.r_ν_fitted;
+                [p.r_ν for p in result.parameterizations];
                 ylabel = L"r_\nu = \nu_H / (\nu_L + \nu_H)",
                 reference = 0.5,
                 reference_label = "Equal sharing",
             ),
         )
-        mean_value, mean_uncertainty = result.range_mean_R_T
         return written["figure/R_T"] = save_figure(
             joinpath(plots_root, "R_T_$(identifier).pdf"),
             plot_ratio(
                 filter(!isempty, result.R_T),
-                result.R_T_fitted;
+                [p.R_T for p in result.parameterizations];
                 ylabel = L"R_T = T_L / T_H",
                 reference = 1.0,
                 reference_label = "Equal temperatures",
-                annotation = "Range mean $(round(mean_value; digits = 3)) ± \
-                              $(round(mean_uncertainty; sigdigits = 2))",
             ),
         )
     end
 
     metadata = run_metadata(configuration)
     metadata["result"] = Dict{String,Any}(
-        "segments" => segments(result.fit),
-        "breakpoints" => result.fit.breakpoints,
-        "reduced_chi_squared" => result.fit.wrss / result.fit.dof,
-        "bic" => result.fit.bic,
-        "bic_by_order" => [[order, value] for (order, value) in result.fit.selection],
-        "weights_imputed" => result.fit.weights_imputed,
-        "range_mean_R_T" => result.range_mean_R_T[1],
-        "range_mean_R_T_uncertainty" => result.range_mean_R_T[2],
+        "parameterizations" => Dict{String,Any}(
+            parameterization.label => Dict{String,Any}(
+                "segments" => segments(parameterization.fit),
+                "breakpoints" => parameterization.fit.breakpoints,
+                "pivots" =>
+                    [[point[1], point[2]] for point in pivots(parameterization.fit)],
+                "reduced_chi_squared" =>
+                    parameterization.fit.wrss / parameterization.fit.dof,
+                "bic" => parameterization.fit.bic,
+                "bic_by_order" => [
+                    [order, value] for (order, value) in parameterization.fit.selection
+                ],
+                "weights_imputed" => parameterization.fit.weights_imputed,
+                "range_mean_R_T" => result.range_mean_R_T[parameterization.label][1],
+                "range_mean_R_T_uncertainty" =>
+                    result.range_mean_R_T[parameterization.label][2],
+            ) for parameterization in result.parameterizations
+        ),
         "diagnostics" => Dict(k => v for (k, v) in result.diagnostics if k != "warnings"),
     )
     written["metadata"] = write_metadata(

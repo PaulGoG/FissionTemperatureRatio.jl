@@ -59,10 +59,25 @@ for every order examined is retained, so the choice can be audited.
 Two constraints are enforced during the search because they are exact, not preferences: the fit
 is pinned at the symmetric split, and it may not leave the interval ``(0, 1)``, outside which the
 temperature ratio relation is undefined. Since a piecewise-linear function attains its extrema at
-its pivots, the bound is tested exactly rather than sampled. Features that are strongly supported
-but not exact — the minimum near ``A_H = 130``, the near-linear rise above the most probable
-fragmentation — are left to the data, and can be imposed through `required_windows` when a sparse
-data set does not determine them.
+its pivots, the bound is tested exactly rather than sampled.
+
+## One curve per data set, and one systematic trend
+
+The data sets of a fissioning nucleus can differ well beyond their quoted uncertainties, and where
+they do, the temperature ratio can only be determined separately for each of them. A run therefore
+produces one parameterization per data set, fitted to that set alone.
+
+Alongside them it produces a systematic-trend curve, fitted through the whole body of data with
+the minimum at the heavy magic fragment *placed* rather than fitted — `required_windows` in the
+configuration, defaulting to ``A_H \in [128, 132]``. Its rise above the most probable
+fragmentation therefore falls between those of the individual sets. This is the curve to use where
+a data set is too sparse or too scattered to resolve the shape on its own, and where no energy
+partition from a scission model is available.
+
+These are alternatives, not an ensemble to be averaged. A prompt emission code takes one of them
+as input; which one describes reality is settled downstream, by comparing the prompt neutron
+multiplicity distributions and the fragment yields that code produces against experimental data.
+The package's job is to supply the candidates, each traceable to the measurement it came from.
 
 ## References
 

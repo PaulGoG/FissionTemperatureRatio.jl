@@ -72,6 +72,10 @@ end
 Controls of the piecewise-linear parameterization: the largest number of segments examined, the
 smallest number of data points a segment may contain, whether the ratio is pinned to one half at
 the symmetric split, and mass-number windows that must each contain a breakpoint.
+
+`required_windows` constrains the systematic-trend curve only, not the per-data-set
+parameterizations, which are left to follow their own data. Its purpose is to place the minimum
+at the heavy magic fragment where a data set is too sparse or too scattered to resolve it.
 """
 struct SegmentSettings
     max_segments::Int

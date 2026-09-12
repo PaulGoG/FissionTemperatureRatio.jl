@@ -114,7 +114,7 @@ not infer what it marks.
 """
 function plot_ratio(
     curves::Vector{RatioCurve},
-    fitted::Union{RatioCurve,Nothing} = nothing;
+    fitted::Vector{RatioCurve} = RatioCurve[];
     ylabel,
     reference::Union{Real,Nothing} = nothing,
     reference_label::AbstractString = "",
@@ -124,7 +124,14 @@ function plot_ratio(
     axis = Axis(figure[1, 1]; xlabel = L"Heavy fragment mass number $A_H$", ylabel = ylabel)
 
     if reference !== nothing
-        hlines!(axis, [reference]; color = :black, linestyle = :dashdot, linewidth = 0.7)
+        hlines!(
+            axis,
+            [reference];
+            color = :black,
+            linestyle = :dashdot,
+            linewidth = 0.7,
+            label = isempty(reference_label) ? nothing : reference_label,
+        )
     end
 
     for (index, curve) in enumerate(curves)
@@ -151,54 +158,36 @@ function plot_ratio(
         )
     end
 
-    if fitted !== nothing && !isempty(fitted)
+    # The parameterizations are alternatives, so each is drawn in the colour of the data set it
+    # came from, and the systematic-trend curve in black, dashed, to mark that it follows no single
+    # measurement.
+    for (index, curve) in enumerate(fitted)
+        isempty(curve) && continue
+        trend = curve.label == TREND_LABEL
+        color = trend ? RGBf(0, 0, 0) : data_set_color(index)
         band!(
             axis,
-            fitted.A_H,
-            fitted.value .- fitted.σ,
-            fitted.value .+ fitted.σ;
-            color = (:black, 0.15),
+            curve.A_H,
+            curve.value .- curve.σ,
+            curve.value .+ curve.σ;
+            color = (color, 0.15),
         )
         lines!(
             axis,
-            fitted.A_H,
-            fitted.value;
-            color = :black,
+            curve.A_H,
+            curve.value;
+            color = color,
             linewidth = 1.2,
-            label = fitted.label,
+            linestyle = trend ? :dash : :solid,
+            label = trend ? curve.label : "$(curve.label) fit",
         )
     end
 
-    if !isempty(reference_label) && reference !== nothing
-        # Both coordinates are in data space: the label marks a particular value of the ratio, so
-        # its ordinate is that value and not a fraction of the axis height.
-        left = minimum(
-            minimum(curve.A_H) for curve in curves if !isempty(curve);
-            init = fitted === nothing ? 0 : minimum(fitted.A_H),
-        )
-        text!(
-            axis,
-            left,
-            reference;
-            text = reference_label,
-            align = (:left, :bottom),
-            fontsize = 6,
-            offset = (0, 2),
-        )
-    end
-    if !isempty(annotation)
-        text!(
-            axis,
-            0.97,
-            0.05;
-            text = annotation,
-            space = :relative,
-            align = (:right, :bottom),
-            fontsize = 6,
-        )
-    end
-
-    _legend_above(figure, axis, count(!isempty, curves) + (fitted === nothing ? 0 : 1))
+    _legend_above(
+        figure,
+        axis,
+        count(!isempty, curves) + count(!isempty, fitted) + (reference === nothing ? 0 : 1),
+    )
     return figure
 end
 

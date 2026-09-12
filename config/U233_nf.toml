@@ -26,7 +26,7 @@ directory = "multiplicity/U233_nf"                  # relative to data/
 max_segments = 6                                    # largest segment count examined, 1 to 12
 min_points_per_segment = 4                          # data points a segment must contain, 2 to 50
 pin_symmetric_split = true                          # fix r_nu = 1/2 at A0/2; requires even A0
-required_windows = []                               # mass windows that must contain a breakpoint
+required_windows = [[128, 132]]                    # windows the systematic-trend curve must break in
 
 [output]
 digits = 6                                          # decimals in tabulated output, 1 to 15

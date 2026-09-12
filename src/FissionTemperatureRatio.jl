@@ -83,13 +83,14 @@ export level_density_parameter, shell_correction
 export FragmentationDomain, fragmentation_domain, charges, charge_probability
 export most_probable_charge, average_over_charge, symmetric_charge_set_is_invariant
 export RatioAveraging, RatioOfMeans, MeanOfRatios
-export RatioCurve, multiplicity_ratio, level_density_ratio, temperature_ratio, weighted_mean
+export RatioCurve,
+    TREND_LABEL, multiplicity_ratio, level_density_ratio, temperature_ratio, weighted_mean
 
 # Parameterization
 export SegmentedFit, fit_segments, fit_weights, evaluate, pivots, segments
 
 # Pipeline
-export PipelineResult, run_pipeline, write_results, pool
+export PipelineResult, Parameterization, run_pipeline, write_results, pool, systematic_trend
 export run_identifier, run_metadata
 
 # Figures

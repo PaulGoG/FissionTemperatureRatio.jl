@@ -118,7 +118,14 @@ Constraints that are exact are enforced rather than fitted: the charge polarizat
 the symmetric split, where the two fragments are the same nuclide; `r_ν` is pinned to one half
 there; and the parameterization may not leave `(0, 1)`, outside which the relation above is
 undefined. Together these make `R_T(A₀/2) = 1` hold exactly, as an outcome rather than an
-imposition. Features that are strongly supported but not exact are left to the data.
+imposition.
+
+A run produces one parameterization per experimental data set, plus a systematic-trend curve
+fitted through all of them with the minimum at the heavy magic fragment placed rather than fitted.
+These are alternatives for a prompt emission code to choose between, not an ensemble to be
+averaged: the data sets of one fissioning nucleus can disagree well beyond their quoted
+uncertainties, and which curve describes reality is settled downstream, by comparing the
+multiplicity distributions and yields the code produces against experiment.
 
 `docs/src/method.md` sets this out in full, with references.
 
@@ -133,4 +140,5 @@ imposition. Features that are strongly supported but not exact are left to the d
 | Multiplicity ratio and temperature ratio | complete |
 | Segmented parameterization with model selection | complete |
 | Pipeline, tabulated output, figures, provenance | complete |
+| Per-data-set and systematic-trend parameterizations | complete |
 | Averaging over a fragment mass yield distribution | not implemented; needs Y(A) as input |
