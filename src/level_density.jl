@@ -18,7 +18,8 @@ abstract type LevelDensityPrescription end
 """
     BackShiftedFermiGas <: LevelDensityPrescription
 
-Back-shifted Fermi gas systematic of von Egidy and Bucurescu, Phys. Rev. C **80**, 054310 (2009),
+Back-shifted Fermi gas systematic of von Egidy and Bucurescu, Phys. Rev. C **72**, 044311 (2005),
+erratum Phys. Rev. C **73**, 049901 (2006), and Phys. Rev. C **80**, 054310 (2009),
 
 ```
 a = (p₁ + p₂ δW) A^p₃,   δW = δW₀ + P_d,
@@ -55,7 +56,10 @@ const LIQUID_DROP = LiquidDropCoefficients(15.65, 17.63, 0.864 / 1.233, 27.72, 2
     BSFGCoefficients
 
 The three fitted coefficients of the back-shifted Fermi gas expression
-`a = (p₁ + p₂ δW) A^p₃` of von Egidy and Bucurescu, Phys. Rev. C **80**, 054310 (2009).
+`a = (p₁ + p₂ δW) A^p₃` of von Egidy and Bucurescu.
+
+These values have not been checked against the published text, which is paywalled; see the
+validation status in the README.
 """
 struct BSFGCoefficients
     p₁::Float64

@@ -51,6 +51,7 @@ function run_metadata(configuration::Configuration)
         ),
         "source" => Dict{String,Any}(
             "package_version" => string(PACKAGE_VERSION),
+            "dependencies" => _dependency_versions(),
             "commit" => something(gitdescribe(projectdir()), "unavailable"),
         ),
         "julia" => Dict{String,Any}(
@@ -91,6 +92,39 @@ function write_metadata(path::AbstractString, metadata::AbstractDict)
         return TOML.print(io, metadata; sorted = true)
     end
     return target
+end
+
+# The manifests are not version-controlled, because this package supports a range of Julia
+# versions and a manifest is resolved against one of them. The versions a run actually used are
+# recorded here instead, so a result remains attributable to the code that produced it. The active
+# project is read directly rather than through Pkg, which a library has no other reason to depend
+# on.
+function _dependency_versions()
+    project = Base.active_project()
+    project === nothing && return Dict{String,Any}("status" => "unavailable")
+    manifest = joinpath(dirname(project), "Manifest.toml")
+    (isfile(project) && isfile(manifest)) || return Dict{String,Any}("status" => "unavailable")
+
+    versions = Dict{String,Any}()
+    try
+        direct = keys(get(TOML.parsefile(project), "deps", Dict{String,Any}()))
+        document = TOML.parsefile(manifest)
+        # A manifest of format 2 nests its entries under `deps`; earlier ones list them at the top
+        # level alongside a few scalar keys.
+        entries = get(document, "deps") do
+            return Dict(k => v for (k, v) in document if v isa AbstractVector)
+        end
+        for name in direct
+            haskey(entries, name) || continue
+            for entry in entries[name]
+                version = get(entry, "version", nothing)
+                version === nothing || (versions[name] = version)
+            end
+        end
+    catch
+        return Dict{String,Any}("status" => "unavailable")
+    end
+    return versions
 end
 
 # Append a numeric suffix rather than overwrite, in the manner of DrWatson's safesave, so that a

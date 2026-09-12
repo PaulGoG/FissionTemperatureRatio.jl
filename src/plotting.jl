@@ -103,7 +103,7 @@ function plot_multiplicities(data_sets::Vector{MultiplicityData}; A₀::Integer)
 end
 
 """
-    plot_ratio(curves, fitted; ylabel, reference, reference_label, annotation) -> Figure
+    plot_ratio(curves, fitted; ylabel, reference, reference_label) -> Figure
 
 A ratio against the heavy-fragment mass number: the values extracted from each data set with
 their uncertainties, and optionally a fitted curve with its uncertainty band.
@@ -118,7 +118,6 @@ function plot_ratio(
     ylabel,
     reference::Union{Real,Nothing} = nothing,
     reference_label::AbstractString = "",
-    annotation::AbstractString = "",
 )
     figure = Figure(; size = (SINGLE_COLUMN_WIDTH, 0.78 * SINGLE_COLUMN_WIDTH))
     axis = Axis(figure[1, 1]; xlabel = L"Heavy fragment mass number $A_H$", ylabel = ylabel)

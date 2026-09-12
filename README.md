@@ -7,7 +7,7 @@ straight segments.
 ```
 FissionTemperatureRatio/
 ├── activate.jl                     activate and instantiate the root environment
-├── Project.toml, Manifest.toml     the pinned environment
+├── Project.toml                    dependencies and compatibility bounds
 ├── bench/                          benchmark suite, own environment
 │   ├── activate.jl
 │   ├── benchmarks.jl
@@ -47,6 +47,11 @@ Generated output is written to `results/` and `plots/`, neither of which is vers
 
 Each environment carries an activation script that activates and instantiates it silently. The
 first instantiation resolves and precompiles, and is slow.
+
+Resolved manifests are not version-controlled: the package supports a range of Julia versions and
+a manifest is resolved against one of them, so committing one would break instantiation on the
+others. The dependency versions a run actually used are recorded in its metadata, so a result
+stays attributable to the code that produced it.
 
 ```
 julia --project -e 'include("activate.jl")'
@@ -146,6 +151,44 @@ multiplicity distributions and yields the code produces against experiment.
 
 `docs/src/method.md` sets this out in full, with references.
 
+## Validation status
+
+What has been checked, and what has not. Stated explicitly because the method is published and a
+reader's first question is whether this reproduces it.
+
+Verified:
+
+- The exact identities at the symmetric split. `R_a = 1` and `R_T = 1` hold to machine precision
+  where the two fragments are the same nuclide, as an outcome of the construction rather than an
+  imposition, and a run reports it if they do not.
+- The algebra of the extraction. `R_T` inverts the excitation energy partition exactly, the
+  uncertainty propagation matches its closed form, and the parameterization is continuous at every
+  breakpoint and stays inside the physical range.
+- The shell structure. The level density parameter is suppressed threefold at the doubly magic
+  heavy fragment relative to a mid-shell fragment, which is what gives `R_a(A_H)` its structure.
+- The shape of the result. The parameterized `r_ν(A_H)` reproduces the published systematic
+  behaviour — one half at the symmetric split, a minimum near the heavy magic fragment, one half
+  again near the most probable fragmentation, and a near-linear rise above it.
+- Sensitivity to the charge polarization. Substituting a tabulated polarization for the average
+  values moves `R_T(A_H)` by at most 3.4 %, with a median of 0.27 %, worst at the shell minimum.
+- The suite passes on the declared Julia floor and on the current release, 223 assertions on each.
+
+Not verified:
+
+- **No published number has been reproduced.** The total average temperature ratio quoted in the
+  literature is taken over a fission fragment mass yield distribution `Y(A)`, which this package
+  does not take as input, so the one directly comparable quantity cannot yet be computed. The
+  agreement established so far is of shape, not of value.
+- **The back-shifted Fermi gas coefficients have not been checked against the published text.**
+  They are consistent across the two independent sources available here and the reference is the
+  one the literature pairs for this systematic, but the article itself is paywalled and was not
+  consulted. Every number this package produces depends on them.
+- The Gilbert-Cameron prescription has been exercised for magnitude and for its expected departure
+  from the back-shifted Fermi gas, but not against tabulated values.
+- The continuous integration workflow has never run.
+- The path for a fissioning nucleus of odd mass number is covered only by unit tests; no such case
+  exists in the data.
+
 ## Status
 
 | Component | State |
@@ -159,6 +202,7 @@ multiplicity distributions and yields the code produces against experiment.
 | Pipeline, tabulated output, figures, provenance | complete |
 | Per-data-set and systematic-trend parameterizations | complete |
 | Averaging over a fragment mass yield distribution | not implemented; needs Y(A) as input |
+| Reproduction of published total averages | blocked on the above |
 
 ## Licensing
 

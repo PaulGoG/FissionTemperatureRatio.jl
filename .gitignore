@@ -7,6 +7,12 @@
 /results/
 /plots/
 
+# Resolved environments. This package supports a range of Julia versions and a manifest is
+# resolved against one of them, so committing one breaks instantiation on the others. The versions
+# a run actually used are recorded in its metadata instead.
+Manifest.toml
+**/Manifest.toml
+
 # Julia artifacts
 *.jl.cov
 *.jl.*.cov
