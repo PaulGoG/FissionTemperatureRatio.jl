@@ -1,19 +1,25 @@
-# Shared test inputs. The mass excesses are the table the package ships, so that the level density
-# tests exercise the real systematic on real nuclides rather than a surrogate that would only
-# re-derive the formula under test.
+# Shared test inputs.
+#
+# The input data is held locally and is not shipped with the package, so a clone has none of it.
+# Tests that exercise the real systematics on real nuclides are skipped when it is absent, and the
+# rest of the suite — which uses synthetic inputs — runs regardless. `data/README.md` records what
+# the files are and where they come from.
 
 using Statistics: median
 
 const DATA_DIRECTORY = joinpath(pkgdir(FissionTemperatureRatio), "data")
+const MASS_EXCESS_FILE = joinpath(DATA_DIRECTORY, "mass_excess", "AME2020.ANA")
+const SHELL_CORRECTION_FILE = joinpath(DATA_DIRECTORY, "shell_corrections", "SZSN.GC")
 
-const TEST_MASSES = read_mass_excess(joinpath(DATA_DIRECTORY, "mass_excess", "AME2020.ANA"))
+const DATA_AVAILABLE = isfile(MASS_EXCESS_FILE) && isfile(SHELL_CORRECTION_FILE)
 
-const TEST_SHELLS = read_shell_corrections(
-    joinpath(DATA_DIRECTORY, "shell_corrections", "SZSN.GC")
-)
+DATA_AVAILABLE || @warn "input data not present; the tests that need it are skipped" directory =
+    DATA_DIRECTORY
 
-const BSFG_PRESCRIPTION = BackShiftedFermiGas(TEST_MASSES)
-const GC_PRESCRIPTION = GilbertCameron(TEST_SHELLS)
+const TEST_MASSES = DATA_AVAILABLE ? read_mass_excess(MASS_EXCESS_FILE) : nothing
+const TEST_SHELLS = DATA_AVAILABLE ? read_shell_corrections(SHELL_CORRECTION_FILE) : nothing
+const BSFG_PRESCRIPTION = DATA_AVAILABLE ? BackShiftedFermiGas(TEST_MASSES) : nothing
+const GC_PRESCRIPTION = DATA_AVAILABLE ? GilbertCameron(TEST_SHELLS) : nothing
 
 const FLAT_CHARGES = ChargeDistributionData(
     Dict{Int,Float64}(), Dict{Int,Float64}(), -0.5, 0.6, nothing

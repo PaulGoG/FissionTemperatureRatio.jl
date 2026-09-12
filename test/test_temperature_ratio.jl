@@ -31,7 +31,7 @@
         @test length(temperature_ratio(curve, Dict(126 => 1.0))) == 1
     end
 
-    @testset "averaging over the charge distribution" begin
+    DATA_AVAILABLE && @testset "averaging over the charge distribution" begin
         A₀, Z₀ = 252, 98
         domain = fragmentation_domain(A₀, Z₀, 126:132, 5, FLAT_CHARGES)
         prescription = BSFG_PRESCRIPTION

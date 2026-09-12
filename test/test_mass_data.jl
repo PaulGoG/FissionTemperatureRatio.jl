@@ -1,7 +1,9 @@
 
 @testset "mass excess table" begin
-    @test mass_excess(TEST_MASSES, 132, 50) isa Float64
-    @test ismissing(mass_excess(TEST_MASSES, 400, 50))
+    if DATA_AVAILABLE
+        @test mass_excess(TEST_MASSES, 132, 50) isa Float64
+        @test ismissing(mass_excess(TEST_MASSES, 400, 50))
+    end
 
     @testset "reader rejects malformed input" begin
         @test_throws ArgumentError read_mass_excess(joinpath(@__DIR__, "absent.ANA"))

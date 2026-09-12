@@ -1,5 +1,5 @@
 
-@testset "level density parameter" begin
+DATA_AVAILABLE && @testset "level density parameter" begin
     prescription = BSFG_PRESCRIPTION
 
     @testset "magnitude is physical for fission fragments" begin

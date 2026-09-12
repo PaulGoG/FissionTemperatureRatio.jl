@@ -17,12 +17,8 @@ FissionTemperatureRatio/
 │   ├── Pu239_nf.toml
 │   ├── U233_nf.toml
 │   └── U235_nf.toml
-├── data/                           input data
-│   ├── charge_distribution/        tabulated ΔZ(A) and rms(A)
-│   ├── mass_excess/                atomic mass evaluation
-│   ├── multiplicity/               experimental ν(A), one directory per fissioning nucleus
-│   ├── README.md                   provenance and terms of every input file
-│   └── shell_corrections/          S(N) and S(Z) of Gilbert and Cameron
+├── data/                           input data, held locally and not version-controlled
+│   └── README.md                   what each input file is, where it comes from, its terms
 ├── docs/                           Documenter site, own environment
 │   ├── activate.jl
 │   ├── make.jl
@@ -84,6 +80,26 @@ Build the documentation:
 ```
 julia --project=docs docs/make.jl
 ```
+
+## Input data
+
+The input data is not shipped with the package. It is third-party scientific data — an atomic mass
+evaluation, charge distribution systematics, shell corrections, and experimental prompt neutron
+multiplicity measurements — held locally for development and testing under the terms of its own
+sources. `data/README.md` records what each file is and where it comes from.
+
+Place it under `data/` in the layout that file describes:
+
+```
+data/
+├── charge_distribution/   A ΔZ rms
+├── mass_excess/           Z A symbol D σD
+├── multiplicity/<case>/   A ν σν
+└── shell_corrections/     n S(N) S(Z)
+```
+
+Without it the pipeline cannot run, and the tests that exercise the systematics on real nuclides
+are skipped with a warning; the rest of the suite uses synthetic inputs and runs regardless.
 
 ## Configuration
 

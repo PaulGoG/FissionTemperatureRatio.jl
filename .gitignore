@@ -1,3 +1,8 @@
+# Input data is held locally for development and testing, not shipped with the package.
+# Its provenance and the terms it came under are documented in data/README.md, which is tracked.
+/data/*
+!/data/README.md
+
 # Generated results and figures
 /results/
 /plots/
