@@ -52,8 +52,11 @@ using MathTeXEngine: texfont
 using Statistics: median
 using TOML: TOML
 
+# `@__DIR__` is resolved when this file is parsed, so the path is always available. `pkgdir` is
+# not: it looks the module up in the loaded-package table, which is not yet populated while the
+# module is still being defined, and returns `nothing` there.
 const PACKAGE_VERSION = VersionNumber(
-    TOML.parsefile(joinpath(pkgdir(FissionTemperatureRatio), "Project.toml"))["version"]
+    TOML.parsefile(joinpath(dirname(@__DIR__), "Project.toml"))["version"]
 )
 
 include("mass_data.jl")
