@@ -21,6 +21,7 @@ FissionTemperatureRatio/
 │   ├── charge_distribution/        tabulated ΔZ(A) and rms(A)
 │   ├── mass_excess/                atomic mass evaluation
 │   ├── multiplicity/               experimental ν(A), one directory per fissioning nucleus
+│   ├── README.md                   provenance and terms of every input file
 │   └── shell_corrections/          S(N) and S(Z) of Gilbert and Cameron
 ├── docs/                           Documenter site, own environment
 │   ├── activate.jl
@@ -142,3 +143,14 @@ multiplicity distributions and yields the code produces against experiment.
 | Pipeline, tabulated output, figures, provenance | complete |
 | Per-data-set and systematic-trend parameterizations | complete |
 | Averaging over a fragment mass yield distribution | not implemented; needs Y(A) as input |
+
+## Licensing
+
+The source code is under the MIT licence in `LICENSE`.
+
+That licence does not extend to the contents of `data/`, none of which originates with this
+package. The atomic mass evaluation, the charge distribution systematics, the shell corrections
+and every prompt neutron multiplicity measurement are third-party scientific data, redistributed
+here for reproducibility under the terms of their own sources. `data/README.md` records what each
+file is, where it came from, and how it should be cited; any result derived from a measurement
+should cite that measurement.
