@@ -1,0 +1,31 @@
+# Thermal-neutron-induced fission of 239-Pu.
+
+[system]
+label = "Pu239_nf"                                   # case identifier, used in output paths
+A0 = 240                                            # mass number of the fissioning nucleus, 2 to 400
+Z0 = 94                                             # charge number of the fissioning nucleus, 1 to 120
+
+[fragmentation]
+charges_per_mass = 5                                # charge numbers per mass number, odd, 1 to 15
+A_H_max = 160                                       # largest heavy-fragment mass number, below A0
+charge_distribution_file = "charge_distribution/DeltaZ_rms_A.PU39"  # tabulated ΔZ(A), rms(A), relative to data/
+fallback_charge_polarization = -0.5                 # ΔZ where untabulated, -5 to 5
+fallback_rms = 0.6                                  # Gaussian dispersion where untabulated, > 0 to 5
+
+[level_density]
+prescription = "BSFG"                               # one of: "BSFG"
+mass_excess_file = "mass_excess/AME2020.ANA"        # relative to data/
+ratio_averaging = "ratio_of_means"                  # one of: "ratio_of_means" | "mean_of_ratios"
+
+[multiplicity]
+directory = "multiplicity/Pu239_nf"                  # relative to data/
+
+[segments]
+max_segments = 6                                    # largest segment count examined, 1 to 12
+min_points_per_segment = 4                          # data points a segment must contain, 2 to 50
+pin_symmetric_split = true                          # fix r_nu = 1/2 at A0/2; requires even A0
+required_windows = []                               # mass windows that must contain a breakpoint
+
+[output]
+digits = 6                                          # decimals in tabulated output, 1 to 15
+subdirectory = "Pu239_nf"                            # under results/ and plots/

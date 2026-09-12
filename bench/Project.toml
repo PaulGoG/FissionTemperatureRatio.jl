@@ -1,0 +1,7 @@
+[deps]
+BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
+FissionTemperatureRatio = "59d20cd3-813a-4745-b3df-4e6739f766a3"
+StableRNGs = "860ef19b-820b-49d6-a774-d7a799459cd3"
+
+[sources]
+FissionTemperatureRatio = {path = ".."}

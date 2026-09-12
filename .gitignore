@@ -1,5 +1,6 @@
-# Generated results
-outputData/
+# Generated results and figures
+/results/
+/plots/
 
 # Julia artifacts
 *.jl.cov
