@@ -20,7 +20,8 @@ FissionTemperatureRatio/
 ├── data/                           input data
 │   ├── charge_distribution/        tabulated ΔZ(A) and rms(A)
 │   ├── mass_excess/                atomic mass evaluation
-│   └── multiplicity/               experimental ν(A), one directory per fissioning nucleus
+│   ├── multiplicity/               experimental ν(A), one directory per fissioning nucleus
+│   └── shell_corrections/          S(N) and S(Z) of Gilbert and Cameron
 ├── docs/                           Documenter site, own environment
 │   ├── activate.jl
 │   ├── make.jl
@@ -93,6 +94,11 @@ naming the offending key, so a run cannot start from a configuration it cannot h
 To add a fissioning nucleus, place its ν(A) data sets in a directory under `data/multiplicity/`
 as whitespace-separated `A ν σν` tables with one header line, and copy a configuration.
 
+Two level density prescriptions are available. The back-shifted Fermi gas is the default; setting
+`prescription = "GC"` selects Gilbert-Cameron, which for fission fragments returns markedly larger
+parameters away from closed shells. Running both bounds a systematic uncertainty that the
+propagated experimental uncertainties do not cover.
+
 ## Method
 
 For each fragment pair the prompt neutron multiplicity ratio is identified with the excitation
@@ -122,9 +128,9 @@ imposition. Features that are strongly supported but not exact are left to the d
 |---|---|
 | Mass excess and charge distribution input | complete |
 | Level density parameter, back-shifted Fermi gas | complete |
+| Level density parameter, Gilbert-Cameron | complete |
 | Fragmentation range and isobaric charge distribution | complete |
 | Multiplicity ratio and temperature ratio | complete |
 | Segmented parameterization with model selection | complete |
 | Pipeline, tabulated output, figures, provenance | complete |
-| Level density parameter, Gilbert-Cameron | not implemented; needs a shell correction table |
 | Averaging over a fragment mass yield distribution | not implemented; needs Y(A) as input |

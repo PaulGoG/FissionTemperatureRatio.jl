@@ -98,7 +98,7 @@ file.
 """
 function run_pipeline(configuration::Configuration; write_output::Bool = true)
     @info "reading input" configuration = configuration.source
-    masses = read_mass_excess(configuration.level_density.mass_excess_file)
+    prescription = build_prescription(configuration.level_density)
     charge_data = read_charge_distribution(
         configuration.fragmentation.charge_distribution_file,
         configuration.fragmentation.fallback_charge_polarization,
@@ -121,12 +121,7 @@ function run_pipeline(configuration::Configuration; write_output::Bool = true)
     end
 
     R_a = level_density_ratio(
-        configuration.level_density.ratio_averaging,
-        configuration.level_density.prescription,
-        A₀,
-        Z₀,
-        domain,
-        masses,
+        configuration.level_density.ratio_averaging, prescription, A₀, Z₀, domain
     )
     isempty(R_a) &&
         throw(ArgumentError("the level density parameter ratio is undefined over the whole \

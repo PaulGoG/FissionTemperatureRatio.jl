@@ -73,3 +73,66 @@ function read_mass_excess(path::AbstractString)
 
     return MassExcessTable(D, D[(1, 1)], D[(1, 0)], String(path))
 end
+
+"""
+    ShellCorrectionTable
+
+Shell corrections `S(N)` and `S(Z)` tabulated against nucleon number, as used by the
+Gilbert-Cameron level density systematic.
+
+The values are those of Gilbert and Cameron, Can. J. Phys. **43**, 1446 (1965), as distributed in
+the IAEA Reference Input Parameter Library, segment on level densities.
+
+# Fields
+
+- `S_N`, `S_Z`: shell correction in MeV, keyed by neutron and proton number respectively.
+- `source::String`: path of the file the table was read from, recorded for provenance.
+"""
+struct ShellCorrectionTable
+    S_N::Dict{Int,Float64}
+    S_Z::Dict{Int,Float64}
+    source::String
+end
+
+"""
+    read_shell_corrections(path) -> ShellCorrectionTable
+
+Read a whitespace-separated shell correction table with the column layout
+
+```
+n  S(N)  S(Z)
+```
+
+and a single header line, where `n` is read once as a neutron number and once as a proton number.
+
+Throws an `ArgumentError` naming the file when it is absent or cannot be read with this layout.
+"""
+function read_shell_corrections(path::AbstractString)
+    isfile(path) || throw(ArgumentError("shell correction file not found: $(path)"))
+
+    table = try
+        CSV.read(
+            path,
+            DataFrame;
+            delim = ' ',
+            ignorerepeated = true,
+            header = ["n", "S_N", "S_Z"],
+            skipto = 2,
+            types = Dict(:n => Int, :S_N => Float64, :S_Z => Float64),
+        )
+    catch err
+        throw(ArgumentError("shell correction file $(path) does not have the layout \
+                             `n S(N) S(Z)`: $(err)"))
+    end
+
+    S_N = Dict{Int,Float64}()
+    S_Z = Dict{Int,Float64}()
+    for row in eachrow(table)
+        S_N[row.n] = row.S_N
+        S_Z[row.n] = row.S_Z
+    end
+    isempty(S_N) &&
+        throw(ArgumentError("shell correction file $(path) contains no usable rows"))
+
+    return ShellCorrectionTable(S_N, S_Z, String(path))
+end

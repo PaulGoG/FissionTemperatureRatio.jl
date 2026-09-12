@@ -14,7 +14,7 @@ function run_identifier(configuration::Configuration)
         "system" => configuration.system.label,
         "Z" => configuration.fragmentation.charges_per_mass,
         "AHmax" => configuration.fragmentation.A_H_max,
-        "ldp" => _prescription_name(configuration.level_density.prescription),
+        "ldp" => String(configuration.level_density.prescription),
         "avg" => _averaging_name(configuration.level_density.ratio_averaging),
         "seg" => configuration.segments.max_segments,
         "minpts" => configuration.segments.min_points_per_segment,
@@ -23,7 +23,6 @@ function run_identifier(configuration::Configuration)
     return savename(parameters; connector = "_", sort = true)
 end
 
-_prescription_name(::BackShiftedFermiGas) = "BSFG"
 _averaging_name(::RatioOfMeans) = "ratio_of_means"
 _averaging_name(::MeanOfRatios) = "mean_of_ratios"
 
@@ -72,6 +71,8 @@ function run_metadata(configuration::Configuration)
             "charge_distribution_file" => something(
                 configuration.fragmentation.charge_distribution_file, "fallback only"
             ),
+            "shell_correction_file" =>
+                something(configuration.level_density.shell_correction_file, "not used"),
             "multiplicity_directory" => configuration.multiplicity_directory,
         ),
     )

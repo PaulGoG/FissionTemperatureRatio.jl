@@ -14,8 +14,9 @@ fallback_charge_polarization = -0.5                 # ΔZ where untabulated, -5 
 fallback_rms = 0.6                                  # Gaussian dispersion where untabulated, > 0 to 5
 
 [level_density]
-prescription = "BSFG"                               # one of: "BSFG"
-mass_excess_file = "mass_excess/AME2020.ANA"        # relative to data/
+prescription = "BSFG"                               # one of: "BSFG" | "GC"
+mass_excess_file = "mass_excess/AME2020.ANA"        # relative to data/; used by "BSFG"
+shell_correction_file = "shell_corrections/SZSN.GC"  # relative to data/; required by "GC"
 ratio_averaging = "ratio_of_means"                  # one of: "ratio_of_means" | "mean_of_ratios"
 
 [multiplicity]

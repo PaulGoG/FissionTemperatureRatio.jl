@@ -31,14 +31,39 @@ end
 """
     LevelDensitySettings
 
-The level density parameter prescription, the mass excess table it is evaluated from, and the
-order in which the parameter ratio of complementary fragments is averaged over the isobaric
-charge distribution.
+Which level density prescription to use, the tabulated data it is evaluated from, and the order in
+which the parameter ratio of complementary fragments is averaged over the isobaric charge
+distribution.
+
+The prescription is named rather than constructed here, because constructing it means reading its
+data; [`build_prescription`](@ref) does that when a run starts.
 """
 struct LevelDensitySettings
-    prescription::LevelDensityPrescription
+    prescription::Symbol
     mass_excess_file::String
+    shell_correction_file::Union{String,Nothing}
     ratio_averaging::RatioAveraging
+end
+
+"""
+    build_prescription(settings) -> LevelDensityPrescription
+
+Read the tabulated data named by `settings` and construct the level density prescription from it.
+
+Throws an `ArgumentError` if the prescription is unknown, or if the data it needs was not named.
+[`load_configuration`](@ref) already rejects both, so this guards settings assembled by hand.
+"""
+function build_prescription(settings::LevelDensitySettings)
+    if settings.prescription === :BSFG
+        return BackShiftedFermiGas(read_mass_excess(settings.mass_excess_file))
+    elseif settings.prescription === :GC
+        path = settings.shell_correction_file
+        path === nothing && throw(
+            ArgumentError("the Gilbert-Cameron prescription needs a shell correction file")
+        )
+        return GilbertCameron(read_shell_corrections(path))
+    end
+    return throw(ArgumentError("unknown level density prescription: $(settings.prescription)"))
 end
 
 """
@@ -108,7 +133,7 @@ pinning the parameterization relies on.
 """
 has_symmetric_split(configuration::Configuration) = iseven(configuration.system.A₀)
 
-const PRESCRIPTIONS = Dict{String,LevelDensityPrescription}("BSFG" => BackShiftedFermiGas())
+const PRESCRIPTIONS = Dict{String,Symbol}("BSFG" => :BSFG, "GC" => :GC)
 const AVERAGINGS = Dict{String,RatioAveraging}(
     "ratio_of_means" => RatioOfMeans(), "mean_of_ratios" => MeanOfRatios()
 )
@@ -306,6 +331,30 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
     isfile(mass_excess_file) || throw(
         ArgumentError("level_density.mass_excess_file does not exist: $(mass_excess_file)")
     )
+    shell_correction_file = let
+        relative = _value(
+            level_density_section,
+            "shell_correction_file",
+            String,
+            "level_density.shell_correction_file",
+            "",
+        )
+        if isempty(relative)
+            prescription === :GC && throw(
+                ArgumentError("level_density.shell_correction_file is required when \
+                     level_density.prescription is \"GC\"")
+            )
+            nothing
+        else
+            resolved = joinpath(data_directory, relative)
+            isfile(resolved) || throw(
+                ArgumentError(
+                    "level_density.shell_correction_file does not exist: $(resolved)"
+                ),
+            )
+            resolved
+        end
+    end
     averaging = _one_of(
         _value(
             level_density_section,
@@ -386,7 +435,7 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
         FragmentationSettings(
             charges_per_mass, A_H_max, charge_file, fallback_ΔZ, fallback_rms
         ),
-        LevelDensitySettings(prescription, mass_excess_file, averaging),
+        LevelDensitySettings(prescription, mass_excess_file, shell_correction_file, averaging),
         multiplicity_directory,
         SegmentSettings(max_segments, min_points, pin, windows),
         OutputSettings(digits, subdirectory),

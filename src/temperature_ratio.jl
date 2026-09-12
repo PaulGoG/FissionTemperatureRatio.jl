@@ -50,7 +50,7 @@ known in advance. Offered for comparison; not the default.
 struct MeanOfRatios <: RatioAveraging end
 
 """
-    level_density_ratio(averaging, prescription, A₀, Z₀, domain, masses) -> Dict{Int,Float64}
+    level_density_ratio(averaging, prescription, A₀, Z₀, domain) -> Dict{Int,Float64}
 
 The level density parameter ratio of complementary fragments,
 
@@ -70,12 +70,11 @@ function level_density_ratio(
     A₀::Integer,
     Z₀::Integer,
     domain::FragmentationDomain,
-    masses::MassExcessTable,
 )
     ratio = Dict{Int,Float64}()
     for A_H in domain.A_H_range
         A_L = A₀ - A_H
-        value = _charge_averaged_ratio(averaging, prescription, A_H, A_L, Z₀, domain, masses)
+        value = _charge_averaged_ratio(averaging, prescription, A_H, A_L, Z₀, domain)
         ismissing(value) || value ≤ 0 || (ratio[A_H] = value)
     end
     return ratio
@@ -88,12 +87,11 @@ function _charge_averaged_ratio(
     A_L::Integer,
     Z₀::Integer,
     domain::FragmentationDomain,
-    masses::MassExcessTable,
 )
     ratios = Dict{Int,Union{Float64,Missing}}()
     for Z_H in charges(domain, A_H)
-        a_H = level_density_parameter(prescription, A_H, Z_H, masses)
-        a_L = level_density_parameter(prescription, A_L, Z₀ - Z_H, masses)
+        a_H = level_density_parameter(prescription, A_H, Z_H)
+        a_L = level_density_parameter(prescription, A_L, Z₀ - Z_H)
         ratios[Z_H] = (ismissing(a_H) || ismissing(a_L)) ? missing : a_L / a_H
     end
     return average_over_charge(ratios, domain, A_H)
@@ -106,13 +104,12 @@ function _charge_averaged_ratio(
     A_L::Integer,
     Z₀::Integer,
     domain::FragmentationDomain,
-    masses::MassExcessTable,
 )
     heavy = Dict{Int,Union{Float64,Missing}}()
     light = Dict{Int,Union{Float64,Missing}}()
     for Z_H in charges(domain, A_H)
-        a_H = level_density_parameter(prescription, A_H, Z_H, masses)
-        a_L = level_density_parameter(prescription, A_L, Z₀ - Z_H, masses)
+        a_H = level_density_parameter(prescription, A_H, Z_H)
+        a_L = level_density_parameter(prescription, A_L, Z₀ - Z_H)
         # Both parameters of a pair must exist, so that the two averages run over the same charges.
         if ismissing(a_H) || ismissing(a_L)
             heavy[Z_H] = missing
@@ -151,8 +148,9 @@ Uncertainties are propagated from those of `r_ν` alone,
 ```
 
 since the level density parameter systematic supplies no uncertainty. The uncertainty of `R_T` is
-therefore a lower bound: the spread between level density prescriptions is the larger effect and
-is assessed by repeating the extraction with another prescription.
+therefore a lower bound: the spread between level density prescriptions is the larger effect, and
+is assessed by repeating the extraction with [`GilbertCameron`](@ref) in place of
+[`BackShiftedFermiGas`](@ref).
 
 Mass numbers absent from `R_a` are omitted.
 """

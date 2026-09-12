@@ -68,16 +68,17 @@ include("plotting.jl")
 include("pipeline.jl")
 
 # Configuration
-export Configuration, load_configuration
+export Configuration, load_configuration, build_prescription
 export A_H_min, A_H_range, has_symmetric_split
 
 # Input data
 export MassExcessTable, read_mass_excess, mass_excess
+export ShellCorrectionTable, read_shell_corrections
 export ChargeDistributionData, read_charge_distribution
 export MultiplicityData, read_multiplicity, read_multiplicity_directory, multiplicity
 
 # Physics
-export LevelDensityPrescription, BackShiftedFermiGas
+export LevelDensityPrescription, BackShiftedFermiGas, GilbertCameron
 export level_density_parameter, shell_correction
 export FragmentationDomain, fragmentation_domain, charges, charge_probability
 export most_probable_charge, average_over_charge, symmetric_charge_set_is_invariant

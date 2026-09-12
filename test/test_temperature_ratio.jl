@@ -34,13 +34,9 @@
     @testset "averaging over the charge distribution" begin
         A₀, Z₀ = 252, 98
         domain = fragmentation_domain(A₀, Z₀, 126:132, 5, FLAT_CHARGES)
-        prescription = BackShiftedFermiGas()
-        by_means = level_density_ratio(
-            RatioOfMeans(), prescription, A₀, Z₀, domain, TEST_MASSES
-        )
-        by_ratios = level_density_ratio(
-            MeanOfRatios(), prescription, A₀, Z₀, domain, TEST_MASSES
-        )
+        prescription = BSFG_PRESCRIPTION
+        by_means = level_density_ratio(RatioOfMeans(), prescription, A₀, Z₀, domain)
+        by_ratios = level_density_ratio(MeanOfRatios(), prescription, A₀, Z₀, domain)
 
         # At the symmetric split the two fragments are the same nuclide, so the exact ratio is one.
         # Averaging the parameters and then dividing reproduces that identity exactly, because the

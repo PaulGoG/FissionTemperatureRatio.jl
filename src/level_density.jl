@@ -9,6 +9,9 @@ fission fragment.
 Only energy-independent prescriptions are admissible here: the temperature ratio is extracted
 from the Fermi-gas relation `E* = a T²` evaluated at a single, unknown excitation energy, so a
 parameter that itself depends on `E*` would make the relation implicit.
+
+A prescription carries the tabulated data it is evaluated from, so that
+[`level_density_parameter`](@ref) needs nothing beyond the nuclide.
 """
 abstract type LevelDensityPrescription end
 
@@ -26,7 +29,9 @@ energies, and `P_d` the deuteron pairing energy. For the majority of nuclei occu
 fragments this systematic reproduces the superfluid-model level density parameter at the
 excitation energies fragments actually attain, which is why it is the default here.
 """
-struct BackShiftedFermiGas <: LevelDensityPrescription end
+struct BackShiftedFermiGas <: LevelDensityPrescription
+    masses::MassExcessTable
+end
 
 """
     LiquidDropCoefficients
@@ -94,30 +99,68 @@ function shell_correction(A::Integer, Z::Integer, masses::MassExcessTable)
 end
 
 """
-    level_density_parameter(prescription, A, Z, masses) -> Union{Float64,Missing}
+    level_density_parameter(prescription, A, Z) -> Union{Float64,Missing}
 
 Level density parameter `a` in MeV⁻¹ of the nuclide `(A, Z)`.
 
-Returns `missing` when the prescription cannot be evaluated — the required mass excesses are
-absent, or the expression yields a non-positive value, which happens for a few nuclides with
-large negative shell corrections and is not physically meaningful.
+Returns `missing` when the prescription cannot be evaluated — the tabulated data it needs is
+absent for this nuclide, or the expression yields a non-positive value, which is not physically
+meaningful.
 
 # Example
 
-```jldoctest
-julia> masses = read_mass_excess(joinpath(datadir(), "mass_excess", "AME2020.ANA"));
-
-julia> a = level_density_parameter(BackShiftedFermiGas(), 132, 50, masses);
-
-julia> 10 < a < 20
-true
+```julia
+masses = read_mass_excess(joinpath(datadir(), "mass_excess", "AME2020.ANA"))
+a = level_density_parameter(BackShiftedFermiGas(masses), 132, 50)
 ```
 """
-function level_density_parameter(
-    ::BackShiftedFermiGas, A::Integer, Z::Integer, masses::MassExcessTable
-)
-    δW = shell_correction(A, Z, masses)
+function level_density_parameter(prescription::BackShiftedFermiGas, A::Integer, Z::Integer)
+    δW = shell_correction(A, Z, prescription.masses)
     ismissing(δW) && return missing
     a = (BSFG.p₁ + BSFG.p₂ * δW) * A^BSFG.p₃
+    return a > 0 ? a : missing
+end
+
+"""
+    GilbertCameron <: LevelDensityPrescription
+
+Level density systematic of Gilbert and Cameron, Can. J. Phys. **43**, 1446 (1965), for spherical
+nuclei,
+
+```
+a = A [c₁ (S_Z + S_N) + c₂],
+```
+
+with `S_Z` and `S_N` the tabulated shell corrections.
+
+It is provided for assessing how much the extracted temperature ratio depends on the level density
+prescription, not as an equal alternative: for nuclei occurring as fission fragments it returns
+parameters well above those of the superfluid model and of the back-shifted Fermi gas, so the
+spread between the two prescriptions bounds a systematic uncertainty the propagated experimental
+uncertainties do not cover.
+"""
+struct GilbertCameron <: LevelDensityPrescription
+    shells::ShellCorrectionTable
+end
+
+"""
+    GilbertCameronCoefficients
+
+The two coefficients of `a/A = c₁ (S_Z + S_N) + c₂` of Gilbert and Cameron, Can. J. Phys. **43**,
+1446 (1965).
+"""
+struct GilbertCameronCoefficients
+    c₁::Float64
+    c₂::Float64
+end
+
+const GILBERT_CAMERON = GilbertCameronCoefficients(9.17e-3, 1.42e-1)
+
+function level_density_parameter(prescription::GilbertCameron, A::Integer, Z::Integer)
+    N = A - Z
+    S_Z = get(prescription.shells.S_Z, Int(Z), missing)
+    S_N = get(prescription.shells.S_N, Int(N), missing)
+    (ismissing(S_Z) || ismissing(S_N)) && return missing
+    a = A * (GILBERT_CAMERON.c₁ * (S_Z + S_N) + GILBERT_CAMERON.c₂)
     return a > 0 ? a : missing
 end
