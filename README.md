@@ -118,9 +118,10 @@ julia --project=bench -e 'include("bench/activate.jl")'
 The formatting environment under `formatter/` is instantiated by `check.jl` and by CI; it is not
 one you normally activate by hand.
 
-Below Julia 1.11 the `[sources]` entry that points each auxiliary environment at the package is
-ignored by Pkg, so the activation scripts develop it by path instead. Either way these
-environments always run against the local source, never a registered snapshot.
+Each auxiliary environment develops the package by path rather than declaring it in `[sources]`:
+that key is honoured only from Pkg 1.11, and on the declared floor `Pkg.test` refuses to merge a
+test project carrying it. Either way these environments run against the local source, never a
+registered snapshot.
 
 ## Entry points
 
