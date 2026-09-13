@@ -26,6 +26,12 @@ sourced from the IAEA EXFOR archive with
 retrieves fission observables and writes them as tabulated files with a record of every dataset it
 kept or excluded. This package reads those files; it does not query the archive itself.
 
+![Temperature ratio](docs/src/assets/temperature_ratio.png)
+
+The temperature ratio of 252-Cf(sf): every measurement held, in grey, and the systematic trend
+through them with its uncertainty. Above the symmetric split the light fragment is the hotter of
+the pair, and the ratio crosses unity near the most probable fragmentation.
+
 ![Segment selection](docs/src/assets/segment_selection.gif)
 
 The multiplicity ratio of one measurement fitted with an increasing number of joined segments. The
@@ -267,6 +273,13 @@ Two level density prescriptions are available. The back-shifted Fermi gas is the
 parameters away from closed shells. Running both bounds a systematic uncertainty that the
 propagated experimental uncertainties do not cover.
 
+![Level density prescriptions](docs/src/assets/level_density_prescriptions.png)
+
+The two agree exactly at the symmetric split, where the identity of the fragments forces the ratio
+to one whatever the prescription, and part by about 0.1 across the shell region. Gilbert-Cameron
+was superseded by the back-shifted Fermi gas, so the spread between them is an upper bound on the
+systematic rather than a symmetric error bar.
+
 ## Method
 
 For each fragment pair the prompt neutron multiplicity ratio is identified with the excitation
@@ -294,6 +307,12 @@ These are alternatives for a prompt emission code to choose between, not an ense
 averaged: the data sets of one fissioning nucleus can disagree well beyond their quoted
 uncertainties, and which curve describes reality is settled downstream, by comparing the
 multiplicity distributions and yields the code produces against experiment.
+
+![Method](docs/src/assets/method_chain.png)
+
+From the measured sawtooth to the temperature ratio, one measurement on a shared abscissa: the
+multiplicity of each fragment of the pair, the ratio formed from them, and the temperature ratio
+that follows by the exact relation. No fit and no prompt emission calculation enters any step.
 
 `docs/src/method.md` sets this out in full, with references.
 
@@ -326,6 +345,8 @@ Verified:
   | 233-U(n,f) | Surin | 3 of 3 | 0.60 % |
   | 252-Cf(sf) | Göök | 4 of 5 | 0.55 % |
   | 235-U(n,f) | Al-Adili, Straede | 2 of 3 | 1.05 % |
+
+  ![Published comparison](docs/src/assets/published_comparison.png)
 
   Table 2 reproduces too: the Gilbert-Cameron variant to 0.21 %, and the one-charge-per-mass
   variant to 0.80 %. The remaining sets could not be compared because the archive query did not
