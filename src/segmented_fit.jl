@@ -86,6 +86,22 @@ The weights are not rescaled, so that the weighted residual sum of squares is a 
 the extent that the quoted uncertainties are trustworthy. A constant factor on the weights shifts
 the selection criterion by the same amount for every model order, so it does not affect which
 order is chosen.
+
+# Examples
+
+The third point quotes no uncertainty and takes the median of the other two weights:
+
+```jldoctest
+julia> w, imputed = fit_weights([0.1, 0.2, 0.0]);
+
+julia> (round.(w; digits = 1), imputed)
+([100.0, 25.0, 62.5], 1)
+```
+
+```jldoctest
+julia> fit_weights([0.0, 0.0])
+([1.0, 1.0], 2)
+```
 """
 function fit_weights(σ::AbstractVector{<:Real})
     positive = σ .> 0
@@ -218,6 +234,38 @@ breakpoint; the criterion for every order examined is retained in the result.
 
 Throws an `ArgumentError` when the inputs have different lengths, when fewer points are available
 than the smallest model requires, or when no candidate model satisfies the constraints.
+
+# Examples
+
+A ratio falling to a minimum at `A_H = 130` and rising again, recovered as two segments with the
+breakpoint placed at the kink:
+
+```jldoctest fit
+julia> A_H = collect(120:139);
+
+julia> r = [a ≤ 130 ? 0.50 - 0.020 * (a - 120) : 0.30 + 0.008 * (a - 130) for a in A_H];
+
+julia> r .+= 0.002 .* iseven.(A_H);  # a deterministic perturbation, so the fit is not exact
+
+julia> fit = fit_segments(A_H, r, fill(0.004, length(A_H)); max_segments = 3);
+
+julia> segments(fit)
+2
+
+julia> fit.breakpoints
+1-element Vector{Int64}:
+ 130
+```
+
+[`pivots`](@ref) returns the joined points, which is the form the parameterization is supplied in:
+
+```jldoctest fit
+julia> [(x, round(value; digits = 3)) for (x, value) in pivots(fit)]
+3-element Vector{Tuple{Int64, Float64}}:
+ (120, 0.501)
+ (130, 0.301)
+ (139, 0.373)
+```
 """
 function fit_segments(
     x::AbstractVector{<:Integer},

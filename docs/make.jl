@@ -13,6 +13,7 @@ makedocs(;
     format = Documenter.HTML(; prettyurls = get(ENV, "CI", "false") == "true"),
     pages = ["Home" => "index.md", "Method" => "method.md", "Reference" => "reference.md"],
     checkdocs = :exports,
-    # The repository is local, so there is no remote to link source lines against.
-    remotes = nothing,
+    # Stated rather than inferred from the git remote, so that the build also works from a source
+    # tree without one. Deployment is added when the repository is public.
+    repo = Documenter.Remotes.GitHub("PaulGoG", "FissionTemperatureRatio.jl"),
 )

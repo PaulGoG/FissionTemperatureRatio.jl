@@ -27,6 +27,18 @@ Base.length(data::MultiplicityData) = length(data.A)
     multiplicity(data, A) -> Union{Tuple{Float64,Float64},Missing}
 
 Multiplicity and its uncertainty at mass number `A`, or `missing` if the set has no entry there.
+
+# Examples
+
+```jldoctest
+julia> data = MultiplicityData([120, 132], [3.10, 0.69], [0.05, 0.03], "example", "");
+
+julia> multiplicity(data, 132)
+(0.69, 0.03)
+
+julia> multiplicity(data, 131)
+missing
+```
 """
 function multiplicity(data::MultiplicityData, A::Integer)
     index = findfirst(==(A), data.A)

@@ -153,6 +153,29 @@ is assessed by repeating the extraction with [`GilbertCameron`](@ref) in place o
 [`BackShiftedFermiGas`](@ref).
 
 Mass numbers absent from `R_a` are omitted.
+
+# Examples
+
+```jldoctest
+julia> r_ν = RatioCurve([132, 140], [0.40, 0.46], [0.01, 0.01], "example");
+
+julia> R_T = temperature_ratio(r_ν, Dict(132 => 1.05, 140 => 1.02));
+
+julia> round.(R_T.value; digits = 4)
+2-element Vector{Float64}:
+ 1.1952
+ 1.0728
+```
+
+A mass number without a level density parameter ratio is dropped rather than extrapolated:
+
+```jldoctest
+julia> r_ν = RatioCurve([132, 140], [0.40, 0.46], [0.01, 0.01], "example");
+
+julia> temperature_ratio(r_ν, Dict(132 => 1.05)).A_H
+1-element Vector{Int64}:
+ 132
+```
 """
 function temperature_ratio(r_ν::RatioCurve, R_a::AbstractDict{Int,Float64})
     A_H = Int[]
@@ -185,6 +208,23 @@ Points without an uncertainty carry no information about the weighting, so the m
 the unweighted one when no point in the curve has a positive uncertainty. The uncertainty of the
 mean is `(Σ w)^(-1/2)` for the weighted case and the standard error of the mean otherwise; it is
 not the quadrature sum of the input uncertainties, which would grow with the number of points.
+
+# Examples
+
+```jldoctest
+julia> curve = RatioCurve([130, 132], [1.20, 1.10], [0.02, 0.01], "example");
+
+julia> round.(weighted_mean(curve); digits = 4)
+(1.12, 0.0089)
+```
+
+With no uncertainties quoted the weighting is uniform and the spread of the points is reported
+instead:
+
+```jldoctest
+julia> round.(weighted_mean(RatioCurve([130, 132], [1.20, 1.10], [0.0, 0.0], "example")); digits = 4)
+(1.15, 0.05)
+```
 """
 function weighted_mean(curve::RatioCurve)
     isempty(curve) && throw(ArgumentError("cannot average an empty ratio curve"))

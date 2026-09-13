@@ -32,7 +32,17 @@ difference of masses; since `M = Z M_p + N M_n - E_b`, it is equivalently the di
 liquid-drop and experimental binding energies, which is how it is computed here. The pairing term
 is `0.5 P'a` with `P'a` of Phys. Rev. C **80**, 054310 (2009), Eq. (12); the 2009 paper absorbs
 the sign alternation of the earlier definition into `P'a`, so no structure-dependent case
-distinction is needed. For the majority of nuclei occurring as fission
+distinction is needed.
+
+Only `a` is taken from this systematics. The papers fit it jointly with the back-shift
+`E1 = -0.381 + 0.5 P'a` of Phys. Rev. C **80**, 054310 (2009), Eq. (20), for the level density
+`ρ(U) ∝ exp(2√(a(U - E1)))`, whose closure is `U - E1 = a T²`. The extraction implemented here
+rests instead on the un-shifted `E* = a T²`, which is the premise the method is published under.
+The shift does not cancel in the ratio, since `E1` depends on the fragment through `P'a` and
+`E1_L ≠ E1_H`. It is of order ±1 MeV against fragment excitations of 10-20 MeV, and its effect on
+`R_T` has not been quantified.
+
+For the majority of nuclei occurring as fission
 fragments this systematic reproduces the superfluid-model level density parameter at the
 excitation energies fragments actually attain, which is why it is the default here.
 """
