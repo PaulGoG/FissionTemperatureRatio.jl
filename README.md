@@ -78,6 +78,7 @@ FissionTemperatureRatio/
 │   └── run.jl                      pipeline entry point
 ├── src/
 │   ├── configuration.jl            TOML configuration, parsed and validated
+│   ├── consensus.jl                combining data sets, and the diagnostics describing them
 │   ├── FissionTemperatureRatio.jl  module definition and public interface
 │   ├── fragmentation.jl            fragmentation range and isobaric charge distribution
 │   ├── level_density.jl            level density parameter systematics
