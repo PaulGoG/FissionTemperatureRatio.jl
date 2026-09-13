@@ -16,6 +16,11 @@ CairoMakie = "0.15"
 ExplicitImports = "1"
 JET = "0.9, 0.10, 0.11, 0.12"
 StableRNGs = "1"
+# Standard libraries: bounded at "1" so that nothing proposes pinning them to the version of a
+# single Julia release, which would make the declared floor unsatisfiable.
+Statistics = "1"
+TOML = "1"
+Test = "1"
 
 [sources]
 FissionTemperatureRatio = {path = ".."}
