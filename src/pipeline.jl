@@ -40,9 +40,12 @@ written to disk.
   curve. Alternatives offered to a prompt emission code, not an ensemble.
 - `range_mean_R_T`: for each parameterization, the inverse-variance weighted mean of its
   temperature ratio over the fragment mass range, with its uncertainty. This is *not* the total
-  average quoted in the literature, which is taken over a fission fragment mass yield
-  distribution `Y(A)`; computing that requires `Y(A)` as an additional input, which this package
-  does not take.
+  average quoted in the literature: it weights every mass number equally and so is dominated by
+  the far-asymmetric tail, where the yield is negligible.
+- `yield_sets`: the fragment mass yield distributions read, empty when the configuration names
+  none.
+- `total_average_R_T`: the quantity the literature quotes, `⟨R_T⟩` over each yield distribution,
+  keyed by parameterization label and then by yield label. Empty when no yields were given.
 - `diagnostics`: checks of the exact identities at the symmetric split.
 """
 struct PipelineResult
@@ -53,6 +56,8 @@ struct PipelineResult
     R_a::Dict{Int,Float64}
     parameterizations::Vector{Parameterization}
     range_mean_R_T::Dict{String,Tuple{Float64,Float64}}
+    yield_sets::Vector{YieldData}
+    total_average_R_T::Dict{String,Dict{String,Tuple{Float64,Float64}}}
     diagnostics::Dict{String,Any}
 end
 
@@ -71,26 +76,35 @@ end
 """
     read_multiplicity_directory(directory) -> Vector{MultiplicityData}
 
-Read every data file in `directory`, sorted by name so that colours and markers are assigned
-reproducibly.
+Read every `.dat` file in `directory`, sorted by name so that colours and markers are assigned
+reproducibly. Other files are ignored, so a run record can sit beside the data it describes.
 
-The label of each set is its file name stripped of the leading case identifier and the extension,
-with underscores replaced by spaces, which is how the sets are named in the literature.
+The label of each set is its file name stripped of the leading archive identifier and the
+extension, with underscores replaced by spaces, which is how the sets are named in the literature.
 """
 function read_multiplicity_directory(directory::AbstractString)
     isdir(directory) || throw(ArgumentError("multiplicity directory not found: $(directory)"))
-    files = sort!(filter!(f -> !startswith(f, "."), readdir(directory)))
-    isempty(files) && throw(ArgumentError("multiplicity directory is empty: $(directory)"))
+    files = _data_files(directory)
+    isempty(files) &&
+        throw(ArgumentError("multiplicity directory holds no data files: $(directory)"))
+    return [
+        read_multiplicity(joinpath(directory, file); label = _set_label(file)) for file in files
+    ]
+end
 
-    data_sets = MultiplicityData[]
-    for file in files
-        stem = splitext(file)[1]
-        label = replace(replace(stem, r"^[A-Za-z0-9]+_[a-z0-9]+f_nuA_" => ""), '_' => ' ')
-        # Initials are written without a space in the file names; restore it for the legend.
-        label = replace(label, r"(?<=\b[A-Z])\.(?=[A-Z][a-z])" => ". ")
-        push!(data_sets, read_multiplicity(joinpath(directory, file); label = label))
-    end
-    return data_sets
+# Data files carry the `.dat` extension; anything else in the directory — a run record, a note —
+# is not data and is skipped rather than parsed and rejected.
+function _data_files(directory::AbstractString)
+    return sort!(filter!(f -> endswith(f, ".dat") && !startswith(f, "."), readdir(directory)))
+end
+
+# `<identifier>_<author>_<year>.dat`, or the older `<case>_nuA_<author>_<year>.dat`.
+function _set_label(file::AbstractString)
+    stem = splitext(file)[1]
+    stem = replace(stem, r"^[0-9]+_" => "", r"^[A-Za-z0-9]+_[a-z0-9]+f_nuA_" => "")
+    label = replace(stem, '_' => ' ')
+    # Initials are written without a space in the file names; restore it for the legend.
+    return replace(label, r"(?<=\b[A-Z])\.(?=[A-Z][a-z])" => ". ")
 end
 
 """
@@ -221,6 +235,24 @@ function run_pipeline(configuration::Configuration; write_output::Bool = true)
         @warn message identity = key
     end
 
+    yield_sets = if configuration.yield_directory === nothing
+        YieldData[]
+    else
+        read_yield_directory(configuration.yield_directory)
+    end
+    total_average_R_T = _total_averages(parameterizations, yield_sets)
+    for parameterization in parameterizations
+        for distribution in yield_sets
+            entry = get(
+                get(total_average_R_T, parameterization.label, Dict()),
+                distribution.label,
+                nothing,
+            )
+            entry === nothing && continue
+            @info "total average" set = parameterization.label yield = distribution.label R_T = entry[1] uncertainty = entry[2]
+        end
+    end
+
     result = PipelineResult(
         configuration,
         data_sets,
@@ -229,11 +261,39 @@ function run_pipeline(configuration::Configuration; write_output::Bool = true)
         R_a,
         parameterizations,
         Dict(p.label => weighted_mean(p.R_T) for p in parameterizations),
+        yield_sets,
+        total_average_R_T,
         diagnostics,
     )
 
     write_output && write_results(result)
     return result
+end
+
+# The total average of every parameterization over every yield distribution. A pair that shares no
+# mass number is omitted rather than reported as zero: a distribution covering only the light wing
+# says nothing about a ratio defined on the heavy one.
+function _total_averages(
+    parameterizations::Vector{Parameterization}, yield_sets::Vector{YieldData}
+)
+    averages = Dict{String,Dict{String,Tuple{Float64,Float64}}}()
+    isempty(yield_sets) && return averages
+    for parameterization in parameterizations
+        per_distribution = Dict{String,Tuple{Float64,Float64}}()
+        for distribution in yield_sets
+            try
+                per_distribution[distribution.label] = total_average(
+                    parameterization.R_T, distribution
+                )
+            catch err
+                err isa ArgumentError || rethrow()
+                @warn "no total average" set = parameterization.label yield = distribution.label reason =
+                    err.msg
+            end
+        end
+        isempty(per_distribution) || (averages[parameterization.label] = per_distribution)
+    end
+    return averages
 end
 
 # Fit one ratio curve and carry it through to the temperature ratio. Returns nothing when the
@@ -375,6 +435,38 @@ function write_results(result::PipelineResult)
             path = _unused_path(joinpath(results_root, "$(name)_$(token)_$(identifier).csv"))
             CSV.write(path, table)
             written["$(name)/$(parameterization.label)"] = path
+        end
+    end
+
+    # The total average over each yield distribution: one row per parameterization and
+    # distribution, which is how the literature tabulates it.
+    if !isempty(result.total_average_R_T)
+        rows = NamedTuple{
+            (:parameterization, :yield_distribution, :R_T, :uncertainty),
+            Tuple{String,String,Float64,Float64},
+        }[]
+        for parameterization in result.parameterizations
+            per_distribution = get(result.total_average_R_T, parameterization.label, nothing)
+            per_distribution === nothing && continue
+            for distribution in result.yield_sets
+                entry = get(per_distribution, distribution.label, nothing)
+                entry === nothing && continue
+                push!(
+                    rows,
+                    (
+                        parameterization = parameterization.label,
+                        yield_distribution = distribution.label,
+                        R_T = round(entry[1]; digits = digits),
+                        uncertainty = round(entry[2]; digits = digits),
+                    ),
+                )
+            end
+        end
+        if !isempty(rows)
+            path = _unused_path(joinpath(results_root, "total_average_$(identifier).csv"))
+            mkpath(dirname(path))
+            CSV.write(path, DataFrame(rows))
+            written["total_average"] = path
         end
     end
 

@@ -8,6 +8,23 @@ Notable changes to FissionTemperatureRatio.jl. The format follows
 
 ### Added
 
+- Fragment mass yield input and the total average `⟨R_T⟩ = Σ Y(A_H) R_T(A_H) / Σ Y(A_H)`, reported
+  for every combination of parameterization and yield distribution. This is the quantity the
+  literature tabulates; the mean over the fragment mass range, which the run also reports, weights
+  every mass number equally and is dominated by the far-asymmetric tail. The normalization of `Y`
+  cancels. Both the ratio and the yield propagate into the uncertainty, which is what gives a
+  multiplicity set quoting no uncertainties a finite one.
+- Reproduction of the published total averages. Against Tables 1 and 2 of Eur. Phys. J. A **60**,
+  190 (2024), from independently retrieved archive data: 233-U(n,f) to 0.60 %, 252-Cf(sf) to
+  0.55 %, 235-U(n,f) to 1.05 %, the Gilbert-Cameron variant to 0.21 %. 239-Pu(n,f) deviates by up
+  to 2.1 %, the published table having averaged over a yield distribution it does not name and a
+  second that is calculated rather than measured.
+- Experimental input sourced with `ExforFissionData.jl` in place of hand-assembled files. Every
+  data file carries its EXFOR DatasetID and each directory holds the retrieval run record; the
+  readers ignore anything that is not a `.dat`, so the record sits beside the data.
+- `CITATION.cff`, a pinned `formatter/` environment, a `check.jl` pre-commit gate, a
+  JuliaFormatter CI workflow, and documentation deployment.
+
 - Extraction of the temperature ratio `R_T = T_L/T_H` of complementary fully accelerated
   fragments from experimental prompt neutron multiplicity `ν(A)`, with no prompt emission
   calculation entering, following Eur. Phys. J. A **60**, 190 (2024).

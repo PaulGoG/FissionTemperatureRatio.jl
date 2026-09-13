@@ -14,6 +14,8 @@ makedocs(;
     pages = ["Home" => "index.md", "Method" => "method.md", "Reference" => "reference.md"],
     checkdocs = :exports,
     # Stated rather than inferred from the git remote, so that the build also works from a source
-    # tree without one. Deployment is added when the repository is public.
+    # tree without one.
     repo = Documenter.Remotes.GitHub("PaulGoG", "FissionTemperatureRatio.jl"),
 )
+
+deploydocs(; repo = "github.com/PaulGoG/FissionTemperatureRatio.jl", devbranch = "main")

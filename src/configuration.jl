@@ -106,6 +106,7 @@ struct Configuration
     fragmentation::FragmentationSettings
     level_density::LevelDensitySettings
     multiplicity_directory::String
+    yield_directory::Union{String,Nothing}
     segments::SegmentSettings
     output::OutputSettings
     source::String
@@ -379,6 +380,20 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
     isdir(multiplicity_directory) ||
         throw(ArgumentError("multiplicity.directory does not exist: $(multiplicity_directory)"))
 
+    # Optional. Without it the run reports the mean over the fragment mass range only; with it,
+    # the total average over each yield distribution, which is the quantity the literature quotes.
+    yield_directory = if haskey(document, "yield")
+        directory = joinpath(
+            data_directory,
+            _value(document["yield"], "directory", String, "yield.directory"),
+        )
+        isdir(directory) ||
+            throw(ArgumentError("yield.directory does not exist: $(directory)"))
+        directory
+    else
+        nothing
+    end
+
     segments_section = _section(document, "segments", source)
     max_segments = Int(
         _in_bounds(
@@ -441,6 +456,7 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
         ),
         LevelDensitySettings(prescription, mass_excess_file, shell_correction_file, averaging),
         multiplicity_directory,
+        yield_directory,
         SegmentSettings(max_segments, min_points, pin, windows),
         OutputSettings(digits, subdirectory),
         source,

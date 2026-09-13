@@ -79,6 +79,36 @@ as input; which one describes reality is settled downstream, by comparing the pr
 multiplicity distributions and the fragment yields that code produces against experimental data.
 The package's job is to supply the candidates, each traceable to the measurement it came from.
 
+## The total average
+
+Prompt emission codes that take a single temperature ratio for all fragmentations, rather than a
+function of mass number, need one number. It is obtained by averaging over a fragment mass yield
+distribution,
+
+```math
+\langle R_T \rangle = \frac{\sum_{A_H} Y(A_H)\, R_T(A_H)}{\sum_{A_H} Y(A_H)},
+```
+
+taken over the heavy branch, with ``Y`` the pre-neutron mass yield — the temperature ratio is a
+function of the primary heavy-fragment mass number, so a post-neutron distribution would weight
+each ratio by the yield of a different fragmentation. The normalization of ``Y`` cancels.
+
+This is the quantity the literature tabulates, and it is not the mean over the fragment mass
+range. That mean weights every mass number equally, so the far-asymmetric tail, where the yield is
+smaller by orders of magnitude, counts as much as the peak. Both are reported, under names that
+distinguish them.
+
+Uncertainties propagate from the ratio and from the yield,
+
+```math
+\sigma^2 = \sum_{A_H} \left[ \left(\frac{Y}{\sum Y}\right)^2 \sigma_{R_T}^2
+         + \left(\frac{R_T - \langle R_T \rangle}{\sum Y}\right)^2 \sigma_Y^2 \right],
+```
+
+which is why a multiplicity data set quoting no uncertainties still yields an uncertain average:
+the yield distribution supplies it. Correlations between mass numbers are neglected in both
+inputs, the sources not reporting them.
+
 ## References
 
 - Eur. Phys. J. A **60**, 190 (2024) — the method and its conventions.

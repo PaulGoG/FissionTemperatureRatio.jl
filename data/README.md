@@ -12,9 +12,14 @@ each collection carries the terms and the attribution of its own source, recorde
 | `charge_distribution/` | charge polarization and Gaussian dispersion, `A ΔZ rms` |
 | `shell_corrections/` | shell corrections for the Gilbert-Cameron systematic, `n S(N) S(Z)` in MeV |
 | `multiplicity/<nucleus>/` | experimental prompt neutron multiplicity, `A ν σν` |
+| `yield/<nucleus>/` | experimental pre-neutron fragment mass yield, `A Y σY` |
 
 All files are whitespace-separated with a single header line, except the mass excess table, which
 has none. Readers take columns by position, not by header text.
+
+The `multiplicity/` and `yield/` directories also hold a `retrieval.toml`, the run record of the
+query that produced them, naming every dataset it kept or excluded and why. The readers take only
+`.dat` files, so the record sits beside the data without interfering.
 
 ## Sources
 
@@ -27,69 +32,72 @@ Distributed by the Atomic Mass Data Center.
 dispersion `rms(A)` of the isobaric charge distribution, for `U5` (235-U), `PU39` (239-Pu) and
 `CF52` (252-Cf).
 A. C. Wahl, *Atomic Data and Nuclear Data Tables* **38**, 1–156 (1988).
-These files were assembled by hand from two single-column tables and carry no record of which
-edition or fit they were taken from. **No table exists for 233-U**, so runs for that nucleus fall
-back to the average values `ΔZ = -0.5`, `rms = 0.6`, which the pipeline reports at every run.
+No table is held for 233-U; see the known defects below.
 
 **`shell_corrections/SZSN.GC`** — shell corrections `S(N)` and `S(Z)`, tabulated against nucleon
 number from 11 to 150.
 A. Gilbert, A. G. W. Cameron, *Canadian Journal of Physics* **43**, 1446 (1965), as distributed in
 the IAEA Reference Input Parameter Library, segment on level densities, file `Beijing.gc`.
 
-**`multiplicity/<nucleus>/*.dat`** — experimental prompt neutron multiplicity as a function of
-fragment mass, retrieved from the EXFOR Experimental Nuclear Data Library of the IAEA Nuclear Data
-Services, <https://www-nds.iaea.org/exfor/>. Each measurement remains the work of its authors and
-should be cited as such in any result derived from it.
+**`multiplicity/<nucleus>/*.dat`** and **`yield/<nucleus>/*.dat`** — experimental prompt neutron
+multiplicity and pre-neutron fragment mass yield against fragment mass, from the EXFOR
+Experimental Nuclear Data Library of the IAEA Nuclear Data Services,
+<https://www-nds.iaea.org/exfor/>. Each measurement remains the work of its authors and should be
+cited as such in any result derived from it; the EXFOR DatasetID that opens each file name
+identifies the entry, and the `retrieval.toml` beside it records the reaction code and units.
 
-The first author and year of each measurement are encoded in the file name:
+Retrieved with [ExforFissionData.jl](https://github.com/PaulGoG/ExforFissionData.jl), which writes
+this layout directly. To reproduce a directory, run that package's retrieval for the corresponding
+configuration with this package as the output root:
 
-| Fissioning system | Data sets |
+```
+julia --project scripts/retrieve.jl config/U233_nf_yield_A.toml <path to this package>
+```
+
+EXFOR entries are immutable once published, so the configuration and that package reproduce a
+retrieval exactly.
+
+## Selecting prompt multiplicity data: the archive coding is not sufficient
+
+Per-fragment multiplicity is nominally marked by the `FRG` tag of the EXFOR reaction code, and a
+retrieval that asks for it returns only tagged datasets. For 252-Cf that rule is sound in the
+direction it asserts — every tagged set checked here is per fragment — but **unsound as an
+exclusion**: of the eight 252-Cf datasets coded `MASS,PR,NU`, without the tag, five are per
+fragment and three are per pair, reporting the total multiplicity of the split at 3 to 5 neutrons
+per fission.
+
+The discriminator that does work is the data. A per-pair quantity is a property of the split, so
+it must be invariant under `A -> A₀ - A`; a per-fragment quantity is a sawtooth whose complementary
+values differ by a factor of four or five and sum to about the total multiplicity. Applied to the
+untagged 252-Cf sets:
+
+| Dataset | Verdict |
 |---|---|
-| `U233_nf` | Apalin 1965, Nishio 1998, Takamiya 1999 |
-| `U235_nf` | Maslin 1967, Boldeman 1971, Nishio 1998, Vorobyev 2010, Al-Adili 2020 |
-| `Pu239_nf` | Apalin 1965, Basova 1979, Zamyatnin 1979, Nishio 1995 |
-| `Cf252_0f` | Bowman 1963, Nardi 1968, Mehta 1973, Basova 1979, Zakharova 1979, Zamyatnin 1979, Vorobiev 2001, Zeynalov 2011, Göök 2014, Zeynalov 2019, Al-Adili 2020 |
+| 14652004 Britt 1964, 23118006 Zeynalov 2011, 23175008 Budtz-Jørgensen 1988, 23268005 Göök 2014, 41689004 Piksaykin 1977 | per fragment, kept |
+| 23213012 Mehta 1973, 41720003 Basova 1979, 404200022 Zakharova 1979 | per pair, or the tagged subentry of the same measurement is already held; excluded |
+
+`multiplicity/Cf252_0f/` therefore holds the tagged retrieval plus those five, and carries the
+run record of both queries — `retrieval.toml` for the tagged one and `retrieval-untagged.toml` for
+the other. This matters beyond tidiness: Budtz-Jørgensen 1988 is the canonical 252-Cf(sf) `ν(A)`
+reference and one of the sets the published table averages, so a tag-only selection could not
+reproduce it.
+
+The two files that first exposed this carry the header `nuPair errnuPair` from the earlier
+retrieval, which named the quantity after the tag rather than after the contents. Readers take
+columns by position, so no header ever affected a result.
 
 ## Known defects
 
-**EXFOR entry identifiers are mostly not recorded.** The files carry the first author and year but
-not, in general, the EXFOR accession and subentry numbers, so a given file cannot be traced to the
-exact retrieval it came from, nor checked against a later revision of that entry. Four of the
-252-Cf files have since been matched row for row against the archive and can be stated:
+**No charge distribution table exists for 233-U.** Runs for that nucleus fall back to the average
+values `ΔZ = -0.5`, `rms = 0.6`, which the pipeline reports at every run. These are not EXFOR
+observables — they are fit parameters of a `Z_p` model — so the retrieval cannot supply them; the
+table would have to be transcribed from Wahl. The effect is bounded: at most 3.4 % on `R_T(A_H)`
+at the shell minimum with a median of 0.27 %, and far less on the total average, where the charge
+treatment largely cancels.
 
-| File | EXFOR DatasetID | Reaction code |
-|---|---|---|
-| `Cf252_0f_nuA_A.Goeoek_2014.dat` | 23268005 | `98-CF-252(0,F)MASS,PR,NU` |
-| `Cf252_0f_nuA_Sh.Zeynalov_2011.dat` | 23118006 | `98-CF-252(0,F)MASS,PR,NU` |
-| `Cf252_0f_nuA_A.S.Vorobiev_2001.dat` | 41425014 | `98-CF-252(0,F)MASS,PRE/PR/FRG,NU` |
-| `Cf252_0f_nuA_Sh.Zeynalov_2019.dat` | 41739002 | `98-CF-252(0,F)MASS,PRE/PR/FRG,NU` |
+**The charge distribution tables carry no edition record.** `DeltaZ_rms_A.*` were assembled by
+hand from two single-column tables and do not say which edition or fit of Wahl they came from.
 
-The remaining files are still unidentified. Restoring the identifiers is the main reason to
-regenerate this directory from a parser rather than to patch it by hand.
-
-**The archive coding does not identify what a file contains.**
-`Cf252_0f_nuA_Sh.Zeynalov_2011.dat` and `Cf252_0f_nuA_A.Goeoek_2014.dat` label their second and
-third columns `nuPair errnuPair`, and their EXFOR entries are coded `98-CF-252(0,F)MASS,PR,NU`,
-without the `FRG` tag that the others carry.
-
-Their contents are nonetheless per fragment. A quantity defined for a fragment pair is a property
-of the split and must be invariant under `A -> A0 - A`; these files are not. At `A = 120` they
-read 3.42 and 3.18 against 0.76 and 0.80 at the complementary mass 132, tracking the uncontested
-per-fragment set (Vorobiev, 3.10 and 0.69) closely and failing symmetry by the same factor.
-Complementary values sum to 3.87 and 3.96, against a total prompt neutron multiplicity of about
-3.76 for the spontaneous fission of 252-Cf; a genuine pair quantity would sum to about 7.5.
-
-Checked against the archive, the coding turns out not to separate the two quantities at all for
-this nucleus: of the eight 252-Cf data sets coded `MASS,PR,NU`, four are per fragment — the two
-above, together with Budtz-Jørgensen 1988 and Britt 1964, neither of which is held here — and
-three are per pair, reporting the total multiplicity of the split at 3 to 5 neutrons per fission.
-So a retrieval that selects on the `FRG` tag would discard four usable measurements, and one that
-admits `MASS,PR,NU` would mix pair data into `ν(A)`. The discriminator that does work is the data
-itself: complement invariance, or equivalently whether the values approach the total multiplicity
-on one wing.
-
-Readers take columns by position, so neither the header nor the coding affects any result, and
-excluding the two sets shifts the mean temperature ratio by 0.27 %.
-
-**Uncertainties are absent from several sets**, which is reflected in the `weights_imputed` field
-of every fit that used them.
+**Uncertainties are absent from several multiplicity sets**, which is reflected in the
+`weights_imputed` field of every fit that used them. Such a set still receives an uncertainty on
+its total average, propagated from the yield distribution.

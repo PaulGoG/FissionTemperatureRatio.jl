@@ -63,6 +63,7 @@ include("mass_data.jl")
 include("level_density.jl")
 include("fragmentation.jl")
 include("multiplicity_ratio.jl")
+include("yields.jl")
 include("temperature_ratio.jl")
 include("segmented_fit.jl")
 include("configuration.jl")
@@ -79,6 +80,7 @@ export MassExcessTable, read_mass_excess, mass_excess
 export ShellCorrectionTable, read_shell_corrections
 export ChargeDistributionData, read_charge_distribution
 export MultiplicityData, read_multiplicity, read_multiplicity_directory, multiplicity
+export YieldData, read_yield, read_yield_directory, mass_yield
 
 # Physics
 export LevelDensityPrescription, BackShiftedFermiGas, GilbertCameron
@@ -88,6 +90,7 @@ export most_probable_charge, average_over_charge, symmetric_charge_set_is_invari
 export RatioAveraging, RatioOfMeans, MeanOfRatios
 export RatioCurve,
     TREND_LABEL, multiplicity_ratio, level_density_ratio, temperature_ratio, weighted_mean
+export total_average
 
 # Parameterization
 export SegmentedFit, fit_segments, fit_weights, evaluate, pivots, segments

@@ -22,6 +22,9 @@ ratio_averaging = "ratio_of_means"                  # one of: "ratio_of_means" |
 [multiplicity]
 directory = "multiplicity/U233_nf"                  # relative to data/
 
+[yield]
+directory = "yield/U233_nf"       # pre-neutron mass yields Y(A), relative to data/; optional
+
 [segments]
 max_segments = 6                                    # largest segment count examined, 1 to 12
 min_points_per_segment = 4                          # data points a segment must contain, 2 to 50

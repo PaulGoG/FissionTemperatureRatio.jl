@@ -1,13 +1,37 @@
 # FissionTemperatureRatio.jl
 
+[![CI](https://github.com/PaulGoG/FissionTemperatureRatio.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/PaulGoG/FissionTemperatureRatio.jl/actions/workflows/CI.yml)
+[![Documentation](https://img.shields.io/badge/docs-dev-blue.svg)](https://PaulGoG.github.io/FissionTemperatureRatio.jl/dev/)
+[![Julia](https://img.shields.io/badge/Julia-1.10%2B-9558B2?logo=julia&logoColor=white)](https://julialang.org)
+[![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
+[![JET](https://img.shields.io/badge/%F0%9F%9B%A9%EF%B8%8F_tested_with-JET.jl-233f9a)](https://github.com/aviatesk/JET.jl)
+[![Code style: JuliaFormatter](https://img.shields.io/badge/code%20style-JuliaFormatter-informational)](https://github.com/domluna/JuliaFormatter.jl)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 Extraction of the temperature ratio `R_T = T_L/T_H` of complementary fully accelerated fission
 fragments from experimental prompt neutron multiplicity data, and its parameterization by joined
 straight segments.
+
+The method, its conventions and its equation numbering are those of A. Tudora and P. Gogita,
+*Eur. Phys. J. A* **60**, 190 (2024),
+[doi:10.1140/epja/s10050-024-01375-7](https://doi.org/10.1140/epja/s10050-024-01375-7), and this
+package reproduces the results published there: the total average temperature ratios of its
+Tables 1 and 2 come back to better than one per cent for 233-U(n,f), 252-Cf(sf) and 235-U(n,f).
+The [validation status](#validation-status) below states exactly what has been checked against the
+paper and what has not.
+
+Experimental input — prompt neutron multiplicity `ν(A)` and fragment mass yields `Y(A)` — is
+sourced from the IAEA EXFOR archive with
+[ExforFissionData.jl](https://github.com/PaulGoG/ExforFissionData.jl), a companion package that
+retrieves fission observables and writes them as tabulated files with a record of every dataset it
+kept or excluded. This package reads those files; it does not query the archive itself.
 
 ```
 FissionTemperatureRatio/
 ├── activate.jl                     activate and instantiate the root environment
 ├── CHANGELOG.md                    notable changes, and what was corrected in the rewrite
+├── CITATION.cff                    how to cite this package and the method
+├── check.jl                        pre-commit: format, then test
 ├── Project.toml                    dependencies and compatibility bounds
 ├── bench/                          benchmark suite, own environment
 │   ├── activate.jl
@@ -25,6 +49,8 @@ FissionTemperatureRatio/
 │   ├── make.jl
 │   ├── Project.toml
 │   └── src/
+├── formatter/                      pinned JuliaFormatter environment
+│   └── activate.jl
 ├── scripts/
 │   └── run.jl                      pipeline entry point
 ├── src/
@@ -38,7 +64,8 @@ FissionTemperatureRatio/
 │   ├── plotting.jl                 publication figures
 │   ├── provenance.jl               run identification and metadata
 │   ├── segmented_fit.jl            continuous piecewise-linear regression
-│   └── temperature_ratio.jl        level density parameter ratio and R_T
+│   ├── temperature_ratio.jl        level density parameter ratio and R_T
+│   └── yields.jl                   Y(A) input and the total average of a ratio curve
 └── test/                           test suite, own environment
 ```
 
@@ -75,6 +102,12 @@ Run the test suite:
 julia --project -e 'using Pkg; Pkg.test()'
 ```
 
+Apply the formatting gate and then the tests, as CI does:
+
+```
+julia check.jl
+```
+
 Run the benchmarks:
 
 ```
@@ -91,7 +124,7 @@ julia --project=docs docs/make.jl
 
 The input data is not shipped with the package. It is third-party scientific data — an atomic mass
 evaluation, charge distribution systematics, shell corrections, and experimental prompt neutron
-multiplicity measurements — held locally for development and testing under the terms of its own
+multiplicity and fragment mass yield measurements — held locally under the terms of its own
 sources. `data/README.md` records what each file is and where it comes from.
 
 Place it under `data/` in the layout that file describes:
@@ -101,11 +134,20 @@ data/
 ├── charge_distribution/   A ΔZ rms
 ├── mass_excess/           Z A symbol D σD
 ├── multiplicity/<case>/   A ν σν
-└── shell_corrections/     n S(N) S(Z)
+├── shell_corrections/     n S(N) S(Z)
+└── yield/<case>/          A Y σY        (optional)
 ```
 
-Without it the pipeline cannot run, and the tests that exercise the systematics on real nuclides
-are skipped with a warning; the rest of the suite uses synthetic inputs and runs regardless.
+The experimental measurements — everything under `multiplicity/` and `yield/` — are retrieved with
+[ExforFissionData.jl](https://github.com/PaulGoG/ExforFissionData.jl), which writes exactly this
+layout. Each directory also holds the `retrieval.toml` run record naming every dataset the query
+kept or excluded, and every file name carries its EXFOR DatasetID, so a result traces back to an
+archive entry. Files other than `.dat` in those directories are ignored by the readers, so the run
+record sits beside the data it describes.
+
+Without the data the pipeline cannot run, and the tests that exercise the systematics on real
+nuclides are skipped with a warning; the rest of the suite uses synthetic inputs and runs
+regardless.
 
 ## Configuration
 
@@ -116,6 +158,13 @@ naming the offending key, so a run cannot start from a configuration it cannot h
 
 To add a fissioning nucleus, place its ν(A) data sets in a directory under `data/multiplicity/`
 as whitespace-separated `A ν σν` tables with one header line, and copy a configuration.
+
+The `[yield]` section is optional. Given a directory of pre-neutron mass yield distributions, the
+run also reports the total average `⟨R_T⟩ = Σ Y(A_H) R_T(A_H) / Σ Y(A_H)` for every combination of
+parameterization and distribution — the quantity the literature tabulates, and the one a prompt
+emission code takes when it uses a single temperature ratio for all fragmentations. Without it the
+run reports only the mean over the fragment mass range, which weights every mass number equally
+and is therefore dominated by the far-asymmetric tail. The normalization of `Y` cancels.
 
 Two level density prescriptions are available. The back-shifted Fermi gas is the default; setting
 `prescription = "GC"` selects Gilbert-Cameron, which for fission fragments returns markedly larger
@@ -172,7 +221,23 @@ Verified:
   again near the most probable fragmentation, and a near-linear rise above it.
 - Sensitivity to the charge polarization. Substituting a tabulated polarization for the average
   values moves `R_T(A_H)` by at most 3.4 %, with a median of 0.27 %, worst at the shell minimum.
-- The suite passes on the declared Julia floor and on the current release, 223 assertions on each.
+- **The published total averages, to better than one per cent.** The `⟨R_T⟩` of Table 1 of the
+  paper, per `ν(A)` data set and per `Y(A)` distribution, comes back from independently retrieved
+  archive data:
+
+  | System | `Y(A)` | Sets compared | Largest deviation |
+  |---|---|---|---|
+  | 233-U(n,f) | Surin | 3 of 3 | 0.60 % |
+  | 252-Cf(sf) | Göök | 4 of 5 | 0.55 % |
+  | 235-U(n,f) | Al-Adili, Straede | 2 of 3 | 1.05 % |
+
+  Table 2 reproduces too: the Gilbert-Cameron variant to 0.21 %, and the one-charge-per-mass
+  variant to 0.80 %. The remaining sets could not be compared because the archive query did not
+  return the `ν(A)` measurement the table names.
+- The uncertainty of the total average. Both the ratio and the yield propagate, which is what
+  gives a data set quoting no `ν(A)` uncertainties a finite one; the paper's Table 1 shows the
+  same structure, and the magnitudes agree — ±0.0020 against a published ±0.0021.
+- The suite passes on the declared Julia floor and on the current release.
 - The back-shifted Fermi gas prescription, against the published text. The three coefficients, the
   shell correction, the deuteron pairing term and all five liquid-drop coefficients reproduce
   Phys. Rev. C **72**, 044311 (2005), Eqs. (7) and (9), and Phys. Rev. C **80**, 054310 (2009),
@@ -185,13 +250,11 @@ Verified:
 
 Not verified:
 
-- **No published number has been reproduced.** The total average temperature ratio quoted in the
-  literature is taken over a fission fragment mass yield distribution `Y(A)`, which this package
-  does not take as input, so the one directly comparable quantity cannot yet be computed. The
-  agreement established so far is of shape, not of value.
-- The Gilbert-Cameron prescription has been exercised for magnitude, for its expected departure
-  from the back-shifted Fermi gas, and for the table lookup, but its values have not been compared
-  against a published tabulation.
+- **239-Pu(n,f) is not reproduced to the same level**, deviating by 0.7 % to 2.1 %. The published
+  table averages over a yield distribution its caption does not name, and over a second that is
+  calculated rather than measured and so cannot be retrieved; neither distribution used here is
+  demonstrably the one it used. This is an input identification problem rather than a
+  disagreement about the method, but it is unresolved.
 - The effect of neglecting the back-shift. The level density parameter is taken from a systematic
   that fits it jointly with a back-shift `E1`, while the extraction rests on the un-shifted
   `E* = a T²` the method is published under. `E1` differs between the two fragments, so it does not
