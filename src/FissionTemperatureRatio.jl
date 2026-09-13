@@ -25,17 +25,18 @@ and hence, with `r_ν = ν_H/(ν_L + ν_H)` and `R_a = a_L/a_H`,
 R_T = [(1 - r_ν) / (R_a r_ν)]^(1/2).
 ```
 
-The ratio extracted point by point from experimental data is scattered, and for some data sets
-sparse, so it is the multiplicity ratio that is parameterized — by a continuous piecewise-linear
-function whose segment count and breakpoints are selected from the data — and the temperature
+The ratio extracted point by point from experimental data is scattered, and for some datasets
+sparse, so it is the multiplicity ratio that is described by a continuous piecewise-linear
+function whose segment count and breakpoints are selected from the data, and the temperature
 ratio follows by the exact transformation above.
 
-Method and conventions follow Eur. Phys. J. A **60**, 190 (2024).
+Method and conventions follow Eur. Phys. J. A **60**, 190 (2024). The vocabulary the package uses
+for identifiers, configuration keys, files and column headers is set out in `docs/src/naming.md`.
 
 # Entry point
 
 ```julia
-configuration = load_configuration("config/U233_nf.toml")
+configuration = load_configuration("config/U233_nth.toml")
 result = run_pipeline(configuration)
 ```
 """
@@ -70,19 +71,19 @@ include("plotting.jl")
 include("pipeline.jl")
 
 # Configuration
-export Configuration, load_configuration, build_prescription
-export REACTIONS, case_label, element_symbol
-export A_H_min, A_H_range, has_symmetric_split
+export Configuration, load_configuration, build_level_density_model
+export REACTIONS, CHANNEL_REACTION, system_label, system_notation, element_symbol
+export A_H_range, has_symmetric_split
 
 # Input data
-export MassExcessTable, read_mass_excess, mass_excess
-export ShellCorrectionTable, read_shell_corrections
-export ChargeDistributionData, read_charge_distribution
-export MultiplicityData, read_multiplicity, read_multiplicity_directory, multiplicity
-export YieldData, read_yield, read_yield_directory, mass_yield
+export MassExcessTable, read_mass_excess_table, mass_excess
+export ShellCorrectionTable, read_shell_correction_table
+export ChargeDistribution, read_charge_distribution
+export Multiplicity, read_multiplicity, read_multiplicity_directory, multiplicity
+export MassYield, read_mass_yield, read_mass_yield_directory, mass_yield
 
 # Physics
-export LevelDensityPrescription, BackShiftedFermiGas, GilbertCameron
+export LevelDensityModel, BackShiftedFermiGas, GilbertCameron
 export level_density_parameter, shell_correction
 export FragmentationDomain, fragmentation_domain, charges, charge_probability
 export most_probable_charge, average_over_charge, symmetric_charge_set_is_invariant
@@ -90,14 +91,14 @@ export RatioAveraging, RatioOfMeans, MeanOfRatios
 export RatioCurve,
     TREND_LABEL, multiplicity_ratio, level_density_ratio, temperature_ratio, weighted_mean
 export total_average
-export DataSetDiagnostics, diagnose, consensus
+export DatasetDiagnostics, diagnose, consensus
 
-# Parameterization
+# Segmented description of the ratio
 export SegmentedFit, fit_segments, fit_weights, evaluate, pivots, segments
 
 # Pipeline
-export PipelineResult, Parameterization, run_pipeline, write_results, pool, systematic_trend
-export run_identifier, run_metadata
+export ExtractionResult, SegmentedCurve, run_pipeline, write_results, pool, systematic_trend
+export run_identifier, run_metadata, RUN_IDENTIFIER_ABBREVIATIONS
 
 # Figures
 export publication_theme, plot_multiplicities, plot_ratio, save_figure, write_figures

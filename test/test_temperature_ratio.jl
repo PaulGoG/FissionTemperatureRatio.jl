@@ -5,14 +5,14 @@
         # fragments of equal level density parameter, so their temperatures coincide.
         curve = RatioCurve([126], [0.5], [0.0], "synthetic")
         R_T = temperature_ratio(curve, Dict(126 => 1.0))
-        @test only(R_T.value) ≈ 1.0
+        @test only(R_T.ratio) ≈ 1.0
     end
 
     @testset "relation is the inverse of the excitation energy partition" begin
         R_a = 1.3
         for r in (0.2, 0.35, 0.5, 0.7)
             curve = RatioCurve([130], [r], [0.0], "synthetic")
-            R_T = only(temperature_ratio(curve, Dict(130 => R_a)).value)
+            R_T = only(temperature_ratio(curve, Dict(130 => R_a)).ratio)
             # E*_H/TXE = 1/(1 + R_a R_T²) must return the ratio it was built from.
             @test 1 / (1 + R_a * R_T^2) ≈ r
         end
@@ -22,7 +22,7 @@
         r, σ_r, R_a = 0.3, 0.02, 1.2
         curve = RatioCurve([130], [r], [σ_r], "synthetic")
         result = temperature_ratio(curve, Dict(130 => R_a))
-        R_T = only(result.value)
+        R_T = only(result.ratio)
         @test only(result.σ) ≈ σ_r / (2 * R_T * R_a * r^2)
     end
 
@@ -34,9 +34,9 @@
     DATA_AVAILABLE && @testset "averaging over the charge distribution" begin
         A₀, Z₀ = 252, 98
         domain = fragmentation_domain(A₀, Z₀, 126:132, 5, FLAT_CHARGES)
-        prescription = BSFG_PRESCRIPTION
-        by_means = level_density_ratio(RatioOfMeans(), prescription, A₀, Z₀, domain)
-        by_ratios = level_density_ratio(MeanOfRatios(), prescription, A₀, Z₀, domain)
+        model = BSFG_MODEL
+        by_means = level_density_ratio(RatioOfMeans(), model, A₀, Z₀, domain)
+        by_ratios = level_density_ratio(MeanOfRatios(), model, A₀, Z₀, domain)
 
         # At the symmetric split the two fragments are the same nuclide, so the exact ratio is one.
         # Averaging the parameters and then dividing reproduces that identity exactly, because the

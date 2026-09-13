@@ -5,7 +5,7 @@
 # depends on, and a change that breaks it would otherwise be found by whoever is downstream rather
 # than here.
 
-"A consumer's view of one parameterization: what to call it, and R_T at every mass number."
+"A consumer's view of one segmented curve: what to call it, and R_T at every mass number."
 struct ConsumedCurve
     label::String
     kind::String
@@ -16,9 +16,12 @@ end
 
 """
 Read a run the way a downstream code would: find the manifest, take the system it describes, and
-load the temperature ratio each parameterization offers.
+load the temperature ratio each segmented curve offers.
 
-Deliberately naive. It knows the manifest key names and the three column names, nothing else.
+Deliberately naive, and deliberately positional. It knows the manifest key names and that a ratio
+table holds the abscissa, the quantity and its uncertainty in that order — **not** the column
+names. Nothing downstream may be coupled to header text, which is what makes a header rename a
+no-op for every consumer.
 """
 function consume_run(directory::AbstractString)
     manifests = filter(
@@ -28,21 +31,25 @@ function consume_run(directory::AbstractString)
     manifest = TOML.parsefile(joinpath(directory, first(manifests)))
 
     curves = ConsumedCurve[]
-    for entry in manifest["parameterization"]
+    headers = Vector{String}[]
+    for entry in manifest["segmented_curve"]
         haskey(entry, "temperature_ratio_file") || continue
         table = CSV.read(joinpath(directory, entry["temperature_ratio_file"]), DataFrame)
+        push!(headers, String.(names(table)))
         push!(
             curves,
             ConsumedCurve(
                 entry["label"],
                 entry["kind"],
-                Vector{Int}(table.A_H),
-                Vector{Float64}(table.value),
-                Vector{Float64}(table.uncertainty),
+                Vector{Int}(table[!, 1]),
+                Vector{Float64}(table[!, 2]),
+                Vector{Float64}(table[!, 3]),
             ),
         )
     end
-    return (system = manifest["system"], run = manifest["run"], curves = curves)
+    return (
+        system = manifest["system"], run = manifest["run"], curves = curves, headers = headers
+    )
 end
 
 """
@@ -60,7 +67,7 @@ end
 
 DATA_AVAILABLE && @testset "the handoff to a consuming code" begin
     configuration = load_configuration(
-        joinpath(pkgdir(FissionTemperatureRatio), "config", "U233_nf.toml");
+        joinpath(pkgdir(FissionTemperatureRatio), "config", "U233_nth.toml");
         data_directory = DATA_DIRECTORY,
     )
 
@@ -70,16 +77,31 @@ DATA_AVAILABLE && @testset "the handoff to a consuming code" begin
         run = consume_run(directory)
 
         @testset "the system is identified without parsing a label" begin
-            @test run.system["label"] == "U233_nf"
+            @test run.system["label"] == "U233_nth"
+            @test run.system["notation"] == "²³³U(nth,f)"
             @test run.system["target_A"] == 233
             @test run.system["target_Z"] == 92
+            @test run.system["channel"] == "nth"
             @test run.system["reaction"] == "n,f"
             @test run.system["compound_A"] == 234
             @test run.system["compound_Z"] == 92
-            @test run.run["columns"] == ["A_H", "value", "uncertainty"]
+            @test run.run["ordinate"] == "R_T"
+            @test run.run["abscissa"] == ["A_H"]
         end
 
-        @testset "every parameterization names a file that exists and parses" begin
+        @testset "a column is named for its quantity, and read by position" begin
+            # The manifest states the columns so that a reader knows what the file holds; the
+            # reader above took them by position, and the two must agree.
+            @test run.run["columns"] == ["A_H", "R_T", "R_T_uncertainty"]
+            @test !isempty(run.headers)
+            for header in run.headers
+                @test header == run.run["columns"]
+                @test "value" ∉ header
+                @test "uncertainty" ∉ header
+            end
+        end
+
+        @testset "every segmented curve names a file that exists and parses" begin
             @test !isempty(run.curves)
             @test count(c -> c.kind == "systematic_trend", run.curves) == 1
             for curve in run.curves
@@ -123,22 +145,37 @@ DATA_AVAILABLE && @testset "the handoff to a consuming code" begin
             @test trend.label == TREND_LABEL
             produced = systematic_trend(result).R_T
             @test trend.A_H == produced.A_H
-            # The file is rounded to the configured number of digits; the comparison honours that
-            # rather than demanding the file carry more precision than it claims.
-            tolerance = 10.0^(-configuration.output.digits) / 2
-            @test all(abs.(trend.R_T .- produced.value) .≤ tolerance)
+            # The file is rounded to the configured number of significant figures; the comparison
+            # honours that rather than demanding the file carry more precision than it claims.
+            # Rounding to n significant figures moves a value by at most 5·10⁻ⁿ of itself.
+            tolerance = 5 * 10.0^(-configuration.output.significant_digits)
+            @test all(isapprox.(trend.R_T, produced.ratio; rtol = tolerance))
         end
 
-        @testset "excluded and unfitted sets are visible, not missing" begin
-            # A set that supports no fit has no parameterization, and a consumer would otherwise
-            # see only an absence. The diagnostics say which sets were read and what became of
-            # them.
-            diagnostics = only(filter(f -> startswith(f, "diagnostics_"), readdir(directory)))
+        @testset "excluded and unfitted datasets are visible, not missing" begin
+            # A dataset that supports no fit has no segmented curve, and a consumer would
+            # otherwise see only an absence. The diagnostics say which datasets were read and
+            # what became of them.
+            diagnostics = only(
+                filter(f -> startswith(f, "dataset_diagnostics_"), readdir(directory))
+            )
             table = CSV.read(joinpath(directory, diagnostics), DataFrame)
-            @test nrow(table) == length(result.data_sets)
+            @test nrow(table) == length(result.datasets)
             @test all(in(("true", "false")), string.(table.pooled))
-            @test Set(string.(table.set)) ⊇
-                Set(c.label for c in run.curves if c.kind == "data_set")
+            @test Set(string.(table.dataset)) ⊇
+                Set(c.label for c in run.curves if c.kind == "dataset")
+        end
+
+        @testset "the result files say which quantity they hold" begin
+            # A name states the quantity and the abscissa, so a directory listing is readable and
+            # an output can be fed back in without translation.
+            files = readdir(directory)
+            @test any(startswith("R_T_vs_A_H_segmented_"), files)
+            @test any(startswith("r_nu_vs_A_H_segmented_"), files)
+            @test any(startswith("r_nu_vs_A_H_pivots_"), files)
+            @test "r_nu_vs_A_H_consensus_systematic_trend.csv" in files
+            @test any(startswith("total_average_R_T_"), files)
+            @test !any(contains("parameterized"), files)
         end
     end
 end

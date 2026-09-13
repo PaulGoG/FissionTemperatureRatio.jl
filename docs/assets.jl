@@ -1,7 +1,7 @@
 # Figures and animations that document the method, written into `docs/src/assets/` and shown in
 # the README. Regenerate with
 #
-#     julia --project=docs docs/assets.jl [config]
+#     julia --project=docs docs/assets.jl
 #
 # Deterministic: the same configuration and input data give the same output, so a regenerated
 # asset differs only when the method or the data does.
@@ -16,16 +16,13 @@ using Statistics: quantile
 const ASSETS = joinpath(@__DIR__, "src", "assets")
 const SINGLE_COLUMN = 86 / 25.4 * 72
 const DATA_DIRECTORY = joinpath(dirname(@__DIR__), "data")
-const CONFIG =
-    length(ARGS) ≥ 1 ? ARGS[1] : joinpath(dirname(@__DIR__), "config", "Cf252_0f.toml")
-
-"The multiplicity ratio of the data set with the most points, and the level density ratio."
-function reference_case(configuration)
-    prescription = build_prescription(configuration.level_density)
+"The multiplicity ratio of the dataset with the most points, and the level density ratio."
+function richest_measurement(configuration)
+    model = build_level_density_model(configuration.level_density)
     charges = read_charge_distribution(
         configuration.fragmentation.charge_distribution_file,
         configuration.fragmentation.fallback_charge_polarization,
-        configuration.fragmentation.fallback_rms,
+        configuration.fragmentation.fallback_charge_dispersion,
     )
     A₀, Z₀ = configuration.system.A₀, configuration.system.Z₀
     range = A_H_range(configuration)
@@ -33,10 +30,10 @@ function reference_case(configuration)
         A₀, Z₀, range, configuration.fragmentation.charges_per_mass, charges
     )
     R_a = level_density_ratio(
-        configuration.level_density.ratio_averaging, prescription, A₀, Z₀, domain
+        configuration.level_density.ratio_averaging, model, A₀, Z₀, domain
     )
-    data = read_multiplicity_directory(configuration.multiplicity_directory)
-    curves = [multiplicity_ratio(set, A₀, range) for set in data]
+    datasets = read_multiplicity_directory(configuration.multiplicity_directory)
+    curves = [multiplicity_ratio(data, A₀, range) for data in datasets]
     return (curves[argmax(length.(curves))], R_a)
 end
 
@@ -53,7 +50,7 @@ function animate_selection(panels; path, max_segments = 6, hold = 8)
         fits = [
             fit_segments(
                 panel.curve.A_H,
-                panel.curve.value,
+                panel.curve.ratio,
                 panel.curve.σ;
                 min_segments = k,
                 max_segments = k,
@@ -99,7 +96,7 @@ function animate_selection(panels; path, max_segments = 6, hold = 8)
                 errorbars!(
                     axis,
                     prep.curve.A_H,
-                    prep.curve.value,
+                    prep.curve.ratio,
                     prep.curve.σ;
                     color = (:grey30, 0.5),
                     linewidth = 0.7,
@@ -107,14 +104,14 @@ function animate_selection(panels; path, max_segments = 6, hold = 8)
                 )
             end
             scatter!(
-                axis, prep.curve.A_H, prep.curve.value; color = (:grey30, 0.6), markersize = 5
+                axis, prep.curve.A_H, prep.curve.ratio; color = (:grey30, 0.6), markersize = 5
             )
 
             evaluated = evaluate(fit, first(prep.curve.A_H):last(prep.curve.A_H))
             lines!(
                 axis,
                 evaluated.A_H,
-                evaluated.value;
+                evaluated.ratio;
                 color = selected ? RGBf(0.0, 0.62, 0.451) : RGBf(0.0, 0.447, 0.698),
                 linewidth = 2,
             )
@@ -147,25 +144,30 @@ end
 # make: the data sets and yield distributions it holds. 239-Pu is excluded because the table
 # averages over a yield distribution its caption does not name.
 const PUBLISHED = [
-    ("U233_nf", "K. Nishio 1998", "V.M. Surin 1972", 1.1861, 0.0021),
-    ("U233_nf", "V.F. Apalin 1965", "V.M. Surin 1972", 1.0346, 0.0043),
-    ("U233_nf", "J.S. Fraser 1966", "V.M. Surin 1972", 1.3809, 0.2515),
-    ("Cf252_0f", "C. Budtz-jorgensen 1988", "A. Goeoek 2014", 1.0975, 0.0001),
-    ("Cf252_0f", "Yu.S. Zamyatnin 1979", "A. Goeoek 2014", 1.1128, 0.0093),
-    ("Cf252_0f", "A. Goeoek 2014", "A. Goeoek 2014", 1.1163, 0.0010),
-    ("Cf252_0f", "A. Al-adili 2020", "A. Goeoek 2014", 1.0860, 0.0027),
-    ("U235_nf", "K. Nishio 1998", "A. Al-adili 2020", 1.1586, 0.0069),
-    ("U235_nf", "K. Nishio 1998", "Ch.Straede 1987", 1.1644, 0.0072),
-    ("U235_nf", "A.S. Vorobyev 2010", "A. Al-adili 2020", 1.1186, 0.0031),
-    ("U235_nf", "A.S. Vorobyev 2010", "Ch.Straede 1987", 1.1221, 0.0031),
+    ("U233_nth", "K. Nishio 1998", "V.M. Surin 1972", 1.1861, 0.0021),
+    ("U233_nth", "V.F. Apalin 1965", "V.M. Surin 1972", 1.0346, 0.0043),
+    ("U233_nth", "J.S. Fraser 1966", "V.M. Surin 1972", 1.3809, 0.2515),
+    ("Cf252_sf", "C. Budtz-jorgensen 1988", "A. Goeoek 2014", 1.0975, 0.0001),
+    ("Cf252_sf", "Yu.S. Zamyatnin 1979", "A. Goeoek 2014", 1.1128, 0.0093),
+    ("Cf252_sf", "A. Goeoek 2014", "A. Goeoek 2014", 1.1163, 0.0010),
+    ("Cf252_sf", "A. Al-adili 2020", "A. Goeoek 2014", 1.0860, 0.0027),
+    ("U235_nth", "K. Nishio 1998", "A. Al-adili 2020", 1.1586, 0.0069),
+    ("U235_nth", "K. Nishio 1998", "Ch.Straede 1987", 1.1644, 0.0072),
+    ("U235_nth", "A.S. Vorobyev 2010", "A. Al-adili 2020", 1.1186, 0.0031),
+    ("U235_nth", "A.S. Vorobyev 2010", "Ch.Straede 1987", 1.1221, 0.0031),
 ]
 
 const SYSTEM_COLOR = Dict(
-    "U233_nf" => RGBf(0.0, 0.447, 0.698),
-    "Cf252_0f" => RGBf(0.835, 0.369, 0.0),
-    "U235_nf" => RGBf(0.0, 0.62, 0.451),
+    "U233_nth" => RGBf(0.0, 0.447, 0.698),
+    "Cf252_sf" => RGBf(0.835, 0.369, 0.0),
+    "U235_nth" => RGBf(0.0, 0.62, 0.451),
 )
-const SYSTEM_MARKER = Dict("U233_nf" => :circle, "Cf252_0f" => :rect, "U235_nf" => :utriangle)
+const SYSTEM_MARKER = Dict("U233_nth" => :circle, "Cf252_sf" => :rect, "U235_nth" => :utriangle)
+const SYSTEM_NOTATION = Dict(
+    "U233_nth" => system_notation(233, 92, "nth"),
+    "Cf252_sf" => system_notation(252, 98, "sf"),
+    "U235_nth" => system_notation(235, 92, "nth"),
+)
 
 save_asset(name, figure) = save(joinpath(ASSETS, name), figure; px_per_unit = 4)
 
@@ -181,20 +183,23 @@ const SERIES_COLOURS = [
     RGBf(0.35, 0.35, 0.35),
 ]
 const SERIES_MARKERS = [:circle, :rect, :utriangle, :diamond, :dtriangle, :xcross, :star5]
-data_set_colour(i::Integer) = SERIES_COLOURS[mod1(i, length(SERIES_COLOURS))]
-data_set_marker_symbol(i::Integer) = SERIES_MARKERS[mod1(i, length(SERIES_MARKERS))]
+dataset_colour(i::Integer) = SERIES_COLOURS[mod1(i, length(SERIES_COLOURS))]
+dataset_marker_symbol(i::Integer) = SERIES_MARKERS[mod1(i, length(SERIES_MARKERS))]
 
 "Published total averages against the ones this package produces, with the residuals beneath."
 function figure_published_comparison(results)
     points = NamedTuple[]
-    for (system, set, yield, value, uncertainty) in PUBLISHED
+    for (system, dataset, yield, published, published_uncertainty) in PUBLISHED
         result = get(results, system, nothing)
         result === nothing && continue
-        averages = get(result.total_average_R_T, set, nothing)
+        averages = get(result.total_average_R_T, dataset, nothing)
         averages === nothing && continue
         haskey(averages, yield) || continue
-        ours, σ = averages[yield]
-        push!(points, (; system, value, uncertainty, ours, σ))
+        extracted, extracted_uncertainty = averages[yield]
+        push!(
+            points,
+            (; system, published, published_uncertainty, extracted, extracted_uncertainty),
+        )
     end
 
     figure = Figure(; size = (SINGLE_COLUMN, 1.05 * SINGLE_COLUMN))
@@ -208,8 +213,8 @@ function figure_published_comparison(results)
     rowsize!(figure.layout, 2, Relative(0.26))
     rowgap!(figure.layout, 6)
 
-    low = minimum(p.value for p in points) - 0.03
-    high = maximum(p.value for p in points) + 0.03
+    low = minimum(p.published for p in points) - 0.03
+    high = maximum(p.published for p in points) + 0.03
     lines!(
         axis, [low, high], [low, high]; color = :black, linestyle = :dashdot, linewidth = 0.7
     )
@@ -217,19 +222,24 @@ function figure_published_comparison(results)
     # The one-per-cent band the comparison is judged against.
     band!(residual, [low, high], [-1.0, -1.0], [1.0, 1.0]; color = (:grey, 0.18))
 
-    for system in ("U233_nf", "Cf252_0f", "U235_nf")
+    for system in ("U233_nth", "Cf252_sf", "U235_nth")
         selected = filter(p -> p.system == system, points)
         isempty(selected) && continue
-        x = [p.value for p in selected]
-        y = [p.ours for p in selected]
+        x = [p.published for p in selected]
+        y = [p.extracted for p in selected]
         errorbars!(
-            axis, x, y, [p.σ for p in selected]; color = SYSTEM_COLOR[system], linewidth = 0.6
+            axis,
+            x,
+            y,
+            [p.extracted_uncertainty for p in selected];
+            color = SYSTEM_COLOR[system],
+            linewidth = 0.6,
         )
         errorbars!(
             axis,
             x,
             y,
-            [p.uncertainty for p in selected];
+            [p.published_uncertainty for p in selected];
             direction = :x,
             color = SYSTEM_COLOR[system],
             linewidth = 0.6,
@@ -240,7 +250,7 @@ function figure_published_comparison(results)
             y;
             color = SYSTEM_COLOR[system],
             marker = SYSTEM_MARKER[system],
-            label = replace(system, "_nf" => "(n,f)", "_0f" => "(sf)"),
+            label = SYSTEM_NOTATION[system],
         )
         scatter!(
             residual,
@@ -250,7 +260,7 @@ function figure_published_comparison(results)
             marker = SYSTEM_MARKER[system],
         )
     end
-    worst = maximum(abs(100 * (p.ours - p.value) / p.value) for p in points)
+    worst = maximum(abs(100 * (p.extracted - p.published) / p.published) for p in points)
     text!(
         axis,
         0.04,
@@ -286,22 +296,23 @@ function figure_temperature_ratio(result)
     hlines!(axis, [1.0]; color = :black, linestyle = :dashdot, linewidth = 0.7)
     for curve in result.R_T
         isempty(curve) && continue
-        scatter!(axis, curve.A_H, curve.value; color = (:grey45, 0.55), markersize = 5)
+        scatter!(axis, curve.A_H, curve.ratio; color = (:grey45, 0.55), markersize = 5)
     end
     trend = systematic_trend(result).R_T
     band!(
         axis,
         trend.A_H,
-        max.(trend.value .- trend.σ, 0.0),
-        trend.value .+ trend.σ;
+        max.(trend.ratio .- trend.σ, 0.0),
+        trend.ratio .+ trend.σ;
         color = (RGBf(0.835, 0.369, 0.0), 0.25),
     )
-    lines!(axis, trend.A_H, trend.value; color = RGBf(0.835, 0.369, 0.0), linewidth = 1.6)
+    lines!(axis, trend.A_H, trend.ratio; color = RGBf(0.835, 0.369, 0.0), linewidth = 1.6)
     text!(
         axis,
         0.97,
         0.93;
-        text = "$(result.configuration.system.label)\n$(length(result.data_sets)) measurements\nsystematic trend",
+        text = "$(system_notation(result.configuration.system))\n\
+                $(length(result.datasets)) measurements\nsystematic trend",
         space = :relative,
         align = (:right, :top),
         fontsize = 7,
@@ -330,7 +341,10 @@ function figure_method_chain(result, count = 5)
     ]
     axes[3].xlabel = L"Fragment mass number $A$"
     linkxaxes!(axes...)
-    rowgap!(figure.layout, 8)
+    # Wide enough that the lowest tick label of one panel clears the highest of the next: each
+    # panel is bounded at a round value, so both labels sit on the frame and a narrower gap runs
+    # them together.
+    rowgap!(figure.layout, 16)
 
     # The symmetric split separates the light wing from the heavy one, which is what a label on
     # each wing used to say — and it says it without sitting on top of the data.
@@ -341,9 +355,9 @@ function figure_method_chain(result, count = 5)
     hlines!(axes[3], [1.0]; color = :black, linestyle = :dashdot, linewidth = 0.7)
 
     for (position, index) in enumerate(chosen)
-        data = result.data_sets[index]
-        colour = data_set_colour(position)
-        marker = data_set_marker_symbol(position)
+        data = result.datasets[index]
+        colour = dataset_colour(position)
+        marker = dataset_marker_symbol(position)
         scatter!(
             axes[1],
             data.A,
@@ -355,7 +369,7 @@ function figure_method_chain(result, count = 5)
         )
         for (axis, curve) in ((axes[2], result.r_ν[index]), (axes[3], result.R_T[index]))
             scatter!(
-                axis, curve.A_H, curve.value; color = colour, marker = marker, markersize = 6
+                axis, curve.A_H, curve.ratio; color = colour, marker = marker, markersize = 6
             )
         end
     end
@@ -365,14 +379,14 @@ function figure_method_chain(result, count = 5)
     lines!(
         axes[2],
         consensus.A_H,
-        consensus.value;
+        consensus.ratio;
         color = :black,
         linestyle = :dash,
         linewidth = 1.6,
         label = "combined",
     )
     trend = systematic_trend(result).R_T
-    lines!(axes[3], trend.A_H, trend.value; color = :black, linestyle = :dash, linewidth = 1.6)
+    lines!(axes[3], trend.A_H, trend.ratio; color = :black, linestyle = :dash, linewidth = 1.6)
 
     Legend(
         figure[0, 1],
@@ -386,7 +400,9 @@ function figure_method_chain(result, count = 5)
         tellwidth = false,
         padding = (0, 0, 0, 0),
     )
-    rowgap!(figure.layout, 1, 4)
+    # Set after the legend, because adding a row renumbers the gaps: indexing one of them by hand
+    # tightened the wrong one and ran two panels' tick labels together.
+    rowgap!(figure.layout, 16)
     # The far-asymmetric tail of some measurements reaches tens of neutrons per fragment; scaled
     # to those, the sawtooth that carries the physics collapses to a line. Bounded by the bulk, as
     # the package's own multiplicity figure is.
@@ -396,7 +412,7 @@ function figure_method_chain(result, count = 5)
     xlims!(axes[1], low, high)
     bulk = reduce(
         vcat,
-        (result.data_sets[i].ν[low .≤ result.data_sets[i].A .≤ high] for i in chosen);
+        (result.datasets[i].ν[low .≤ result.datasets[i].A .≤ high] for i in chosen);
         init = Float64[],
     )
     ylims!(axes[1], 0, 1.1 * maximum(bulk))
@@ -406,7 +422,7 @@ function figure_method_chain(result, count = 5)
         axes[1],
         0.02,
         0.94;
-        text = result.configuration.system.label,
+        text = system_notation(result.configuration.system),
         space = :relative,
         align = (:left, :top),
         fontsize = 7,
@@ -415,8 +431,8 @@ function figure_method_chain(result, count = 5)
     return figure
 end
 
-"How much the level density prescription moves the answer."
-function figure_prescriptions(bsfg, gc)
+"How much the level density model moves the answer."
+function figure_level_density_models(bsfg, gc)
     figure = Figure(; size = (SINGLE_COLUMN, 0.72 * SINGLE_COLUMN))
     axis = Axis(
         figure[1, 1]; xlabel = L"Heavy fragment mass number $A_H$", ylabel = L"R_T = T_L / T_H"
@@ -430,7 +446,7 @@ function figure_prescriptions(bsfg, gc)
         lines!(
             axis,
             trend.A_H,
-            trend.value;
+            trend.ratio;
             color = colour,
             linewidth = 1.6,
             linestyle = style,
@@ -442,7 +458,8 @@ function figure_prescriptions(bsfg, gc)
         axis,
         0.03,
         0.05;
-        text = "$(bsfg.configuration.system.label)\nsystematic trend under each prescription",
+        text = "$(system_notation(bsfg.configuration.system))\n\
+                systematic trend under each level density model",
         space = :relative,
         align = (:left, :bottom),
         fontsize = 6.5,
@@ -453,23 +470,23 @@ end
 
 function main()
     mkpath(ASSETS)
-    cases = ("U233_nf", "U235_nf", "Pu239_nf", "Cf252_0f")
+    systems = ("U233_nth", "U235_nth", "Pu239_nth", "Cf252_sf")
     configurations = Dict(
-        case => load_configuration(
-            joinpath(dirname(@__DIR__), "config", "$(case).toml");
+        system => load_configuration(
+            joinpath(dirname(@__DIR__), "config", "$(system).toml");
             data_directory = DATA_DIRECTORY,
-        ) for case in cases
+        ) for system in systems
     )
 
-    panels = map(cases) do case
-        configuration = configurations[case]
-        curve, _ = reference_case(configuration)
+    panels = map(systems) do system
+        configuration = configurations[system]
+        curve, _ = richest_measurement(configuration)
         settings = configuration.segments
         pinned =
             settings.pin_symmetric_split && has_symmetric_split(configuration) ? 0.5 : nothing
         return (;
             curve,
-            label = "$(configuration.system.label) · $(curve.label)",
+            label = "$(system_notation(configuration.system)) · $(curve.label)",
             min_points_per_segment = settings.min_points_per_segment,
             pinned_value = pinned,
         )
@@ -479,25 +496,22 @@ function main()
         path = animate_selection(
             panels;
             path = joinpath(ASSETS, "segment_selection.gif"),
-            max_segments = maximum(configurations[c].segments.max_segments for c in cases),
+            max_segments = maximum(configurations[s].segments.max_segments for s in systems),
         )
         @info "written" path filesize = filesize(path)
     end
 
     # The static figures need the pipeline run rather than one fitted curve. Output is not written
     # again here; these read the results in memory.
-    results = Dict{String,PipelineResult}()
-    for case in ("U233_nf", "U235_nf", "Cf252_0f")
-        results[case] = run_pipeline(configurations[case]; write_output = false)
+    results = Dict{String,ExtractionResult}()
+    for system in ("U233_nth", "U235_nth", "Cf252_sf")
+        results[system] = run_pipeline(configurations[system]; write_output = false)
     end
-    # The same system under the other prescription, for the comparison of the two.
-    source = joinpath(dirname(@__DIR__), "config", "U233_nf.toml")
+    # The same system under the other level density model, for the comparison of the two.
+    source = joinpath(dirname(@__DIR__), "config", "U233_nth.toml")
     gilbert_cameron = mktempdir() do directory
         path = joinpath(directory, "gilbert_cameron.toml")
-        write(
-            path,
-            replace(read(source, String), "prescription = \"BSFG\"" => "prescription = \"GC\""),
-        )
+        write(path, replace(read(source, String), "model = \"BSFG\"" => "model = \"GC\""))
         return run_pipeline(
             load_configuration(path; data_directory = DATA_DIRECTORY); write_output = false
         )
@@ -506,11 +520,11 @@ function main()
     with_theme(publication_theme()) do
         for (name, figure) in (
             ("published_comparison.png", figure_published_comparison(results)),
-            ("temperature_ratio.png", figure_temperature_ratio(results["Cf252_0f"])),
-            ("method_chain.png", figure_method_chain(results["Cf252_0f"])),
+            ("temperature_ratio.png", figure_temperature_ratio(results["Cf252_sf"])),
+            ("method_chain.png", figure_method_chain(results["Cf252_sf"])),
             (
-                "level_density_prescriptions.png",
-                figure_prescriptions(results["U233_nf"], gilbert_cameron),
+                "level_density_models.png",
+                figure_level_density_models(results["U233_nth"], gilbert_cameron),
             ),
         )
             save_asset(name, figure)

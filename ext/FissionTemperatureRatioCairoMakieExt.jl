@@ -14,7 +14,7 @@ using LaTeXStrings: @L_str
 using MathTeXEngine: texfont
 
 using FissionTemperatureRatio:
-    FissionTemperatureRatio, MultiplicityData, PipelineResult, RatioCurve, TREND_LABEL
+    FissionTemperatureRatio, ExtractionResult, Multiplicity, RatioCurve, TREND_LABEL
 
 const SINGLE_COLUMN_WIDTH = 86 / 25.4 * 72
 
@@ -50,9 +50,9 @@ function FissionTemperatureRatio.publication_theme()
     )
 end
 
-# One colour per data set, consistent across every figure of a run. Okabe-Ito, which stays
+# One colour per dataset, consistent across every figure of a run. Okabe-Ito, which stays
 # distinguishable in grayscale and for the common colour vision deficiencies.
-const DATA_SET_COLORS = [
+const DATASET_COLORS = [
     RGBf(0.0, 0.447, 0.698),
     RGBf(0.835, 0.369, 0.0),
     RGBf(0.0, 0.620, 0.451),
@@ -64,17 +64,17 @@ const DATA_SET_COLORS = [
 ]
 
 # Seven markers against eight colours, deliberately: the two cycles are then coprime, so the
-# (colour, marker) pair is unique for 56 data sets rather than repeating every eight. With sixteen
-# sets for one nucleus, equal cycles put two measurements under the same blue circle.
-const DATA_SET_MARKERS = [:circle, :rect, :utriangle, :diamond, :dtriangle, :xcross, :star5]
+# (colour, marker) pair is unique for 56 datasets rather than repeating every eight. With sixteen
+# datasets for one nucleus, equal cycles put two measurements under the same blue circle.
+const DATASET_MARKERS = [:circle, :rect, :utriangle, :diamond, :dtriangle, :xcross, :star5]
 
-data_set_color(index::Integer) = DATA_SET_COLORS[mod1(index, length(DATA_SET_COLORS))]
-data_set_marker(index::Integer) = DATA_SET_MARKERS[mod1(index, length(DATA_SET_MARKERS))]
+dataset_color(index::Integer) = DATASET_COLORS[mod1(index, length(DATASET_COLORS))]
+dataset_marker(index::Integer) = DATASET_MARKERS[mod1(index, length(DATASET_MARKERS))]
 
-# A data set keeps one colour and one marker across every figure of a run. Indexing by position
-# cannot do that: the multiplicity figure is handed every set, the ratio figures only those with a
-# usable ratio, and the fitted curves only those that supported a fit — three lists of different
-# lengths, so position means a different measurement in each. One set failing to parameterize
+# A dataset keeps one colour and one marker across every figure of a run. Indexing by position
+# cannot do that: the multiplicity figure is handed every dataset, the ratio figures only those
+# with a usable ratio, and the fitted curves only those that supported a fit — three lists of
+# different lengths, so position means a different measurement in each. One dataset failing to fit
 # shifted every later curve onto its neighbour's colour. The order of the labels as read is the
 # key instead, and an unknown label falls back to its position.
 function _style_index(label::AbstractString, order::Vector{String}, fallback::Integer)
@@ -93,18 +93,18 @@ function _figure_size(entries::Integer)
 end
 
 function FissionTemperatureRatio.plot_multiplicities(
-    data_sets::Vector{MultiplicityData}; A₀::Integer, order::Vector{String} = String[]
+    datasets::Vector{Multiplicity}; A_0::Integer, order::Vector{String} = String[]
 )
-    figure = Figure(; size = _figure_size(length(data_sets)))
+    figure = Figure(; size = _figure_size(length(datasets)))
     axis = Axis(
         figure[1, 1];
         xlabel = L"Fragment mass number $A$",
         ylabel = L"Prompt neutron multiplicity $\nu$",
     )
 
-    for (position, data) in enumerate(data_sets)
+    for (position, data) in enumerate(datasets)
         index = _style_index(data.label, order, position)
-        color = data_set_color(index)
+        color = dataset_color(index)
         if any(>(0), data.σν)
             errorbars!(
                 axis, data.A, data.ν, data.σν; color = color, linewidth = 0.6, whiskerwidth = 3
@@ -115,7 +115,7 @@ function FissionTemperatureRatio.plot_multiplicities(
             data.A,
             data.ν;
             color = color,
-            marker = data_set_marker(index),
+            marker = dataset_marker(index),
             label = data.label,
         )
     end
@@ -124,12 +124,12 @@ function FissionTemperatureRatio.plot_multiplicities(
     # uncertainties to match. Scaled to those, the sawtooth that carries the physics collapses to a
     # flat line, so the view is bounded by the bulk of the data. No point is discarded — points
     # above the bound simply fall outside the axes.
-    bulk = reduce(vcat, (data.ν for data in data_sets); init = Float64[])
+    bulk = reduce(vcat, (data.ν for data in datasets); init = Float64[])
     if !isempty(bulk)
         ylims!(axis, 0, 1.15 * quantile(bulk, 0.99))
     end
 
-    _legend_above(figure, axis, length(data_sets))
+    _legend_above(figure, axis, length(datasets))
     return figure
 end
 
@@ -167,12 +167,12 @@ function FissionTemperatureRatio.plot_ratio(
     for (position, curve) in enumerate(curves)
         isempty(curve) && continue
         index = _style_index(curve.label, order, position)
-        color = data_set_color(index)
+        color = dataset_color(index)
         if any(>(0), curve.σ)
             errorbars!(
                 axis,
                 curve.A_H,
-                curve.value,
+                curve.ratio,
                 curve.σ;
                 color = color,
                 linewidth = 0.6,
@@ -182,21 +182,21 @@ function FissionTemperatureRatio.plot_ratio(
         scatter!(
             axis,
             curve.A_H,
-            curve.value;
+            curve.ratio;
             color = color,
-            marker = data_set_marker(index),
+            marker = dataset_marker(index),
             label = curve.label,
         )
     end
 
-    # The parameterizations are alternatives, so each is drawn in the colour of the data set it
-    # came from, and the systematic-trend curve in black, dashed, to mark that it follows no single
+    # The segmented curves are alternatives, so each is drawn in the colour of the dataset it came
+    # from, and the systematic-trend curve in black, dashed, to mark that it follows no single
     # measurement.
     for (position, curve) in enumerate(fitted)
         isempty(curve) && continue
         trend = curve.label == TREND_LABEL
         color =
-            trend ? RGBf(0, 0, 0) : data_set_color(_style_index(curve.label, order, position))
+            trend ? RGBf(0, 0, 0) : dataset_color(_style_index(curve.label, order, position))
         # Both ratios drawn here are non-negative by construction, so the band is clipped at zero
         # rather than drawn into a region the quantity cannot occupy. The symmetric interval is a
         # Gaussian approximation; where it reaches below zero it is the approximation failing, not
@@ -204,14 +204,14 @@ function FissionTemperatureRatio.plot_ratio(
         band!(
             axis,
             curve.A_H,
-            max.(curve.value .- curve.σ, 0.0),
-            curve.value .+ curve.σ;
+            max.(curve.ratio .- curve.σ, 0.0),
+            curve.ratio .+ curve.σ;
             color = (color, 0.15),
         )
         lines!(
             axis,
             curve.A_H,
-            curve.value;
+            curve.ratio;
             color = color,
             linewidth = 1.2,
             linestyle = trend ? :dash : :solid,
@@ -263,7 +263,7 @@ end
 
 # The systematic-trend result, as the reader of the figure wants it: the total average where a
 # yield distribution was given, and the range mean otherwise, since only one of them exists.
-function _trend_annotation(result::PipelineResult)
+function _trend_annotation(result::ExtractionResult)
     haskey(result.range_mean_R_T, TREND_LABEL) || return ""
     averages = get(result.total_average_R_T, TREND_LABEL, nothing)
     if averages !== nothing && !isempty(averages)
@@ -279,24 +279,24 @@ end
 # The run's figures. Held here, rather than in the pipeline, so that the pipeline carries no
 # reference to a plotting type; `write_results` calls it through `Base.get_extension`.
 function FissionTemperatureRatio.write_figures(
-    result::PipelineResult, directory::AbstractString, identifier::AbstractString
+    result::ExtractionResult, directory::AbstractString, identifier::AbstractString
 )
     written = Dict{String,String}()
     configuration = result.configuration
-    order = [set.label for set in result.data_sets]
+    order = [data.label for data in result.datasets]
     masses = FissionTemperatureRatio.A_H_range(configuration)
     with_theme(FissionTemperatureRatio.publication_theme()) do
-        written["figure/multiplicity"] = FissionTemperatureRatio.save_figure(
-            joinpath(directory, "multiplicity_$(identifier).pdf"),
+        written["figure/nu_vs_A"] = FissionTemperatureRatio.save_figure(
+            joinpath(directory, "nu_vs_A_$(identifier).pdf"),
             FissionTemperatureRatio.plot_multiplicities(
-                result.data_sets; A₀ = configuration.system.A₀, order = order
+                result.datasets; A_0 = configuration.system.A₀, order = order
             ),
         )
-        written["figure/r_nu"] = FissionTemperatureRatio.save_figure(
-            joinpath(directory, "r_nu_$(identifier).pdf"),
+        written["figure/r_nu_vs_A_H"] = FissionTemperatureRatio.save_figure(
+            joinpath(directory, "r_nu_vs_A_H_$(identifier).pdf"),
             FissionTemperatureRatio.plot_ratio(
                 filter(!isempty, result.r_ν),
-                [p.r_ν for p in result.parameterizations];
+                [c.r_ν for c in result.segmented_curves];
                 ylabel = L"r_\nu = \nu_H / (\nu_L + \nu_H)",
                 reference = 0.5,
                 reference_label = "Equal sharing",
@@ -304,11 +304,11 @@ function FissionTemperatureRatio.write_figures(
                 limits = (first(masses) - 1, last(masses) + 1, 0, 1),
             ),
         )
-        return written["figure/R_T"] = FissionTemperatureRatio.save_figure(
-            joinpath(directory, "R_T_$(identifier).pdf"),
+        return written["figure/R_T_vs_A_H"] = FissionTemperatureRatio.save_figure(
+            joinpath(directory, "R_T_vs_A_H_$(identifier).pdf"),
             FissionTemperatureRatio.plot_ratio(
                 filter(!isempty, result.R_T),
-                [p.R_T for p in result.parameterizations];
+                [c.R_T for c in result.segmented_curves];
                 ylabel = L"R_T = T_L / T_H",
                 reference = 1.0,
                 reference_label = "Equal temperatures",

@@ -9,13 +9,11 @@ using BenchmarkTools
 using FissionTemperatureRatio
 using StableRNGs
 
-const MASSES = read_mass_excess(
-    joinpath(pkgdir(FissionTemperatureRatio), "data", "mass_excess", "AME2020.ANA")
+const MASSES = read_mass_excess_table(
+    joinpath(pkgdir(FissionTemperatureRatio), "data", "reference", "mass_excess_ame2020.dat")
 )
-const CHARGES = ChargeDistributionData(
-    Dict{Int,Float64}(), Dict{Int,Float64}(), -0.5, 0.6, nothing
-)
-const PRESCRIPTION = BackShiftedFermiGas(MASSES)
+const CHARGES = ChargeDistribution(Dict{Int,Float64}(), Dict{Int,Float64}(), -0.5, 0.6, nothing)
+const MODEL = BackShiftedFermiGas(MASSES)
 
 function ratio_sample()
     rng = StableRNG(20260912)
@@ -41,7 +39,7 @@ let domain = fragmentation_domain(252, 98, 126:174, 5, CHARGES)
     suite["level_density_ratio"] = BenchmarkGroup()
     for averaging in (RatioOfMeans(), MeanOfRatios())
         suite["level_density_ratio"][string(nameof(typeof(averaging)))] = @benchmarkable(
-            level_density_ratio($averaging, $PRESCRIPTION, 252, 98, $domain)
+            level_density_ratio($averaging, $MODEL, 252, 98, $domain)
         )
     end
 end

@@ -1,0 +1,39 @@
+# Thermal-neutron-induced fission of 235-U.
+
+[system]
+target_A = 235                                # mass number of the target nuclide, 2 to 400
+target_Z = 92                                 # charge number of the target nuclide, 1 to 118
+channel = "nth"                               # entrance channel; one of: "nfast" | "nres" | "nth" | "sf"
+incident_energy = 2.53e-8                     # MeV, at least 0; must be 0 for the "sf" channel
+
+[fragmentation]
+charges_per_mass = 5                          # charge numbers per mass number, odd, 1 to 15
+heavy_mass_min = 118                          # smallest heavy-fragment mass number, at least the symmetric split A0/2
+heavy_mass_max = 160                          # largest heavy-fragment mass number, below A0
+charge_distribution_file = "U235_nth/charge_distribution_vs_A.dat"  # tabulated dZ(A), sigma_Z(A), relative to data/
+fallback_charge_polarization = -0.5           # dZ where untabulated, -5 to 5
+fallback_charge_dispersion = 0.6              # sigma_Z where untabulated, above 0 to 5
+
+[level_density]
+model = "BSFG"                                # one of: "BSFG" | "GC"
+mass_excess_file = "reference/mass_excess_ame2020.dat"                     # relative to data/; used by "BSFG"
+shell_correction_file = "reference/shell_corrections_gilbert_cameron.dat"  # relative to data/; required by "GC"
+ratio_averaging = "ratio_of_means"            # one of: "mean_of_ratios" | "ratio_of_means"
+
+[multiplicity]
+subdirectory = "U235_nth/nu_vs_A"             # under data/; whitespace-separated A nu nu_uncertainty
+
+[yield]
+subdirectory = "U235_nth/Y_vs_A"              # under data/; pre-neutron mass yields A Y Y_uncertainty; optional
+
+[segments]
+max_segments = 6                              # largest segment count examined, 1 to 12
+min_points_per_segment = 4                    # data points a segment must contain, 2 to 50
+pin_symmetric_split = true                    # fix r_nu = 1/2 at A0/2; requires even A0 and heavy_mass_min = A0/2
+required_windows = [[128, 132]]               # windows the trend curve must break in, inside heavy_mass_min:heavy_mass_max
+windows_apply_to_datasets = false             # apply the windows to each dataset too, not only to the trend
+parsimony = 1.0                               # penalty multiplier per parameter, above 0 to 10
+
+[output]
+significant_digits = 6                        # significant figures in tabulated output, 1 to 15
+subdirectory = "U235_nth"                     # under results/ and plots/

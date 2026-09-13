@@ -20,9 +20,9 @@ Requires CairoMakie to be loaded.
 function publication_theme end
 
 """
-    plot_multiplicities(data_sets; A₀) -> Figure
+    plot_multiplicities(datasets; A_0) -> Figure
 
-Prompt neutron multiplicity `ν(A)` of every data set, the sawtooth that carries the signature of
+Prompt neutron multiplicity `ν(A)` of every dataset, the sawtooth that carries the signature of
 the excitation energy partition.
 
 Requires CairoMakie to be loaded.
@@ -32,7 +32,7 @@ function plot_multiplicities end
 """
     plot_ratio(curves, fitted; ylabel, reference, reference_label) -> Figure
 
-A ratio against the heavy-fragment mass number: the values extracted from each data set with
+A ratio against the heavy-fragment mass number: the values extracted from each dataset with
 their uncertainties, and optionally a fitted curve with its uncertainty band.
 
 `reference` draws a horizontal guide line at a value the ratio takes by construction — one half

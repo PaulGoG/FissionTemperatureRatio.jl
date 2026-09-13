@@ -1,7 +1,7 @@
 # Fission fragment mass yields, and the yield-weighted total average of a ratio curve.
 
 """
-    YieldData
+    MassYield
 
 An experimental fission fragment mass yield distribution `Y(A)` with its uncertainties.
 
@@ -21,7 +21,7 @@ cent gives the same answer.
 - `label`: identifier of the distribution, used in output tables and figure legends.
 - `source`: path of the file the data was read from, recorded for provenance.
 """
-struct YieldData
+struct MassYield
     A::Vector{Int}
     Y::Vector{Float64}
     σY::Vector{Float64}
@@ -29,8 +29,8 @@ struct YieldData
     source::String
 end
 
-Base.length(data::YieldData) = length(data.A)
-Base.isempty(data::YieldData) = isempty(data.A)
+Base.length(data::MassYield) = length(data.A)
+Base.isempty(data::MassYield) = isempty(data.A)
 
 """
     mass_yield(data, A) -> Union{Tuple{Float64,Float64},Missing}
@@ -40,7 +40,7 @@ Yield and its uncertainty at mass number `A`, or `missing` if the distribution h
 # Examples
 
 ```jldoctest
-julia> data = YieldData([132, 140], [0.061, 0.048], [0.002, 0.0], "example", "");
+julia> data = MassYield([132, 140], [0.061, 0.048], [0.002, 0.0], "example", "");
 
 julia> mass_yield(data, 132)
 (0.061, 0.002)
@@ -49,22 +49,26 @@ julia> mass_yield(data, 133)
 missing
 ```
 """
-function mass_yield(data::YieldData, A::Integer)
+function mass_yield(data::MassYield, A::Integer)
     index = findfirst(==(A), data.A)
     return index === nothing ? missing : (data.Y[index], data.σY[index])
 end
 
 """
-    read_yield(path; label) -> YieldData
+    read_mass_yield(path; label) -> MassYield
 
-Read a whitespace-separated `Y(A)` data set with the column layout
+Read a whitespace-separated `Y(A)` dataset with the column layout
 
 ```
-A  Y  σY
+A  Y  Y_uncertainty
 ```
 
 and a single header line. A missing or non-numeric third column is taken as an absent uncertainty
 and stored as zero, which is how a distribution quoting none is carried without being discarded.
+
+The columns are taken **by position**, not by header text: the header line is skipped, so the
+upstream retrieval may rename it without touching anything here, and nothing in this reader may
+be changed to a lookup by name.
 
 As for multiplicity data, no point is dropped on the basis of its value. A negative yield is an
 error rather than a datum, and is rejected.
@@ -72,7 +76,7 @@ error rather than a datum, and is rejected.
 Throws an `ArgumentError` naming the file when it cannot be read with this layout, when mass
 numbers repeat, or when a yield is negative.
 """
-function read_yield(path::AbstractString; label::AbstractString = "")
+function read_mass_yield(path::AbstractString; label::AbstractString = "")
     isfile(path) || throw(ArgumentError("yield file not found: $(path)"))
 
     table = try
@@ -86,7 +90,8 @@ function read_yield(path::AbstractString; label::AbstractString = "")
             silencewarnings = true,
         )
     catch err
-        throw(ArgumentError("yield file $(path) does not have the layout `A Y σY`: $(err)"))
+        throw(ArgumentError("yield file $(path) does not have the layout \
+                             `A Y Y_uncertainty`: $(err)"))
     end
 
     A = Int[]
@@ -113,11 +118,11 @@ function read_yield(path::AbstractString; label::AbstractString = "")
 
     order = sortperm(A)
     name = isempty(label) ? splitext(basename(path))[1] : String(label)
-    return YieldData(A[order], Y[order], σY[order], name, String(path))
+    return MassYield(A[order], Y[order], σY[order], name, String(path))
 end
 
 """
-    read_yield_directory(directory) -> Vector{YieldData}
+    read_mass_yield_directory(directory) -> Vector{MassYield}
 
 Read every `.dat` file in `directory`, sorted by name so that output rows are ordered
 reproducibly. Other files are ignored, so a run record can sit beside the data it describes.
@@ -125,11 +130,14 @@ reproducibly. Other files are ignored, so a run record can sit beside the data i
 The label of each distribution is its file name stripped of the leading archive identifier and the
 extension, with underscores replaced by spaces.
 """
-function read_yield_directory(directory::AbstractString)
+function read_mass_yield_directory(directory::AbstractString)
     isdir(directory) || throw(ArgumentError("yield directory not found: $(directory)"))
     files = _data_files(directory)
     isempty(files) && throw(ArgumentError("yield directory holds no data files: $(directory)"))
-    return [read_yield(joinpath(directory, file); label = _set_label(file)) for file in files]
+    return [
+        read_mass_yield(joinpath(directory, file); label = _dataset_label(file)) for
+        file in files
+    ]
 end
 
 """
@@ -157,7 +165,7 @@ Both inputs carry uncertainties and both propagate:
 σ² = Σ [ (Y_i/ΣY)² σ_{R,i}² + ((R_i - ⟨R_T⟩)/ΣY)² σ_{Y,i}² ]
 ```
 
-The second term is what makes the average of a multiplicity data set quoting no uncertainties
+The second term is what makes the average of a multiplicity dataset quoting no uncertainties
 still carry one, from the yield distribution alone; where neither input quotes uncertainties the
 result is exact and the uncertainty is zero. The yield term is a difference from the mean, so a
 distribution contributes nothing to the uncertainty at mass numbers where the ratio sits at its
@@ -169,9 +177,9 @@ them.
 Throws an `ArgumentError` when the curve and the distribution share no mass number, or when the
 yields summed over the shared mass numbers are not positive.
 """
-function total_average(curve::RatioCurve, yields::YieldData)
+function total_average(curve::RatioCurve, yields::MassYield)
     weight = Float64[]
-    value = Float64[]
+    ratio = Float64[]
     σ_R = Float64[]
     σ_Y = Float64[]
 
@@ -180,7 +188,7 @@ function total_average(curve::RatioCurve, yields::YieldData)
         ismissing(entry) && continue
         push!(weight, entry[1])
         push!(σ_Y, entry[2])
-        push!(value, curve.value[index])
+        push!(ratio, curve.ratio[index])
         push!(σ_R, curve.σ[index])
     end
 
@@ -195,11 +203,11 @@ function total_average(curve::RatioCurve, yields::YieldData)
         ),
     )
 
-    mean = dot(weight, value) / total
+    mean = dot(weight, ratio) / total
     variance = 0.0
     for index in eachindex(weight)
         variance += (weight[index] / total)^2 * σ_R[index]^2
-        variance += ((value[index] - mean) / total)^2 * σ_Y[index]^2
+        variance += ((ratio[index] - mean) / total)^2 * σ_Y[index]^2
     end
     return (mean, sqrt(variance))
 end

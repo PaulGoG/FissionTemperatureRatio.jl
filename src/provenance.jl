@@ -2,33 +2,96 @@
 # and a machine.
 
 """
-    run_identifier(configuration) -> String
+    RUN_IDENTIFIER_ABBREVIATIONS
 
-A short identifier for a run, built from the parameters that change its result.
+The abbreviation each configuration key is written as in a run identifier.
 
-Two configurations that differ in any of these produce different identifiers, and two that agree
-in all of them produce the same one, so results can be found again without consulting a log.
+A run-identifier token is the configuration key it came from, so that a file name can be read back
+into a configuration without consulting the source. Spelling every key out in full would put some
+hundred and eighty characters into every result file name, so the keys are abbreviated — and
+abbreviated **here**, in one exported table, rather than at the point of use. Every key
+[`run_identifier`](@ref) uses has an entry, which the test suite asserts; a key without one is an
+error rather than a silently invented token.
 """
-function run_identifier(configuration::Configuration)
-    parameters = Dict(
+const RUN_IDENTIFIER_ABBREVIATIONS = Dict(
+    "system" => "system",
+    "charges_per_mass" => "nZ",
+    "heavy_mass_min" => "AHmin",
+    "heavy_mass_max" => "AHmax",
+    "model" => "ldm",
+    "ratio_averaging" => "avg",
+    "max_segments" => "maxseg",
+    "min_points_per_segment" => "minpts",
+    "pin_symmetric_split" => "pin",
+    "parsimony" => "parsimony",
+    "incident_energy" => "E",
+)
+
+# The configuration keys whose values change the result, keyed as the configuration spells them.
+# `required_windows` and the exclusion list are not here: neither reduces to a savename token, and
+# both are recorded in full in the run metadata beside the result.
+function _run_parameters(configuration::Configuration)
+    parameters = Dict{String,Any}(
         "system" => configuration.system.label,
-        "Z" => configuration.fragmentation.charges_per_mass,
-        "AHmax" => configuration.fragmentation.A_H_max,
-        "ldp" => String(configuration.level_density.prescription),
-        "avg" => _averaging_name(configuration.level_density.ratio_averaging),
-        "seg" => configuration.segments.max_segments,
-        "minpts" => configuration.segments.min_points_per_segment,
-        "pin" => configuration.segments.pin_symmetric_split,
+        "charges_per_mass" => configuration.fragmentation.charges_per_mass,
+        "heavy_mass_min" => configuration.fragmentation.heavy_mass_min,
+        "heavy_mass_max" => configuration.fragmentation.heavy_mass_max,
+        "model" => String(configuration.level_density.model),
+        "ratio_averaging" => _averaging_name(configuration.level_density.ratio_averaging),
+        "max_segments" => configuration.segments.max_segments,
+        "min_points_per_segment" => configuration.segments.min_points_per_segment,
+        "pin_symmetric_split" => configuration.segments.pin_symmetric_split,
+        "parsimony" => configuration.segments.parsimony,
     )
-    # The label does not distinguish two incident energies of the same target and reaction, which
+    # The label does not distinguish two incident energies of the same target and channel, which
     # are two systems; the identifier must.
     configuration.system.incident_energy > 0 &&
-        (parameters["E"] = configuration.system.incident_energy)
+        (parameters["incident_energy"] = configuration.system.incident_energy)
+    return parameters
+end
+
+"""
+    run_identifier(configuration) -> String
+
+A short identifier for a run, built from the configuration keys that change its result and written
+with the abbreviations of [`RUN_IDENTIFIER_ABBREVIATIONS`](@ref).
+
+Two configurations that differ in any of those keys produce different identifiers, and two that
+agree in all of them produce the same one, so results can be found again without consulting a log.
+The required windows and the exclusion list are not among them; they are recorded in the run
+metadata instead.
+
+Throws an `ArgumentError` naming any key that has no abbreviation, rather than inventing one.
+"""
+function run_identifier(configuration::Configuration)
+    parameters = Dict{String,Any}()
+    for (key, value) in _run_parameters(configuration)
+        haskey(RUN_IDENTIFIER_ABBREVIATIONS, key) || throw(
+            ArgumentError("no entry in RUN_IDENTIFIER_ABBREVIATIONS for the key $(repr(key))"),
+        )
+        parameters[RUN_IDENTIFIER_ABBREVIATIONS[key]] = value
+    end
     return savename(parameters; connector = "_", sort = true)
 end
 
 _averaging_name(::RatioOfMeans) = "ratio_of_means"
 _averaging_name(::MeanOfRatios) = "mean_of_ratios"
+
+# The system, as both the run metadata and the manifest state it. One definition, so the two
+# cannot drift apart.
+function _system_record(system::SystemSpecification)
+    return Dict{String,Any}(
+        "label" => system.label,
+        "notation" => system_notation(system),
+        "target_A" => system.target_A,
+        "target_Z" => system.target_Z,
+        "channel" => system.channel,
+        "reaction" => system.reaction,
+        "incident_energy_MeV" => system.incident_energy,
+        "compound_A" => system.A₀,
+        "compound_Z" => system.Z₀,
+    )
+end
 
 """
     run_metadata(configuration) -> Dict{String,Any}
@@ -50,15 +113,15 @@ function run_metadata(configuration::Configuration)
     return Dict{String,Any}(
         "run" => Dict{String,Any}(
             "identifier" => run_identifier(configuration),
-            "system" => Dict{String,Any}(
-                "label" => configuration.system.label,
-                "target_A" => configuration.system.target_A,
-                "target_Z" => configuration.system.target_Z,
-                "reaction" => configuration.system.reaction,
-                "incident_energy_MeV" => configuration.system.incident_energy,
-                "compound_A" => configuration.system.A₀,
-                "compound_Z" => configuration.system.Z₀,
+            "system" => _system_record(configuration.system),
+            "segments" => Dict{String,Any}(
+                "required_windows" => [
+                    [first(w), last(w)] for w in configuration.segments.required_windows
+                ],
+                "windows_apply_to_datasets" =>
+                    configuration.segments.windows_apply_to_datasets,
             ),
+            "excluded_datasets" => Dict{String,Any}(configuration.excluded_datasets),
             "timestamp" => Dates.format(Dates.now(), Dates.ISODateTimeFormat),
             "configuration_file" => configuration.source,
         ),
@@ -88,6 +151,7 @@ function run_metadata(configuration::Configuration)
             "shell_correction_file" =>
                 something(configuration.level_density.shell_correction_file, "not used"),
             "multiplicity_directory" => configuration.multiplicity_directory,
+            "yield_directory" => something(configuration.yield_directory, "not used"),
         ),
     )
 end

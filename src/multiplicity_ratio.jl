@@ -1,7 +1,7 @@
 # Experimental prompt neutron multiplicity data and the multiplicity ratio derived from it.
 
 """
-    MultiplicityData
+    Multiplicity
 
 An experimental prompt neutron multiplicity distribution `ν(A)` with its uncertainties.
 
@@ -10,10 +10,10 @@ An experimental prompt neutron multiplicity distribution `ν(A)` with its uncert
 - `A`: fragment mass numbers, ascending.
 - `ν`: prompt neutron multiplicity.
 - `σν`: uncertainty of `ν`; zero where the source quotes none.
-- `label`: identifier of the data set, used in figure legends and output file names.
+- `label`: identifier of the dataset, used in figure legends and output file names.
 - `source`: path of the file the data was read from, recorded for provenance.
 """
-struct MultiplicityData
+struct Multiplicity
     A::Vector{Int}
     ν::Vector{Float64}
     σν::Vector{Float64}
@@ -21,17 +21,18 @@ struct MultiplicityData
     source::String
 end
 
-Base.length(data::MultiplicityData) = length(data.A)
+Base.length(data::Multiplicity) = length(data.A)
 
 """
     multiplicity(data, A) -> Union{Tuple{Float64,Float64},Missing}
 
-Multiplicity and its uncertainty at mass number `A`, or `missing` if the set has no entry there.
+Multiplicity and its uncertainty at mass number `A`, or `missing` if the dataset has no entry
+there.
 
 # Examples
 
 ```jldoctest
-julia> data = MultiplicityData([120, 132], [3.10, 0.69], [0.05, 0.03], "example", "");
+julia> data = Multiplicity([120, 132], [3.10, 0.69], [0.05, 0.03], "example", "");
 
 julia> multiplicity(data, 132)
 (0.69, 0.03)
@@ -40,26 +41,30 @@ julia> multiplicity(data, 131)
 missing
 ```
 """
-function multiplicity(data::MultiplicityData, A::Integer)
+function multiplicity(data::Multiplicity, A::Integer)
     index = findfirst(==(A), data.A)
     return index === nothing ? missing : (data.ν[index], data.σν[index])
 end
 
 """
-    read_multiplicity(path; label) -> MultiplicityData
+    read_multiplicity(path; label) -> Multiplicity
 
-Read a whitespace-separated `ν(A)` data set with the column layout
+Read a whitespace-separated `ν(A)` dataset with the column layout
 
 ```
-A  ν  σν
+A  nu  nu_uncertainty
 ```
 
 and a single header line. A missing or non-numeric third column is taken as an absent
 uncertainty and stored as zero, which excludes the point from the weighting of a fit without
 discarding it from the plot.
 
+The columns are taken **by position**, not by header text: the header line is skipped, so the
+upstream retrieval may rename it without touching anything here, and nothing in this reader may
+be changed to a lookup by name.
+
 No point is ever dropped on the basis of its value or uncertainty: filtering experimental data
-requires a documented reason specific to the data set, which belongs with the data rather than in
+requires a documented reason specific to the dataset, which belongs with the data rather than in
 this reader.
 
 Throws an `ArgumentError` naming the file when it cannot be read with this layout, when mass
@@ -79,11 +84,8 @@ function read_multiplicity(path::AbstractString; label::AbstractString = "")
             silencewarnings = true,
         )
     catch err
-        throw(
-            ArgumentError(
-                "multiplicity file $(path) does not have the layout `A ν σν`: $(err)"
-            ),
-        )
+        throw(ArgumentError("multiplicity file $(path) does not have the layout \
+                 `A nu nu_uncertainty`: $(err)"))
     end
 
     A = Int[]
@@ -113,7 +115,7 @@ function read_multiplicity(path::AbstractString; label::AbstractString = "")
 
     order = sortperm(A)
     name = isempty(label) ? splitext(basename(path))[1] : String(label)
-    return MultiplicityData(A[order], ν[order], σν[order], name, String(path))
+    return Multiplicity(A[order], ν[order], σν[order], name, String(path))
 end
 
 """
@@ -127,13 +129,14 @@ Used both for the prompt neutron multiplicity ratio `r_ν(A_H)` and for the temp
 # Fields
 
 - `A_H`: heavy-fragment mass numbers, ascending.
-- `value`: the ratio.
+- `ratio`: the ratio itself. Named for the quantity rather than for its role, which is what lets
+  the tables written from it carry a column named `r_nu` or `R_T` instead of `value`.
 - `σ`: uncertainty of the ratio.
-- `label`: identifier inherited from the underlying data set.
+- `label`: identifier inherited from the underlying dataset.
 """
 struct RatioCurve
     A_H::Vector{Int}
-    value::Vector{Float64}
+    ratio::Vector{Float64}
     σ::Vector{Float64}
     label::String
 end
@@ -141,8 +144,8 @@ end
 """
     TREND_LABEL
 
-Label carried by the parameterization that follows the systematic behaviour of the multiplicity
-ratio rather than any single experimental data set.
+Label carried by the segmented curve that follows the systematic behaviour of the multiplicity
+ratio rather than any single experimental dataset.
 """
 const TREND_LABEL = "systematic trend"
 
@@ -158,7 +161,7 @@ The prompt neutron multiplicity ratio
 r_ν(A_H) = ν_H / (ν_L + ν_H),    ν_H = ν(A_H),  ν_L = ν(A₀ - A_H),
 ```
 
-for every heavy mass number of `A_H_range` at which the data set provides both fragments of the
+for every heavy mass number of `A_H_range` at which the dataset provides both fragments of the
 pair. This is the ratio that equals `E*_H / TXE` under the assumption that the multiplicity ratio
 of complementary fragments follows their excitation energy ratio.
 
@@ -172,9 +175,9 @@ Pairs whose ratio falls outside the open interval `(0, 1)` are omitted rather th
 endpoints are the singular points of the temperature ratio relation, so a clipped value would
 enter the extraction as a spurious datum.
 """
-function multiplicity_ratio(data::MultiplicityData, A₀::Integer, A_H_range::UnitRange{Int})
+function multiplicity_ratio(data::Multiplicity, A₀::Integer, A_H_range::UnitRange{Int})
     A_H = Int[]
-    value = Float64[]
+    ratio = Float64[]
     σ = Float64[]
 
     for mass in A_H_range
@@ -191,9 +194,9 @@ function multiplicity_ratio(data::MultiplicityData, A₀::Integer, A_H_range::Un
         σ_r = sqrt((ν_L * σ_H)^2 + (ν_H * σ_L)^2) / total^2
 
         push!(A_H, mass)
-        push!(value, r)
+        push!(ratio, r)
         push!(σ, σ_r)
     end
 
-    return RatioCurve(A_H, value, σ, data.label)
+    return RatioCurve(A_H, ratio, σ, data.label)
 end

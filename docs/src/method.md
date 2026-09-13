@@ -39,10 +39,10 @@ This also distinguishes the two averaging orders. [`RatioOfMeans`](@ref) satisfi
 ratios come in reciprocal pairs of equal weight, and the arithmetic mean of ``x`` and ``1/x``
 exceeds one unless ``x = 1``. The former is the default for that reason.
 
-## Parameterization by joined segments
+## Description by joined segments
 
-The ratio extracted point by point is scattered, and for some data sets sparse, so it is
-``r_\nu`` that is parameterized and ``R_T`` that follows by the exact relation above. The model is
+The ratio extracted point by point is scattered, and for some datasets sparse, so it is
+``r_\nu`` that is described by joined segments and ``R_T`` that follows by the exact relation above. The model is
 continuous and piecewise-linear, written in the truncated-power basis
 
 ```math
@@ -61,17 +61,17 @@ is pinned at the symmetric split, and it may not leave the interval ``(0, 1)``, 
 temperature ratio relation is undefined. Since a piecewise-linear function attains its extrema at
 its pivots, the bound is tested exactly rather than sampled.
 
-## One curve per data set, and one systematic trend
+## One curve per dataset, and one systematic trend
 
-The data sets of a fissioning nucleus can differ well beyond their quoted uncertainties, and where
+The datasets of a fissioning nucleus can differ well beyond their quoted uncertainties, and where
 they do, the temperature ratio can only be determined separately for each of them. A run therefore
-produces one parameterization per data set, fitted to that set alone.
+produces one segmented curve per dataset, fitted to that dataset alone.
 
 Alongside them it produces a systematic-trend curve, fitted through the whole body of data with
 the minimum at the heavy magic fragment *placed* rather than fitted — `required_windows` in the
 configuration, defaulting to ``A_H \in [128, 132]``. Its rise above the most probable
 fragmentation therefore falls between those of the individual sets. This is the curve to use where
-a data set is too sparse or too scattered to resolve the shape on its own, and where no energy
+a dataset is too sparse or too scattered to resolve the shape on its own, and where no energy
 partition from a scission model is available.
 
 These are alternatives, not an ensemble to be averaged. A prompt emission code takes one of them
@@ -105,18 +105,18 @@ Uncertainties propagate from the ratio and from the yield,
          + \left(\frac{R_T - \langle R_T \rangle}{\sum Y}\right)^2 \sigma_Y^2 \right],
 ```
 
-which is why a multiplicity data set quoting no uncertainties still yields an uncertain average:
+which is why a multiplicity dataset quoting no uncertainties still yields an uncertain average:
 the yield distribution supplies it. Correlations between mass numbers are neglected in both
 inputs, the sources not reporting them.
 
-## Combining data sets
+## Combining datasets
 
-Several measurements of one fissioning system are not merged into one. Each is parameterized on
-its own, and a further curve is fitted to their combination.
+Several measurements of one fissioning system are not merged into one. Each is fitted on its own,
+and a further curve is fitted to their combination.
 
 That combination is not a concatenation. At each mass number the available values are combined
-with inverse-variance weights carrying an additional between-set variance ``\tau^2``, estimated
-from their dispersion after DerSimonian and Laird,
+with inverse-variance weights carrying an additional between-dataset variance ``\tau^2``,
+estimated from their dispersion after DerSimonian and Laird,
 
 ```math
 w = \frac{1}{\sigma^2 + \tau^2}, \qquad
@@ -124,18 +124,18 @@ w = \frac{1}{\sigma^2 + \tau^2}, \qquad
 \sigma_{\bar{r}} = \left(\sum w\right)^{-1/2}.
 ```
 
-The reason is empirical. The sets of one system disagree by ten to twenty times their quoted
+The reason is empirical. The datasets of one system disagree by ten to twenty times their quoted
 uncertainties, so ``\tau^2`` dominates ``\sigma^2``, the weights become nearly equal, and the
 combination stops being decided by whichever author quoted the smallest errors. It also makes the
 fitted chi-squared of the combined curve a statement about the fit rather than about the
 disagreement: for 252-Cf it falls from about 16 to about 2.
 
-The same disagreement is why no data set is rejected for being far from the others. In units of
+The same disagreement is why no dataset is rejected for being far from the others. In units of
 the quoted uncertainties none of them agrees with any other, so such a criterion rejects whatever
-it is tuned to reject. What can be said about a set without reference to the rest — how many
+it is tuned to reject. What can be said about a dataset without reference to the rest — how many
 usable fragment pairs it has, whether its ratio stays inside ``(0,1)``, whether it satisfies the
 identity at the symmetric split, whether complementary multiplicities sum to the total — is
-reported for every set, and exclusions are named explicitly rather than inferred.
+reported for every dataset, and exclusions are named explicitly rather than inferred.
 
 ## References
 

@@ -1,22 +1,22 @@
 # Level density parameter systematics for nuclei occurring as fission fragments.
 
 """
-    LevelDensityPrescription
+    LevelDensityModel
 
-Abstract supertype for the prescriptions that supply the level density parameter `a(A, Z)` of a
+Abstract supertype for the models that supply the level density parameter `a(A, Z)` of a
 fission fragment.
 
-Only energy-independent prescriptions are admissible here: the temperature ratio is extracted
+Only energy-independent models are admissible here: the temperature ratio is extracted
 from the Fermi-gas relation `E* = a T²` evaluated at a single, unknown excitation energy, so a
 parameter that itself depends on `E*` would make the relation implicit.
 
-A prescription carries the tabulated data it is evaluated from, so that
+A model carries the tabulated data it is evaluated from, so that
 [`level_density_parameter`](@ref) needs nothing beyond the nuclide.
 """
-abstract type LevelDensityPrescription end
+abstract type LevelDensityModel end
 
 """
-    BackShiftedFermiGas <: LevelDensityPrescription
+    BackShiftedFermiGas <: LevelDensityModel
 
 Back-shifted Fermi gas systematic of von Egidy and Bucurescu, Phys. Rev. C **72**, 044311 (2005),
 erratum Phys. Rev. C **73**, 049901 (2006), and Phys. Rev. C **80**, 054310 (2009),
@@ -46,7 +46,7 @@ For the majority of nuclei occurring as fission
 fragments this systematic reproduces the superfluid-model level density parameter at the
 excitation energies fragments actually attain, which is why it is the default here.
 """
-struct BackShiftedFermiGas <: LevelDensityPrescription
+struct BackShiftedFermiGas <: LevelDensityModel
     masses::MassExcessTable
 end
 
@@ -93,54 +93,54 @@ from the mass excess table `masses`; `P_d` is the deuteron pairing energy, the s
 of the mass excess along the line of constant neutron excess,
 
 ```
-P_d = [D(A+2, Z+1) - 2 D(A, Z) + D(A-2, Z-1)] / 4.
+P_d = [Δ(A+2, Z+1) - 2 Δ(A, Z) + Δ(A-2, Z-1)] / 4.
 ```
 
 Returns `missing` when any of the three mass excesses required for `P_d` is absent from the
 table, which is the normal situation at the edges of the known region.
 """
 function shell_correction(A::Integer, Z::Integer, masses::MassExcessTable)
-    D = mass_excess(masses, A, Z)
-    D₊ = mass_excess(masses, A + 2, Z + 1)
-    D₋ = mass_excess(masses, A - 2, Z - 1)
-    (ismissing(D) || ismissing(D₊) || ismissing(D₋)) && return missing
+    Δ = mass_excess(masses, A, Z)
+    Δ₊ = mass_excess(masses, A + 2, Z + 1)
+    Δ₋ = mass_excess(masses, A - 2, Z - 1)
+    (ismissing(Δ) || ismissing(Δ₊) || ismissing(Δ₋)) && return missing
 
-    W_exp = Z * masses.Dᵖ + (A - Z) * masses.Dⁿ - D
+    W_exp = Z * masses.Δᵖ + (A - Z) * masses.Δⁿ - Δ
     η = (A - 2 * Z) / A
     a_sym = A * (LIQUID_DROP.symmetry_constant - LIQUID_DROP.symmetry_slope * A^(-1 / 3))
     W_LDM =
         LIQUID_DROP.volume * A - LIQUID_DROP.surface * A^(2 / 3) -
         LIQUID_DROP.coulomb * Z^2 * A^(-1 / 3) - a_sym * η^2
-    P_d = (D₊ - 2 * D + D₋) / 4
+    P_d = (Δ₊ - 2 * Δ + Δ₋) / 4
 
     return (W_LDM - W_exp) + P_d
 end
 
 """
-    level_density_parameter(prescription, A, Z) -> Union{Float64,Missing}
+    level_density_parameter(model, A, Z) -> Union{Float64,Missing}
 
 Level density parameter `a` in MeV⁻¹ of the nuclide `(A, Z)`.
 
-Returns `missing` when the prescription cannot be evaluated — the tabulated data it needs is
+Returns `missing` when the model cannot be evaluated — the tabulated data it needs is
 absent for this nuclide, or the expression yields a non-positive value, which is not physically
 meaningful.
 
 # Example
 
 ```julia
-masses = read_mass_excess(joinpath(datadir(), "mass_excess", "AME2020.ANA"))
+masses = read_mass_excess_table(joinpath(datadir(), "reference", "mass_excess_ame2020.dat"))
 a = level_density_parameter(BackShiftedFermiGas(masses), 132, 50)
 ```
 """
-function level_density_parameter(prescription::BackShiftedFermiGas, A::Integer, Z::Integer)
-    δW = shell_correction(A, Z, prescription.masses)
+function level_density_parameter(model::BackShiftedFermiGas, A::Integer, Z::Integer)
+    δW = shell_correction(A, Z, model.masses)
     ismissing(δW) && return missing
     a = (BSFG.p₁ + BSFG.p₂ * δW) * A^BSFG.p₃
     return a > 0 ? a : missing
 end
 
 """
-    GilbertCameron <: LevelDensityPrescription
+    GilbertCameron <: LevelDensityModel
 
 Level density systematic of Gilbert and Cameron, Can. J. Phys. **43**, 1446 (1965), Eq. (20),
 
@@ -161,12 +161,12 @@ therefore the same choice the published results of this method were obtained und
 retained for that reason rather than for want of the alternative.
 
 It is provided for assessing how much the extracted temperature ratio depends on the level density
-prescription, not as an equal alternative: for nuclei occurring as fission fragments it returns
+model, not as an equal alternative: for nuclei occurring as fission fragments it returns
 parameters well above those of the superfluid model and of the back-shifted Fermi gas, so the
-spread between the two prescriptions bounds a systematic uncertainty the propagated experimental
+spread between the two models bounds a systematic uncertainty the propagated experimental
 uncertainties do not cover.
 """
-struct GilbertCameron <: LevelDensityPrescription
+struct GilbertCameron <: LevelDensityModel
     shells::ShellCorrectionTable
 end
 
@@ -184,10 +184,10 @@ end
 
 const GILBERT_CAMERON = GilbertCameronCoefficients(9.17e-3, 1.42e-1)
 
-function level_density_parameter(prescription::GilbertCameron, A::Integer, Z::Integer)
+function level_density_parameter(model::GilbertCameron, A::Integer, Z::Integer)
     N = A - Z
-    S_Z = get(prescription.shells.S_Z, Int(Z), missing)
-    S_N = get(prescription.shells.S_N, Int(N), missing)
+    S_Z = get(model.shells.S_Z, Int(Z), missing)
+    S_N = get(model.shells.S_N, Int(N), missing)
     (ismissing(S_Z) || ismissing(S_N)) && return missing
     a = A * (GILBERT_CAMERON.c₁ * (S_Z + S_N) + GILBERT_CAMERON.c₂)
     return a > 0 ? a : missing

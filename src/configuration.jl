@@ -3,28 +3,32 @@
 """
     SystemSpecification
 
-The fissioning system: what was irradiated, with what, and at what energy.
+The fissioning system: what was irradiated, through which entrance channel, and at what energy.
 
-The target and the reaction are what a configuration declares; the nucleus that actually undergoes
-fission follows from them and is **derived**, never declared. `A₀` and `Z₀` are therefore the
-compound nucleus for neutron-induced fission and the parent for spontaneous fission, and cannot
-contradict the target they came from. `label` is derived too, by [`case_label`](@ref).
+The target and the entrance channel are what a configuration declares; everything else follows and
+is **derived**, never declared. The reaction code comes from the channel through
+[`CHANNEL_REACTION`](@ref), `A₀` and `Z₀` are therefore the compound nucleus for neutron-induced
+fission and the parent for spontaneous fission and cannot contradict the target they came from,
+and `label` is derived by [`system_label`](@ref).
 
 Incident energy is carried even though the extraction does not yet use it, because it is part of
-what identifies a system: the same target and reaction at two energies are two systems, and a
+what identifies a system: the same target and channel at two energies are two systems, and a
 downstream code matching on the label alone would conflate them.
 
 # Fields
 
 - `target_A`, `target_Z`: the nuclide irradiated, or the one that fissions spontaneously.
-- `reaction`: one of [`REACTIONS`](@ref).
+- `channel`: the entrance channel, one of the keys of [`CHANNEL_REACTION`](@ref).
+- `reaction`: the reaction code the channel implies, one of the keys of [`REACTIONS`](@ref);
+  derived.
 - `incident_energy`: in MeV; zero for spontaneous fission.
 - `A₀`, `Z₀`: the fissioning nucleus, derived.
-- `label`: the canonical case identifier, derived.
+- `label`: the canonical system identifier, derived.
 """
 struct SystemSpecification
     target_A::Int
     target_Z::Int
+    channel::String
     reaction::String
     incident_energy::Float64
     A₀::Int
@@ -35,14 +39,28 @@ end
 """
     REACTIONS
 
-The reactions a fissioning system can be formed by: spontaneous fission, `"0,f"`, and
-neutron-induced fission, `"n,f"`. The compound nucleus follows — neutron-induced fission adds one
-mass unit to the target, spontaneous fission none — so `A₀` and `Z₀` are derived rather than
-declared, and cannot disagree with the target they came from.
+The reactions a fissioning system can be formed by, and the number of neutrons each absorbs:
+spontaneous fission, `"0,f"`, and neutron-induced fission, `"n,f"`. The compound nucleus follows —
+neutron-induced fission adds one mass unit to the target, spontaneous fission none — so `A₀` and
+`Z₀` are derived rather than declared, and cannot disagree with the target they came from.
 """
 const REACTIONS = Dict("0,f" => 0, "n,f" => 1)
 
-# Element symbols by proton number, for deriving the case label from the target.
+"""
+    CHANNEL_REACTION
+
+The reaction code each entrance channel is formed through: spontaneous fission `sf`, and
+neutron-induced fission from the thermal, resonance and fast regions, `nth`, `nres` and `nfast`.
+
+The channel is what a configuration declares, because the reaction code alone cannot tell a
+thermal run of a system from a resonance run of the same system — both are `"n,f"` — while the
+system identifier must. The incident-energy window still does the selecting, and the channel has
+to agree with it; the boundaries between the regions are conventions rather than constants, so
+that agreement is a matter of stating the channel correctly and is not enforced here.
+"""
+const CHANNEL_REACTION = Dict("sf" => "0,f", "nth" => "n,f", "nres" => "n,f", "nfast" => "n,f")
+
+# Element symbols by proton number, for deriving the system identifier from the target.
 const ELEMENT_SYMBOLS = split(
     "H He Li Be B C N O F Ne Na Mg Al Si P S Cl Ar K Ca Sc Ti V Cr Mn Fe Co Ni Cu Zn Ga Ge As \
      Se Br Kr Rb Sr Y Zr Nb Mo Tc Ru Rh Pd Ag Cd In Sn Sb Te I Xe Cs Ba La Ce Pr Nd Pm Sm Eu Gd \
@@ -61,15 +79,82 @@ function element_symbol(Z::Integer)
 end
 
 """
-    case_label(system) -> String
+    system_label(target_A, target_Z, channel) -> String
 
-The canonical identifier of a fissioning system, `<symbol><target A>_<reaction>` with the comma
-dropped — `Cf252_0f`, `U235_nf`. Derived from the target and the reaction rather than declared, so
-that two runs of the same system cannot be labelled differently, and a label cannot contradict the
-nuclide it names. It is the key a downstream code matches on.
+The canonical identifier of a fissioning system, `<symbol><target A>_<channel>` — `Cf252_sf`,
+`U235_nth`. It names the data directory, the configuration file and the output subdirectory, and
+it is the key a downstream code matches on.
+
+Derived from the target and the channel rather than declared, so that two runs of one system
+cannot be labelled differently and a label cannot contradict the nuclide it names.
+
+This is the ASCII token; [`system_notation`](@ref) is the typeset form for a figure.
+
+# Examples
+
+```jldoctest
+julia> system_label(252, 98, "sf")
+"Cf252_sf"
+
+julia> system_label(235, 92, "nth")
+"U235_nth"
+```
 """
-function case_label(target_A::Integer, target_Z::Integer, reaction::AbstractString)
-    return string(element_symbol(target_Z), target_A, "_", replace(reaction, "," => ""))
+function system_label(target_A::Integer, target_Z::Integer, channel::AbstractString)
+    return string(element_symbol(target_Z), target_A, "_", channel)
+end
+
+const SUPERSCRIPT_DIGITS = Dict(
+    '0' => '⁰',
+    '1' => '¹',
+    '2' => '²',
+    '3' => '³',
+    '4' => '⁴',
+    '5' => '⁵',
+    '6' => '⁶',
+    '7' => '⁷',
+    '8' => '⁸',
+    '9' => '⁹',
+)
+
+# The channel as the fission literature typesets it, inside the reaction parentheses.
+const CHANNEL_NOTATION = Dict(
+    "sf" => "sf", "nth" => "nth,f", "nres" => "nres,f", "nfast" => "nfast,f"
+)
+
+"""
+    system_notation(target_A, target_Z, channel) -> String
+
+The typeset form of a fissioning system, for a figure label or a caption — `²⁵²Cf(sf)`,
+`²³³U(nth,f)`, with the mass number superscripted as the literature writes it.
+
+Distinct from [`system_label`](@ref) on purpose: one name may not mean both the token that goes
+into a path and the notation that goes into a figure.
+
+# Examples
+
+```jldoctest
+julia> system_notation(252, 98, "sf")
+"²⁵²Cf(sf)"
+
+julia> system_notation(233, 92, "nth")
+"²³³U(nth,f)"
+```
+"""
+function system_notation(target_A::Integer, target_Z::Integer, channel::AbstractString)
+    haskey(CHANNEL_NOTATION, channel) ||
+        throw(ArgumentError("no notation for the entrance channel $(repr(channel))"))
+    mass = map(digit -> SUPERSCRIPT_DIGITS[digit], string(target_A))
+    return string(mass, element_symbol(target_Z), "(", CHANNEL_NOTATION[channel], ")")
+end
+
+"""
+    system_notation(system) -> String
+
+The typeset form of the system a [`SystemSpecification`](@ref) describes.
+"""
+function system_notation(system::SystemSpecification)
+    return system_notation(system.target_A, system.target_Z, system.channel)
 end
 
 """
@@ -81,48 +166,47 @@ the isobaric charge distribution come from. Paths are relative to the data direc
 """
 struct FragmentationSettings
     charges_per_mass::Int
-    A_H_max::Int
+    heavy_mass_min::Int
+    heavy_mass_max::Int
     charge_distribution_file::Union{String,Nothing}
     fallback_charge_polarization::Float64
-    fallback_rms::Float64
+    fallback_charge_dispersion::Float64
 end
 
 """
     LevelDensitySettings
 
-Which level density prescription to use, the tabulated data it is evaluated from, and the order in
-which the parameter ratio of complementary fragments is averaged over the isobaric charge
-distribution.
+Which level density model to use, the tabulated data it is evaluated from, and the order in which
+the parameter ratio of complementary fragments is averaged over the isobaric charge distribution.
 
-The prescription is named rather than constructed here, because constructing it means reading its
-data; [`build_prescription`](@ref) does that when a run starts.
+The model is named rather than constructed here, because constructing it means reading its data;
+[`build_level_density_model`](@ref) does that when a run starts.
 """
 struct LevelDensitySettings
-    prescription::Symbol
+    model::Symbol
     mass_excess_file::String
     shell_correction_file::Union{String,Nothing}
     ratio_averaging::RatioAveraging
 end
 
 """
-    build_prescription(settings) -> LevelDensityPrescription
+    build_level_density_model(settings) -> LevelDensityModel
 
-Read the tabulated data named by `settings` and construct the level density prescription from it.
+Read the tabulated data named by `settings` and construct the level density model from it.
 
-Throws an `ArgumentError` if the prescription is unknown, or if the data it needs was not named.
+Throws an `ArgumentError` if the model is unknown, or if the data it needs was not named.
 [`load_configuration`](@ref) already rejects both, so this guards settings assembled by hand.
 """
-function build_prescription(settings::LevelDensitySettings)
-    if settings.prescription === :BSFG
-        return BackShiftedFermiGas(read_mass_excess(settings.mass_excess_file))
-    elseif settings.prescription === :GC
+function build_level_density_model(settings::LevelDensitySettings)
+    if settings.model === :BSFG
+        return BackShiftedFermiGas(read_mass_excess_table(settings.mass_excess_file))
+    elseif settings.model === :GC
         path = settings.shell_correction_file
-        path === nothing && throw(
-            ArgumentError("the Gilbert-Cameron prescription needs a shell correction file")
-        )
-        return GilbertCameron(read_shell_corrections(path))
+        path === nothing &&
+            throw(ArgumentError("the Gilbert-Cameron model needs a shell correction file"))
+        return GilbertCameron(read_shell_correction_table(path))
     end
-    return throw(ArgumentError("unknown level density prescription: $(settings.prescription)"))
+    return throw(ArgumentError("unknown level density model: $(settings.model)"))
 end
 
 """
@@ -134,8 +218,8 @@ the symmetric split, and mass-number windows that must each contain a breakpoint
 
 `required_windows` places a breakpoint where physics says there is one — the minimum at the heavy
 magic fragment, `A_H` near 130, where the `Z = 50`, `N = 82` shell closure fixes the sharing. It
-constrains the systematic-trend curve by default and the per-data-set parameterizations only when
-`windows_apply_to_data_sets` is set, since a set that resolves the feature on its own should be
+constrains the systematic-trend curve by default and the per-dataset parameterizations only when
+`windows_apply_to_datasets` is set, since a dataset that resolves the feature on its own should be
 left to do so.
 
 `parsimony` biases the choice of order towards fewer segments by multiplying the penalty the
@@ -146,7 +230,7 @@ struct SegmentSettings
     min_points_per_segment::Int
     pin_symmetric_split::Bool
     required_windows::Vector{UnitRange{Int}}
-    windows_apply_to_data_sets::Bool
+    windows_apply_to_datasets::Bool
     parsimony::Float64
 end
 
@@ -155,9 +239,13 @@ end
 
 Rounding of tabulated output and the subdirectory, under the results and plots directories, that
 a run writes into.
+
+`significant_digits` is significant figures, not decimal places: an uncertainty of `1.2e-5` and a
+ratio of `1.1` are both written to the same number of meaningful digits, which a fixed number of
+decimals cannot do for two quantities of such different magnitude.
 """
 struct OutputSettings
-    digits::Int
+    significant_digits::Int
     subdirectory::String
 end
 
@@ -172,7 +260,7 @@ struct Configuration
     fragmentation::FragmentationSettings
     level_density::LevelDensitySettings
     multiplicity_directory::String
-    excluded_sets::Dict{String,String}
+    excluded_datasets::Dict{String,String}
     yield_directory::Union{String,Nothing}
     segments::SegmentSettings
     output::OutputSettings
@@ -180,20 +268,12 @@ struct Configuration
 end
 
 """
-    A_H_min(configuration) -> Int
-
-Smallest heavy-fragment mass number, the symmetric split rounded up. For an odd `A₀` there is no
-symmetric split and this is the lighter member of the most symmetric pair.
-"""
-A_H_min(configuration::Configuration) = cld(configuration.system.A₀, 2)
-
-"""
     A_H_range(configuration) -> UnitRange{Int}
 
-Heavy-fragment mass numbers spanned by the fragmentation range.
+Heavy-fragment mass numbers spanned by the fragmentation range, `heavy_mass_min:heavy_mass_max`.
 """
 function A_H_range(configuration::Configuration)
-    return A_H_min(configuration):configuration.fragmentation.A_H_max
+    return configuration.fragmentation.heavy_mass_min:configuration.fragmentation.heavy_mass_max
 end
 
 """
@@ -205,7 +285,7 @@ pinning the parameterization relies on.
 """
 has_symmetric_split(configuration::Configuration) = iseven(configuration.system.A₀)
 
-const PRESCRIPTIONS = Dict{String,Symbol}("BSFG" => :BSFG, "GC" => :GC)
+const LEVEL_DENSITY_MODELS = Dict{String,Symbol}("BSFG" => :BSFG, "GC" => :GC)
 const AVERAGINGS = Dict{String,RatioAveraging}(
     "ratio_of_means" => RatioOfMeans(), "mean_of_ratios" => MeanOfRatios()
 )
@@ -253,30 +333,31 @@ function _one_of(value::String, options::AbstractDict, path::String)
     return options[value]
 end
 
-# Data sets kept out of the pooling, each with the reason written down. A reason is required:
+# Datasets kept out of the pooling, each with the reason written down. A reason is required:
 # excluding a measurement is a judgement, and an unexplained one is indistinguishable from a
 # mistake to anyone reading the configuration later.
 function _exclusions(section::AbstractDict, path::String)
     haskey(section, "exclude") || return Dict{String,String}()
     raw = section["exclude"]
-    raw isa AbstractVector ||
-        throw(ArgumentError("$(path) must be an array of tables, each with `set` and `reason`"))
+    raw isa AbstractVector || throw(
+        ArgumentError("$(path) must be an array of tables, each with `dataset` and `reason`"),
+    )
     exclusions = Dict{String,String}()
     for (index, entry) in enumerate(raw)
         entry isa AbstractDict &&
-        haskey(entry, "set") &&
+        haskey(entry, "dataset") &&
         haskey(entry, "reason") &&
-        entry["set"] isa String &&
+        entry["dataset"] isa String &&
         entry["reason"] isa String || throw(
             ArgumentError(
-                "$(path)[$(index)] must be a table with string keys `set` and `reason`"
+                "$(path)[$(index)] must be a table with string keys `dataset` and `reason`"
             ),
         )
         isempty(strip(entry["reason"])) &&
             throw(ArgumentError("$(path)[$(index)] must give a non-empty reason"))
-        haskey(exclusions, entry["set"]) &&
-            throw(ArgumentError("$(path) names $(repr(entry["set"])) more than once"))
-        exclusions[entry["set"]] = entry["reason"]
+        haskey(exclusions, entry["dataset"]) &&
+            throw(ArgumentError("$(path) names $(repr(entry["dataset"])) more than once"))
+        exclusions[entry["dataset"]] = entry["reason"]
     end
     return exclusions
 end
@@ -298,6 +379,36 @@ function _windows(section::AbstractDict, path::String)
     return windows
 end
 
+# A path under the data root. `subdirectory` names a folder under a root; `directory` names a root.
+function _subdirectory(
+    section::AbstractDict, path::String, root::AbstractString; required::Bool = true
+)
+    if !required && !haskey(section, "subdirectory")
+        return nothing
+    end
+    resolved = joinpath(root, _value(section, "subdirectory", String, path))
+    isdir(resolved) || throw(ArgumentError("$(path) does not exist: $(resolved)"))
+    return resolved
+end
+
+function _input_file(
+    section::AbstractDict,
+    key::String,
+    path::String,
+    root::AbstractString;
+    required::Bool = true,
+)
+    relative =
+        required ? _value(section, key, String, path) : _value(section, key, String, path, "")
+    if isempty(relative)
+        required && throw(ArgumentError("$(path) must not be empty"))
+        return nothing
+    end
+    resolved = joinpath(root, relative)
+    isfile(resolved) || throw(ArgumentError("$(path) does not exist: $(resolved)"))
+    return resolved
+end
+
 """
     load_configuration(path; data_directory = datadir()) -> Configuration
 
@@ -308,13 +419,13 @@ file named by the configuration is checked for existence, before the pipeline is
 start. Failures throw an `ArgumentError` naming the offending key, so that a configuration the
 pipeline cannot honour never begins a run.
 
-`data_directory` is where the relative paths in the configuration are resolved against; it exists
-so that tests can point at a fixture directory.
+`data_directory` is the root the `subdirectory` and file keys are resolved against; it exists so
+that tests can point at a fixture directory.
 
 # Example
 
 ```julia
-configuration = load_configuration(joinpath(projectdir(), "config", "U233_nf.toml"))
+configuration = load_configuration(joinpath(projectdir(), "config", "U233_nth.toml"))
 ```
 """
 function load_configuration(path::AbstractString; data_directory::AbstractString = datadir())
@@ -346,8 +457,9 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
     target_Z < target_A ||
         throw(ArgumentError("system.target_Z must be smaller than system.target_A, \
              got target_Z = $(target_Z), target_A = $(target_A)"))
-    reaction = _value(system_section, "reaction", String, "system.reaction")
-    neutrons_absorbed = _one_of(reaction, REACTIONS, "system.reaction")
+    channel = _value(system_section, "channel", String, "system.channel")
+    reaction = _one_of(channel, CHANNEL_REACTION, "system.channel")
+    neutrons_absorbed = REACTIONS[reaction]
     incident_energy = Float64(
         _in_bounds(
             _value(system_section, "incident_energy", Real, "system.incident_energy", 0.0),
@@ -357,13 +469,14 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
     )
     # Spontaneous fission has no incident particle, so an energy for it is a contradiction rather
     # than a harmless extra.
-    reaction == "0,f" &&
+    channel == "sf" &&
         incident_energy != 0 &&
         throw(ArgumentError("system.incident_energy must be zero for spontaneous fission, \
-             got $(incident_energy) MeV with reaction \"0,f\""))
+             got $(incident_energy) MeV with channel \"sf\""))
     A₀ = target_A + neutrons_absorbed
     Z₀ = target_Z
-    label = case_label(target_A, target_Z, reaction)
+    label = system_label(target_A, target_Z, channel)
+    symmetric_split = cld(A₀, 2)
 
     fragmentation_section = _section(document, "fragmentation", source)
     charges_per_mass = Int(
@@ -382,17 +495,32 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
     isodd(charges_per_mass) || throw(
         ArgumentError("fragmentation.charges_per_mass must be odd, got $(charges_per_mass)")
     )
-    A_H_max = Int(
+    # The symmetric split is the smallest heavy-fragment mass there is, and the default: below it
+    # the heavy fragment would be the lighter of the pair.
+    heavy_mass_min = Int(
         _in_bounds(
-            _value(fragmentation_section, "A_H_max", Integer, "fragmentation.A_H_max"),
-            "fragmentation.A_H_max";
-            min = 2,
+            _value(
+                fragmentation_section,
+                "heavy_mass_min",
+                Integer,
+                "fragmentation.heavy_mass_min",
+                symmetric_split,
+            ),
+            "fragmentation.heavy_mass_min";
+            min = symmetric_split,
             max = A₀ - 1,
         ),
     )
-    A_H_max ≥ cld(A₀, 2) ||
-        throw(ArgumentError("fragmentation.A_H_max must be at least the symmetric split \
-                       $(cld(A₀, 2)), got $(A_H_max)"))
+    heavy_mass_max = Int(
+        _in_bounds(
+            _value(
+                fragmentation_section, "heavy_mass_max", Integer, "fragmentation.heavy_mass_max"
+            ),
+            "fragmentation.heavy_mass_max";
+            min = heavy_mass_min,
+            max = A₀ - 1,
+        ),
+    )
     fallback_ΔZ = Float64(
         _in_bounds(
             _value(
@@ -407,77 +535,52 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
             max = 5,
         ),
     )
-    fallback_rms = Float64(
+    fallback_σ_Z = Float64(
         _in_bounds(
             _value(
-                fragmentation_section, "fallback_rms", Real, "fragmentation.fallback_rms", 0.6
+                fragmentation_section,
+                "fallback_charge_dispersion",
+                Real,
+                "fragmentation.fallback_charge_dispersion",
+                0.6,
             ),
-            "fragmentation.fallback_rms";
+            "fragmentation.fallback_charge_dispersion";
             min = 0,
             max = 5,
             exclusive_min = true,
         ),
     )
-    charge_file = let
-        relative = _value(
-            fragmentation_section,
-            "charge_distribution_file",
-            String,
-            "fragmentation.charge_distribution_file",
-            "",
-        )
-        if isempty(relative)
-            nothing
-        else
-            resolved = joinpath(data_directory, relative)
-            isfile(resolved) || throw(
-                ArgumentError(
-                    "fragmentation.charge_distribution_file does not exist: $(resolved)"
-                ),
-            )
-            resolved
-        end
-    end
+    charge_file = _input_file(
+        fragmentation_section,
+        "charge_distribution_file",
+        "fragmentation.charge_distribution_file",
+        data_directory;
+        required = false,
+    )
 
     level_density_section = _section(document, "level_density", source)
-    prescription = _one_of(
-        _value(level_density_section, "prescription", String, "level_density.prescription"),
-        PRESCRIPTIONS,
-        "level_density.prescription",
+    model = _one_of(
+        _value(level_density_section, "model", String, "level_density.model"),
+        LEVEL_DENSITY_MODELS,
+        "level_density.model",
     )
-    mass_excess_file = joinpath(
+    mass_excess_file = _input_file(
+        level_density_section,
+        "mass_excess_file",
+        "level_density.mass_excess_file",
         data_directory,
-        _value(
-            level_density_section, "mass_excess_file", String, "level_density.mass_excess_file"
-        ),
     )
-    isfile(mass_excess_file) || throw(
-        ArgumentError("level_density.mass_excess_file does not exist: $(mass_excess_file)")
+    shell_correction_file = _input_file(
+        level_density_section,
+        "shell_correction_file",
+        "level_density.shell_correction_file",
+        data_directory;
+        required = false,
     )
-    shell_correction_file = let
-        relative = _value(
-            level_density_section,
-            "shell_correction_file",
-            String,
-            "level_density.shell_correction_file",
-            "",
-        )
-        if isempty(relative)
-            prescription === :GC && throw(
-                ArgumentError("level_density.shell_correction_file is required when \
-                     level_density.prescription is \"GC\"")
-            )
-            nothing
-        else
-            resolved = joinpath(data_directory, relative)
-            isfile(resolved) || throw(
-                ArgumentError(
-                    "level_density.shell_correction_file does not exist: $(resolved)"
-                ),
-            )
-            resolved
-        end
-    end
+    model === :GC &&
+        shell_correction_file === nothing &&
+        throw(ArgumentError("level_density.shell_correction_file is required when \
+             level_density.model is \"GC\""))
     averaging = _one_of(
         _value(
             level_density_section,
@@ -491,24 +594,15 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
     )
 
     multiplicity_section = _section(document, "multiplicity", source)
-    multiplicity_directory = joinpath(
-        data_directory,
-        _value(multiplicity_section, "directory", String, "multiplicity.directory"),
+    multiplicity_directory = _subdirectory(
+        multiplicity_section, "multiplicity.subdirectory", data_directory
     )
-    isdir(multiplicity_directory) ||
-        throw(ArgumentError("multiplicity.directory does not exist: $(multiplicity_directory)"))
-    excluded_sets = _exclusions(multiplicity_section, "multiplicity.exclude")
+    excluded_datasets = _exclusions(multiplicity_section, "multiplicity.exclude")
 
     # Optional. Without it the run reports the mean over the fragment mass range only; with it,
     # the total average over each yield distribution, which is the quantity the literature quotes.
     yield_directory = if haskey(document, "yield")
-        directory = joinpath(
-            data_directory,
-            _value(document["yield"], "directory", String, "yield.directory"),
-        )
-        isdir(directory) ||
-            throw(ArgumentError("yield.directory does not exist: $(directory)"))
-        directory
+        _subdirectory(document["yield"], "yield.subdirectory", data_directory)
     else
         nothing
     end
@@ -539,21 +633,30 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
     pin = _value(
         segments_section, "pin_symmetric_split", Bool, "segments.pin_symmetric_split", true
     )
-    pin &&
-        isodd(A₀) &&
-        throw(
+    if pin
+        isodd(A₀) && throw(
             ArgumentError(
-                "segments.pin_symmetric_split requires an even fissioning mass number, since the ratio \
-                       equals one half only where the two fragments are identical; got \
-                       A0 = $(A₀)",
+                "segments.pin_symmetric_split requires an even fissioning mass number, since the \
+                 ratio equals one half only where the two fragments are identical; got \
+                 A0 = $(A₀)",
             ),
         )
+        # The fit is pinned at the first abscissa of the range, so that abscissa has to be the
+        # symmetric split; pinning a range that starts above it would fix the ratio to one half
+        # where nothing says it is.
+        heavy_mass_min == symmetric_split || throw(
+            ArgumentError(
+                "segments.pin_symmetric_split requires fragmentation.heavy_mass_min to be the \
+                 symmetric split $(symmetric_split), got $(heavy_mass_min)",
+            ),
+        )
+    end
     windows = _windows(segments_section, "segments.required_windows")
     windows_apply = _value(
         segments_section,
-        "windows_apply_to_data_sets",
+        "windows_apply_to_datasets",
         Bool,
-        "segments.windows_apply_to_data_sets",
+        "segments.windows_apply_to_datasets",
         false,
     )
     parsimony = Float64(
@@ -566,17 +669,19 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
         ),
     )
     for (index, window) in enumerate(windows)
-        issubset(window, cld(A₀, 2):A_H_max) || throw(
+        issubset(window, heavy_mass_min:heavy_mass_max) || throw(
             ArgumentError("segments.required_windows[$(index)] = $(window) lies outside the \
-                           fragmentation range $(cld(A₀, 2)):$(A_H_max)"),
+                           fragmentation range $(heavy_mass_min):$(heavy_mass_max)"),
         )
     end
 
     output_section = _section(document, "output", source)
-    digits = Int(
+    significant_digits = Int(
         _in_bounds(
-            _value(output_section, "digits", Integer, "output.digits", 6),
-            "output.digits";
+            _value(
+                output_section, "significant_digits", Integer, "output.significant_digits", 6
+            ),
+            "output.significant_digits";
             min = 1,
             max = 15,
         ),
@@ -585,16 +690,23 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
     isempty(subdirectory) && throw(ArgumentError("output.subdirectory must not be empty"))
 
     return Configuration(
-        SystemSpecification(target_A, target_Z, reaction, incident_energy, A₀, Z₀, label),
-        FragmentationSettings(
-            charges_per_mass, A_H_max, charge_file, fallback_ΔZ, fallback_rms
+        SystemSpecification(
+            target_A, target_Z, channel, reaction, incident_energy, A₀, Z₀, label
         ),
-        LevelDensitySettings(prescription, mass_excess_file, shell_correction_file, averaging),
+        FragmentationSettings(
+            charges_per_mass,
+            heavy_mass_min,
+            heavy_mass_max,
+            charge_file,
+            fallback_ΔZ,
+            fallback_σ_Z,
+        ),
+        LevelDensitySettings(model, mass_excess_file, shell_correction_file, averaging),
         multiplicity_directory,
-        excluded_sets,
+        excluded_datasets,
         yield_directory,
         SegmentSettings(max_segments, min_points, pin, windows, windows_apply, parsimony),
-        OutputSettings(digits, subdirectory),
+        OutputSettings(significant_digits, subdirectory),
         source,
     )
 end

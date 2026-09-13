@@ -13,20 +13,82 @@ Notable changes to FissionTemperatureRatio.jl. The format follows
   was tried first and rejected: it scales neither with sample size nor with how many parameters a
   segment costs, and on this data the criterion prefers five segments to four by a margin already
   counted as very strong evidence, so no conventional offset moves it.
-- `windows_apply_to_data_sets`, extending the physics windows that place a breakpoint at the heavy
-  magic fragment from the systematic-trend curve to every data set.
-
+- `windows_apply_to_datasets`, extending the physics windows that place a breakpoint at the heavy
+  magic fragment from the systematic-trend curve to every dataset.
+- `heavy_mass_min`, the smallest heavy-fragment mass number of the fragmentation range. It
+  defaults to the symmetric split, which is what the range always started at before. Pinning is
+  refused unless the range does start there, since the fit is pinned at its first abscissa and a
+  range starting higher would fix the ratio to one half where nothing says it is.
+- `system_notation`, the typeset form of a fissioning system — `²⁵²Cf(sf)`, `²³³U(nth,f)` — for a
+  figure label or a caption, kept separate from the path token `system_label` so that one name
+  does not mean both.
+- `RUN_IDENTIFIER_ABBREVIATIONS`, the one table a run-identifier token is abbreviated through.
+  `run_identifier` refuses a key with no entry rather than inventing a token, and the test suite
+  asserts that every key it uses has one. `parsimony` now appears in the identifier, which it did
+  not, although it changes the result.
+- `docs/src/naming.md`, the vocabulary this package applies: quantities, identifier rules,
+  configuration rules, file layout and column headers.
 - The output root of a run is configurable, so a caller using the package as a library chooses
   where results go rather than inheriting the active project.
 - A test that consumes a run the way a downstream code would — reading the manifest and the files
-  it names, using no internal function — and checks the contract the README documents: the system
-  is identifiable without parsing a label, every parameterization names a file that exists and
-  parses, the temperature ratio is tabulated densely enough that interpolation is exact, and the
-  identity at the symmetric split survives the round trip.
-- A section of the README describing that contract, including the two things a consumer can get
-  wrong: reading the segment pivots instead of the tabulated temperature ratio, and leaving the
-  averaging order at the published default when the consuming code re-expands with unaveraged
-  level density parameters.
+  it names, using no internal function and taking columns by position — and checks the contract
+  the README documents: the system is identifiable without parsing a label, every segmented curve
+  names a file that exists and parses, the temperature ratio is tabulated densely enough that
+  interpolation is exact, and the identity at the symmetric split survives the round trip.
+- A section of the README describing that contract, including the things a consumer can get
+  wrong: matching on header text instead of column position, reading the segment pivots instead of
+  the tabulated temperature ratio, and leaving the averaging order at the published default when
+  the consuming code re-expands with unaveraged level density parameters.
+
+### Changed
+
+One name per quantity, from the configuration key to the column header. The package now shares its
+vocabulary with the retrieval that supplies its input and the emission model that consumes its
+output, so a name learned in one is the name in the others. This is a breaking change to the
+configuration schema, to the exported names and to the layout of `data/`; no deprecated aliases
+are provided, because the schema changed incompatibly regardless and a package that answers to old
+names while refusing old keys is worse to debug than a clean break.
+
+- A fissioning system is declared by its entrance channel — `sf`, `nth`, `nres`, `nfast` — rather
+  than by a reaction code. The reaction code follows from the channel and is no longer a key: it
+  could only be redundant or wrong, and `n,f` alone cannot separate a thermal run of a system from
+  a resonance run of the same system, which the system identifier must. System identifiers are
+  therefore `Cf252_sf`, `U233_nth`, `U235_nth`, `Pu239_nth`, and configuration files are named for
+  the system they run.
+- `output.digits` is now `output.significant_digits` and means significant figures rather than
+  decimal places. **This moves the numbers**, by at most one part in 10⁵ on a ratio and by rather
+  more on an uncertainty, which gains precision: an uncertainty of `5.49433e-4` was written
+  `0.000549`, to three significant figures, and is now written in full.
+- Configuration keys: `A_H_max` → `heavy_mass_max`; `fallback_rms` → `fallback_charge_dispersion`;
+  `level_density.prescription` → `level_density.model`; `multiplicity.directory` and
+  `yield.directory` → `subdirectory`, since `subdirectory` names a folder under a root and
+  `directory` only ever names a root; `exclude`'s `set` → `dataset`.
+- Types: `ChargeDistributionData` → `ChargeDistribution`, `MultiplicityData` → `Multiplicity`,
+  `YieldData` → `MassYield`, `DataSetDiagnostics` → `DatasetDiagnostics`, `Parameterization` →
+  `SegmentedCurve`, `PipelineResult` → `ExtractionResult`, `LevelDensityPrescription` →
+  `LevelDensityModel`.
+- Readers are named for what they return: `read_mass_excess` → `read_mass_excess_table`,
+  `read_shell_corrections` → `read_shell_correction_table`, `read_yield` → `read_mass_yield`.
+  `build_prescription` → `build_level_density_model`, `case_label` → `system_label`.
+- `rms` is retired throughout. The quantity is the Gaussian dispersion of the isobaric charge
+  distribution: `σ_Z` in code, `sigma_Z` in files and headers.
+- `data/` is laid out as `reference/` for the system-independent evaluations and one directory per
+  system, with one subdirectory per measured quantity — the layout the retrieval writes. File
+  extensions no longer carry a nuclide.
+- Column headers name their quantity and their uncertainty: `A nu nu_uncertainty`,
+  `A_H,R_T,R_T_uncertainty`. No column is called `value`. Readers continue to take columns by
+  position, which is what makes every header rename a no-op for code, and each reader's docstring
+  now says so.
+- Result files state the quantity and the abscissa: `R_T_parameterized_…` →
+  `R_T_vs_A_H_segmented_…`, `segments_…` → `r_nu_vs_A_H_pivots_…`, `diagnostics_…` →
+  `dataset_diagnostics_…`. The manifest lists `[[segmented_curve]]` entries and declares the
+  ordinate, the abscissa and the column names.
+
+### Fixed
+
+- Tick labels of adjacent panels ran together in the method-chain figure. The row gaps were being
+  set by index before the legend was added, which renumbers them, so the gap that was tightened
+  was not the one intended.
 
 ## [0.1.0] - 2026-09-13
 

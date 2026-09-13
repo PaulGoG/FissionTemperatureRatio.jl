@@ -1,41 +1,45 @@
 # Construction of the fragmentation range and of the isobaric charge distribution.
 
 """
-    ChargeDistributionData
+    ChargeDistribution
 
-Tabulated charge polarization `ΔZ(A)` and Gaussian dispersion `rms(A)` of the isobaric charge
+Tabulated charge polarization `ΔZ(A)` and Gaussian dispersion `σ_Z(A)` of the isobaric charge
 distribution, after Wahl, At. Data Nucl. Data Tables **38**, 1 (1988).
 
-`fallback_ΔZ` and `fallback_rms` are used for every mass number absent from the table. The
+`fallback_ΔZ` and `fallback_σ_Z` are used for every mass number absent from the table. The
 fallback is the average behaviour quoted in the literature, `|ΔZ| = 0.5` with the sign of the
-charge polarization and `rms = 0.6`; it is a coarser description than the tabulated functions,
+charge polarization and `σ_Z = 0.6`; it is a coarser description than the tabulated functions,
 so [`fragmentation_domain`](@ref) reports how often it was needed.
 """
-struct ChargeDistributionData
+struct ChargeDistribution
     ΔZ::Dict{Int,Float64}
-    rms::Dict{Int,Float64}
+    σ_Z::Dict{Int,Float64}
     fallback_ΔZ::Float64
-    fallback_rms::Float64
+    fallback_σ_Z::Float64
     source::Union{String,Nothing}
 end
 
 """
-    read_charge_distribution(path, fallback_ΔZ, fallback_rms) -> ChargeDistributionData
+    read_charge_distribution(path, fallback_ΔZ, fallback_σ_Z) -> ChargeDistribution
 
-Read a whitespace-separated table with the column layout `A ΔZ rms` and a single header line.
+Read a whitespace-separated table with the column layout `A dZ sigma_Z` and a single header line.
+
+The columns are taken **by position**, not by header text: the header line is skipped, so
+renaming it cannot affect what is read, and nothing here may be changed to a lookup by name.
 
 Passing `nothing` as `path` returns a table with no entries, so that the fallback values apply
 over the whole fragmentation range. Throws an `ArgumentError` naming the file when a path is given
 but cannot be read with this layout.
 """
 function read_charge_distribution(
-    path::Union{AbstractString,Nothing}, fallback_ΔZ::Real, fallback_rms::Real
+    path::Union{AbstractString,Nothing}, fallback_ΔZ::Real, fallback_σ_Z::Real
 )
-    fallback_rms > 0 ||
-        throw(ArgumentError("fallback rms must be positive, got $(fallback_rms)"))
+    fallback_σ_Z > 0 || throw(
+        ArgumentError("the fallback charge dispersion must be positive, got $(fallback_σ_Z)"),
+    )
 
-    path === nothing && return ChargeDistributionData(
-        Dict{Int,Float64}(), Dict{Int,Float64}(), fallback_ΔZ, fallback_rms, nothing
+    path === nothing && return ChargeDistribution(
+        Dict{Int,Float64}(), Dict{Int,Float64}(), fallback_ΔZ, fallback_σ_Z, nothing
     )
     isfile(path) || throw(ArgumentError("charge distribution file not found: $(path)"))
 
@@ -45,27 +49,30 @@ function read_charge_distribution(
             DataFrame;
             delim = ' ',
             ignorerepeated = true,
-            header = ["A", "ΔZ", "rms"],
+            header = ["A", "ΔZ", "σ_Z"],
             skipto = 2,
-            types = Dict(:A => Float64, :ΔZ => Float64, :rms => Float64),
+            types = Dict(:A => Float64, :ΔZ => Float64, :σ_Z => Float64),
         )
     catch err
         throw(ArgumentError("charge distribution file $(path) does not have the layout \
-                             `A ΔZ rms`: $(err)"))
+                             `A dZ sigma_Z`: $(err)"))
     end
 
     ΔZ = Dict{Int,Float64}()
-    rms = Dict{Int,Float64}()
+    σ_Z = Dict{Int,Float64}()
     for row in eachrow(table)
         A = round(Int, row.A)
         ΔZ[A] = row.ΔZ
-        row.rms > 0 || throw(
-            ArgumentError("charge distribution file $(path) has non-positive rms at A = $(A)"),
+        row.σ_Z > 0 || throw(
+            ArgumentError(
+                "charge distribution file $(path) has a non-positive charge dispersion at \
+                 A = $(A)"
+            ),
         )
-        rms[A] = row.rms
+        σ_Z[A] = row.σ_Z
     end
 
-    return ChargeDistributionData(ΔZ, rms, fallback_ΔZ, fallback_rms, String(path))
+    return ChargeDistribution(ΔZ, σ_Z, fallback_ΔZ, fallback_σ_Z, String(path))
 end
 
 """
@@ -83,7 +90,7 @@ Z_p(A) = Z_UCD(A) + ΔZ(A),    Z_UCD(A) = A Z₀ / A₀,
 
 and the complementary light fragment `(A₀ - A_H, Z₀ - Z_H)` is entered as well, so that the domain
 covers both fragments of every pair. `p(Z, A)` is the analytic Gaussian centred on `Z_p(A)` with
-dispersion `rms(A)`, taken as evaluated and *not* renormalized over the charges retained.
+dispersion `σ_Z(A)`, taken as evaluated and *not* renormalized over the charges retained.
 
 # Fields
 
@@ -94,7 +101,7 @@ dispersion `rms(A)`, taken as evaluated and *not* renormalized over the charges 
   lattice counts the peak more heavily than integrating it. Retaining few charges per mass number
   makes the first effect dominate, and that cost is meant to be visible.
 - `A_H_range`: the heavy-fragment mass numbers the domain was built from.
-- `fallback_masses`: mass numbers for which the tabulated `ΔZ`/`rms` were unavailable.
+- `fallback_masses`: mass numbers for which the tabulated `ΔZ`/`σ_Z` were unavailable.
 """
 struct FragmentationDomain
     A::Vector{Int}
@@ -153,7 +160,7 @@ function fragmentation_domain(
     Z₀::Integer,
     A_H_range::UnitRange{Int},
     charges_per_mass::Integer,
-    charge_data::ChargeDistributionData,
+    charge_data::ChargeDistribution,
 )
     isodd(charges_per_mass) && charges_per_mass > 0 || throw(
         ArgumentError(
@@ -174,9 +181,9 @@ function fragmentation_domain(
 
     for A_H in A_H_range
         A_L = A₀ - A_H
-        tabulated = haskey(charge_data.ΔZ, A_H) && haskey(charge_data.rms, A_H)
+        tabulated = haskey(charge_data.ΔZ, A_H) && haskey(charge_data.σ_Z, A_H)
         tabulated || push!(fallback_masses, A_H)
-        rms = tabulated ? charge_data.rms[A_H] : charge_data.fallback_rms
+        σ_Z = tabulated ? charge_data.σ_Z[A_H] : charge_data.fallback_σ_Z
         # At the symmetric split the two fragments are the same nuclide, so there is nothing for
         # a charge polarization to distinguish and it must vanish. Tabulated polarizations do
         # pass through zero there; a constant fallback does not, and would centre the two charge
@@ -195,7 +202,7 @@ function fragmentation_domain(
         Z_H_first = round(Int, Zₚ) - (charges_per_mass - 1) ÷ 2
 
         for Z_H in Z_H_first:(Z_H_first + charges_per_mass - 1)
-            weight = exp(-(Z_H - Zₚ)^2 / (2 * rms^2)) / (sqrt(2π) * rms)
+            weight = exp(-(Z_H - Zₚ)^2 / (2 * σ_Z^2)) / (sqrt(2π) * σ_Z)
             entries[(A_H, Z_H)] = weight
             # The symmetric split is its own complement; entering it twice would double its weight.
             if A_L != A_H

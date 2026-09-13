@@ -1,10 +1,10 @@
 
 DATA_AVAILABLE && @testset "level density parameter" begin
-    prescription = BSFG_PRESCRIPTION
+    model = BSFG_MODEL
 
     @testset "magnitude is physical for fission fragments" begin
         for (A, Z) in ((100, 40), (132, 50), (140, 54))
-            a = level_density_parameter(prescription, A, Z)
+            a = level_density_parameter(model, A, Z)
             @test a isa Float64
             @test 0 < a < A / 4
         end
@@ -14,7 +14,7 @@ DATA_AVAILABLE && @testset "level density parameter" begin
         # The systematic carries the shell correction, so the doubly magic heavy fragment sits far
         # below the smooth trend of its neighbours. This suppression is what gives the level
         # density parameter ratio its structure around A_H = 130.
-        a(A, Z) = level_density_parameter(prescription, A, Z)
+        a(A, Z) = level_density_parameter(model, A, Z)
         magic = a(132, 50)
         @test magic < a(128, 50)
         @test magic < a(136, 54)
@@ -23,31 +23,31 @@ DATA_AVAILABLE && @testset "level density parameter" begin
     end
 
     @testset "absent mass excesses propagate as missing" begin
-        @test ismissing(level_density_parameter(prescription, 400, 150))
+        @test ismissing(level_density_parameter(model, 400, 150))
         @test ismissing(shell_correction(400, 150, TEST_MASSES))
     end
 
     @testset "scaling with mass number" begin
         # At fixed shell correction the systematic is a power law in A, so a heavier nuclide has
         # the larger parameter.
-        light = level_density_parameter(prescription, 100, 40)
-        heavy = level_density_parameter(prescription, 150, 60)
+        light = level_density_parameter(model, 100, 40)
+        heavy = level_density_parameter(model, 150, 60)
         @test heavy > light
     end
 
     @testset "Gilbert-Cameron" begin
-        # Provided for assessing the dependence on the prescription. Away from closed shells it
+        # Provided for assessing the dependence on the model. Away from closed shells it
         # returns parameters well above the back-shifted Fermi gas, which is the documented reason
         # it is not the default. At the doubly magic heavy fragment both are suppressed, so the
-        # comparison is made where the two prescriptions actually part company.
+        # comparison is made where the two models actually part company.
         for (A, Z) in ((100, 40), (140, 54), (150, 60))
-            gc = level_density_parameter(GC_PRESCRIPTION, A, Z)
-            bsfg = level_density_parameter(BSFG_PRESCRIPTION, A, Z)
+            gc = level_density_parameter(GC_MODEL, A, Z)
+            bsfg = level_density_parameter(BSFG_MODEL, A, Z)
             @test gc isa Float64
             @test gc > bsfg
         end
-        @test level_density_parameter(GC_PRESCRIPTION, 132, 50) <
-            level_density_parameter(GC_PRESCRIPTION, 140, 54)
+        @test level_density_parameter(GC_MODEL, 132, 50) <
+            level_density_parameter(GC_MODEL, 140, 54)
         # The table declares `n S(N) S(Z)`, and the expression looks S(Z) up at the proton number
         # and S(N) at the neutron number. Exchanging the two columns is not absorbed by their sum:
         # it evaluates the neutron correction at the proton number and the reverse, silently. The
@@ -68,11 +68,11 @@ DATA_AVAILABLE && @testset "level density parameter" begin
             @test TEST_SHELLS.S_N[n] ≈ S_N
         end
         # Eq. (20), the undeformed correlation, not Eq. (21) which offsets by 0.120 instead.
-        @test level_density_parameter(GC_PRESCRIPTION, 132, 50) ≈
+        @test level_density_parameter(GC_MODEL, 132, 50) ≈
             132 * (0.00917 * (TEST_SHELLS.S_Z[50] + TEST_SHELLS.S_N[82]) + 0.142)
-        @test level_density_parameter(GC_PRESCRIPTION, 132, 50) ≈
+        @test level_density_parameter(GC_MODEL, 132, 50) ≈
             132 * (9.17e-3 * (TEST_SHELLS.S_Z[50] + TEST_SHELLS.S_N[82]) + 1.42e-1)
-        # Outside the tabulated nucleon numbers the prescription is undefined.
-        @test ismissing(level_density_parameter(GC_PRESCRIPTION, 400, 200))
+        # Outside the tabulated nucleon numbers the model is undefined.
+        @test ismissing(level_density_parameter(GC_MODEL, 400, 200))
     end
 end

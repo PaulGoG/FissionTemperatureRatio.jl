@@ -3,20 +3,20 @@
 """
     MassExcessTable
 
-Mass excesses `D(A, Z)` in MeV, indexed by `(A, Z)`, together with the proton and neutron mass
+Mass excesses `Δ(A, Z)` in MeV, indexed by `(A, Z)`, together with the proton and neutron mass
 excesses that the binding energy of any nuclide is measured against.
 
 # Fields
 
-- `D::Dict{Tuple{Int,Int},Float64}`: mass excess in MeV, keyed by `(A, Z)`.
-- `Dᵖ::Float64`: proton mass excess in MeV.
-- `Dⁿ::Float64`: neutron mass excess in MeV.
+- `Δ::Dict{Tuple{Int,Int},Float64}`: mass excess in MeV, keyed by `(A, Z)`.
+- `Δᵖ::Float64`: proton mass excess in MeV.
+- `Δⁿ::Float64`: neutron mass excess in MeV.
 - `source::String`: path of the file the table was read from, recorded for provenance.
 """
 struct MassExcessTable
-    D::Dict{Tuple{Int,Int},Float64}
-    Dᵖ::Float64
-    Dⁿ::Float64
+    Δ::Dict{Tuple{Int,Int},Float64}
+    Δᵖ::Float64
+    Δⁿ::Float64
     source::String
 end
 
@@ -26,25 +26,29 @@ end
 Mass excess of the nuclide `(A, Z)` in MeV, or `missing` when it is absent from the table.
 """
 function mass_excess(masses::MassExcessTable, A::Integer, Z::Integer)
-    return get(masses.D, (Int(A), Int(Z)), missing)
+    return get(masses.Δ, (Int(A), Int(Z)), missing)
 end
 
 """
-    read_mass_excess(path) -> MassExcessTable
+    read_mass_excess_table(path) -> MassExcessTable
 
 Read a whitespace-separated mass excess table with the column layout
 
 ```
-Z  A  symbol  D  σD
+Z  A  symbol  mass_excess  mass_excess_uncertainty
 ```
 
-where `D` and `σD` are in keV, as distributed in the atomic mass evaluation. Values are converted
-to MeV on load, since every downstream energy in this package is in MeV.
+where the last two columns are in keV, as distributed in the atomic mass evaluation. Values are
+converted to MeV on load, since every downstream energy in this package is in MeV.
+
+The columns are taken **by position**, not by header text, and this file has no header line at
+all: it is the evaluation as distributed. Nothing here may be changed to a lookup by name, which
+would couple the reader to a spelling the evaluation never promised.
 
 Throws an `ArgumentError` naming the file when it is absent, unreadable as this layout, or missing
 either the proton or the neutron entry, both of which are required to form binding energies.
 """
-function read_mass_excess(path::AbstractString)
+function read_mass_excess_table(path::AbstractString)
     isfile(path) || throw(ArgumentError("mass excess file not found: $(path)"))
 
     table = try
@@ -53,31 +57,31 @@ function read_mass_excess(path::AbstractString)
             DataFrame;
             delim = ' ',
             ignorerepeated = true,
-            header = ["Z", "A", "symbol", "D", "σD"],
-            types = Dict(:Z => Int, :A => Int, :D => Float64, :σD => Float64),
+            header = ["Z", "A", "symbol", "Δ", "σΔ"],
+            types = Dict(:Z => Int, :A => Int, :Δ => Float64, :σΔ => Float64),
         )
     catch err
         throw(ArgumentError("mass excess file $(path) does not have the layout \
-                             `Z A symbol D σD`: $(err)"))
+                             `Z A symbol mass_excess mass_excess_uncertainty`: $(err)"))
     end
 
-    D = Dict{Tuple{Int,Int},Float64}()
+    Δ = Dict{Tuple{Int,Int},Float64}()
     for row in eachrow(table)
-        D[(row.A, row.Z)] = 1e-3 * row.D
+        Δ[(row.A, row.Z)] = 1e-3 * row.Δ
     end
 
-    haskey(D, (1, 1)) ||
+    haskey(Δ, (1, 1)) ||
         throw(ArgumentError("mass excess file $(path) has no proton entry (A = 1, Z = 1)"))
-    haskey(D, (1, 0)) ||
+    haskey(Δ, (1, 0)) ||
         throw(ArgumentError("mass excess file $(path) has no neutron entry (A = 1, Z = 0)"))
 
-    return MassExcessTable(D, D[(1, 1)], D[(1, 0)], String(path))
+    return MassExcessTable(Δ, Δ[(1, 1)], Δ[(1, 0)], String(path))
 end
 
 """
     ShellCorrectionTable
 
-Shell corrections `S(N)` and `S(Z)` tabulated against nucleon number, as used by the
+Shell corrections `S_N` and `S_Z` tabulated against nucleon number, as used by the
 Gilbert-Cameron level density systematic.
 
 The values are those of Gilbert and Cameron, Can. J. Phys. **43**, 1446 (1965), as distributed in
@@ -95,19 +99,24 @@ struct ShellCorrectionTable
 end
 
 """
-    read_shell_corrections(path) -> ShellCorrectionTable
+    read_shell_correction_table(path) -> ShellCorrectionTable
 
 Read a whitespace-separated shell correction table with the column layout
 
 ```
-n  S(N)  S(Z)
+n  S_N  S_Z
 ```
 
 and a single header line, where `n` is read once as a neutron number and once as a proton number.
 
+The columns are taken **by position**, not by header text: the header line is skipped, so
+renaming it cannot affect what is read, and nothing here may be changed to a lookup by name.
+Exchanging the two correction columns is *not* absorbed by their sum, so the order above is part
+of the contract.
+
 Throws an `ArgumentError` naming the file when it is absent or cannot be read with this layout.
 """
-function read_shell_corrections(path::AbstractString)
+function read_shell_correction_table(path::AbstractString)
     isfile(path) || throw(ArgumentError("shell correction file not found: $(path)"))
 
     table = try
@@ -122,7 +131,7 @@ function read_shell_corrections(path::AbstractString)
         )
     catch err
         throw(ArgumentError("shell correction file $(path) does not have the layout \
-                             `n S(N) S(Z)`: $(err)"))
+                             `n S_N S_Z`: $(err)"))
     end
 
     S_N = Dict{Int,Float64}()

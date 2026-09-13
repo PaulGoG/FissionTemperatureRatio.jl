@@ -18,11 +18,11 @@
     end
 
     @testset "figures are produced and written" begin
-        data = MultiplicityData([120, 132], [3.10, 0.69], [0.05, 0.03], "example", "")
+        data = Multiplicity([120, 132], [3.10, 0.69], [0.05, 0.03], "example", "")
         curve = RatioCurve([130, 132], [1.20, 1.10], [0.02, 0.01], "example")
 
         CairoMakie.with_theme(publication_theme()) do
-            figure = plot_multiplicities([data]; A₀ = 252)
+            figure = plot_multiplicities([data]; A_0 = 252)
             @test figure isa CairoMakie.Figure
 
             ratio = plot_ratio(

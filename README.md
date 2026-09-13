@@ -9,14 +9,14 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 Extraction of the temperature ratio `R_T = T_L/T_H` of complementary fully accelerated fission
-fragments from experimental prompt neutron multiplicity data, and its parameterization by joined
-straight segments.
+fragments from experimental prompt neutron multiplicity data, described by joined straight
+segments.
 
 The method, its conventions and its equation numbering are those of A. Tudora and P. Gogita,
 *Eur. Phys. J. A* **60**, 190 (2024),
 [doi:10.1140/epja/s10050-024-01375-7](https://doi.org/10.1140/epja/s10050-024-01375-7), and this
 package reproduces the results published there: the total average temperature ratios of its
-Tables 1 and 2 come back to better than one per cent for 233-U(n,f), 252-Cf(sf) and 235-U(n,f).
+Tables 1 and 2 come back to better than one per cent for ²³³U(nth,f), ²⁵²Cf(sf) and ²³⁵U(nth,f).
 The [validation status](#validation-status) below states exactly what has been checked against the
 paper and what has not.
 
@@ -28,7 +28,7 @@ kept or excluded. This package reads those files; it does not query the archive 
 
 ![Temperature ratio](docs/src/assets/temperature_ratio.png)
 
-The temperature ratio of 252-Cf(sf): every measurement held, in grey, and the systematic trend
+The temperature ratio of ²⁵²Cf(sf): every measurement held, in grey, and the systematic trend
 through them with its uncertainty. Above the symmetric split the light fragment is the hotter of
 the pair, and the ratio crosses unity near the most probable fragmentation.
 
@@ -58,11 +58,11 @@ FissionTemperatureRatio/
 │   ├── activate.jl
 │   ├── benchmarks.jl
 │   └── Project.toml
-├── config/                         pipeline configurations, one per fissioning nucleus
-│   ├── Cf252_0f.toml
-│   ├── Pu239_nf.toml
-│   ├── U233_nf.toml
-│   └── U235_nf.toml
+├── config/                         pipeline configurations, one per fissioning system
+│   ├── Cf252_sf.toml
+│   ├── Pu239_nth.toml
+│   ├── U233_nth.toml
+│   └── U235_nth.toml
 ├── data/                           input data, held locally and not version-controlled
 │   └── README.md                   what each input file is, where it comes from, its terms
 ├── docs/                           Documenter site, own environment
@@ -70,7 +70,7 @@ FissionTemperatureRatio/
 │   ├── assets.jl                   regenerates the figures the README shows
 │   ├── make.jl
 │   ├── Project.toml
-│   └── src/                        pages, and src/assets/ for generated figures
+│   └── src/                        index, method, naming, reference; src/assets/ for figures
 ├── ext/                            weak-dependency extensions
 │   └── FissionTemperatureRatioCairoMakieExt.jl   publication figures, loaded with CairoMakie
 ├── formatter/                      JuliaFormatter environment, version-bounded
@@ -80,11 +80,11 @@ FissionTemperatureRatio/
 │   └── run.jl                      pipeline entry point
 ├── src/
 │   ├── configuration.jl            TOML configuration, parsed and validated
-│   ├── consensus.jl                combining data sets, and the diagnostics describing them
+│   ├── consensus.jl                combining datasets, and the diagnostics describing them
 │   ├── FissionTemperatureRatio.jl  module definition and public interface
 │   ├── fragmentation.jl            fragmentation range and isobaric charge distribution
-│   ├── level_density.jl            level density parameter systematics
-│   ├── mass_data.jl                mass excess input
+│   ├── level_density.jl            level density parameter models
+│   ├── mass_data.jl                mass excess and shell correction input
 │   ├── multiplicity_ratio.jl       ν(A) input and the multiplicity ratio
 │   ├── pipeline.jl                 the run, from input to tabulated output
 │   ├── plotting.jl                 figure interface; the implementation is in ext/
@@ -147,7 +147,7 @@ into a version-controlled file.
 Run the pipeline for one fissioning nucleus:
 
 ```
-julia --project scripts/run.jl config/U233_nf.toml
+julia --project scripts/run.jl config/U233_nth.toml
 ```
 
 Run the test suite:
@@ -177,7 +177,7 @@ julia --project=docs docs/make.jl
 Regenerate the figures shown above, from the configuration and the input data:
 
 ```
-julia --project=docs docs/assets.jl [config/<case>.toml]
+julia --project=docs docs/assets.jl
 ```
 
 ## Input data
@@ -191,19 +191,29 @@ Place it under `data/` in the layout that file describes:
 
 ```
 data/
-├── charge_distribution/   A ΔZ rms
-├── mass_excess/           Z A symbol D σD
-├── multiplicity/<case>/   A ν σν
-├── shell_corrections/     n S(N) S(Z)
-└── yield/<case>/          A Y σY        (optional)
+├── reference/                          the system-independent evaluations
+│   ├── mass_excess_ame2020.dat         Z A symbol mass_excess mass_excess_uncertainty
+│   └── shell_corrections_….dat         n S_N S_Z
+└── <system>/                           Cf252_sf, U233_nth, U235_nth, Pu239_nth
+    ├── charge_distribution_vs_A.dat    A dZ sigma_Z
+    ├── nu_vs_A/                        A nu nu_uncertainty
+    └── Y_vs_A/                         A Y Y_uncertainty        (optional)
 ```
 
-The experimental measurements — everything under `multiplicity/` and `yield/` — are retrieved with
+One directory per system, one subdirectory per measured quantity, one file per measurement: the
+directory carries the quantity and the file carries the provenance. A file is named
+`<quantity>_vs_<abscissa>`, and an extension states a format and never a nuclide.
+
+The experimental measurements — everything under `nu_vs_A/` and `Y_vs_A/` — are retrieved with
 [ExforFissionData.jl](https://github.com/PaulGoG/ExforFissionData.jl), which writes exactly this
 layout. Each directory also holds the `retrieval.toml` run record naming every dataset the query
 kept or excluded, and every file name carries its EXFOR DatasetID, so a result traces back to an
 archive entry. Files other than `.dat` in those directories are ignored by the readers, so the run
 record sits beside the data it describes.
+
+Readers take columns **by position**, not by header text, so a header rename upstream is a no-op
+here. `docs/src/naming.md` sets out the vocabulary — quantities, identifiers, configuration keys,
+file names and headers — that this package and the codes on either side of it share.
 
 Without the data the pipeline cannot run, and the tests that exercise the systematics on real
 nuclides are skipped with a warning; the rest of the suite uses synthetic inputs and runs
@@ -212,53 +222,57 @@ regardless.
 ## Configuration
 
 Every run is driven by a TOML file under `config/`, which fixes the fissioning nucleus, the
-fragmentation range, the level density prescription, the segment search and the output layout.
+fragmentation range, the level density model, the segment search and the output layout.
 The parser enforces the types, enumerated choices and bounds its comments document, and fails
 naming the offending key, so a run cannot start from a configuration it cannot honour.
 
-A system is declared by what was irradiated, not by what fissions: the target, the reaction and
-the incident energy. The fissioning nucleus and the case label are **derived** from them, so a
-label cannot contradict the nuclide it names, and two incident energies of the same target are two
-systems rather than one — they share a label but not a run identifier.
+A system is declared by what was irradiated, not by what fissions: the target, the entrance
+channel and the incident energy. The reaction code, the fissioning nucleus and the system label
+`<symbol><A>_<channel>` — `Cf252_sf`, `U235_nth` — are all **derived** from them, so a label
+cannot contradict the nuclide it names, and two incident energies of the same target are two
+systems rather than one: they share a label but not a run identifier. The channel is also what
+separates a thermal run from a resonance run of the same target, which the reaction code `n,f`
+alone cannot.
 
-To add a fissioning nucleus, place its ν(A) data sets in a directory under `data/multiplicity/`
-as whitespace-separated `A ν σν` tables with one header line, and copy a configuration.
+To add a fissioning system, place its ν(A) datasets in `data/<system>/nu_vs_A/` as
+whitespace-separated `A nu nu_uncertainty` tables with one header line, and copy a configuration
+to `config/<system>.toml`.
 
 ### Several measurements of one system
 
-Data sets are never merged. Each is fitted on its own, and a further curve — the systematic trend
+Datasets are never merged. Each is fitted on its own, and a further curve — the systematic trend
 — is fitted to all of them combined. They are alternatives offered to a prompt emission code, not
 an ensemble to be averaged; which one describes reality is settled downstream, by comparing the
 multiplicity distributions and yields that code produces against experiment.
 
-The sets of one system disagree far beyond their quoted uncertainties: for 252-Cf the spread
+The datasets of one system disagree far beyond their quoted uncertainties: for 252-Cf the spread
 between them at a given mass number runs to ten or twenty times the median quoted uncertainty. Two
 consequences shape what the package does.
 
-**How several measurements become one result — and where they do not.** Each data set is carried
+**How several measurements become one result — and where they do not.** Each dataset is carried
 through the whole chain on its own: its own `r_ν`, its own segmented fit, its own `R_T`, its own
 total average. Those are never merged. What a run offers is one curve per measurement plus one
 more, the systematic trend, and a consuming code takes exactly one of them.
 
 The trend is the only place the measurements are combined, and the combination happens at the
-level of `r_ν`, before any fitting: at each mass number the values from every admitted set are
+level of `r_ν`, before any fitting: at each mass number the values from every admitted dataset are
 merged into one, and the segmented fit is then run on that single combined curve. So the ordering
 is combine-then-fit, not fit-then-average.
 
 **Pooling.** The combined curve cannot be a concatenation weighted by the quoted uncertainties —
-that hands the result to whichever author quoted the smallest ones, and counts a set with many
-points more heavily than one with few. The sets are combined mass number by mass number with an
-additional between-set variance, so the weights become nearly equal and the uncertainty of the
-combination reflects the disagreement instead of hiding it. The combined curve is written out,
+that hands the result to whichever author quoted the smallest ones, and counts a dataset with many
+points more heavily than one with few. The datasets are combined mass number by mass number with
+an additional between-dataset variance, so the weights become nearly equal and the uncertainty of
+the combination reflects the disagreement instead of hiding it. The combined curve is written out,
 so the trend can be checked against its own input.
 
-**Admission.** For the same reason, a data set cannot be judged by how far it sits from the others
-in units of its own uncertainty: no set is consistent with any other, and a reduced chi-squared
-ranks how generously an author quoted errors rather than how good the measurement is. Every set is
-therefore described by structural diagnostics instead — usable fragment pairs and the span they
-cover, points outside the physical range, the departure from one half at the symmetric split, and
-`ν(A) + ν(A₀-A)` against the total multiplicity — written to `diagnostics_<run>.csv` for every set
-whether or not it was used.
+**Admission.** For the same reason, a dataset cannot be judged by how far it sits from the others
+in units of its own uncertainty: none is consistent with any other, and a reduced chi-squared
+ranks how generously an author quoted errors rather than how good the measurement is. Every
+dataset is therefore described by structural diagnostics instead — usable fragment pairs and the
+span they cover, points outside the physical range, the departure from one half at the symmetric
+split, and `ν(A) + ν(A₀-A)` against the total multiplicity — written to
+`dataset_diagnostics_<run>.csv` for every dataset whether or not it was used.
 
 The archive itself is the first filter: the retrieval rejects datasets whose reaction code or
 units say they are not the quantity asked for, and records why. The diagnostics here are the
@@ -268,45 +282,45 @@ separate cleanly into sets consistent with the total multiplicity of 3.76 (Alkha
 Ding Shengyao 4.18, Göök 4.17), which is a normalization discrepancy rather than a measurement
 one.
 
-Nothing is filtered automatically. A set is kept out of the pooling only when the configuration
-names it and says why:
+Nothing is filtered automatically. A dataset is kept out of the pooling only when the
+configuration names it and says why:
 
 ```toml
 [multiplicity]
-directory = "multiplicity/Cf252_0f"
+subdirectory = "Cf252_sf/nu_vs_A"
 exclude = [
-    { set = "E. Nardi 1968", reason = "one usable fragment pair in range" },
+    { dataset = "E. Nardi 1968", reason = "one usable fragment pair in range" },
 ]
 ```
 
-An excluded set is still read, still fitted, still written and still diagnosed. It is excluded
+An excluded dataset is still read, still fitted, still written and still diagnosed. It is excluded
 from the combination, not from the record.
 
 Two controls bias the choice of how many segments to fit. `parsimony` multiplies the penalty the
 selection criterion charges per parameter: at one it is the criterion as published, above one each
 added segment must buy more of a fit to be worth its parameters. `required_windows` places a
 breakpoint where physics says there is one — the minimum at the heavy magic fragment, `A_H` near
-130, fixed by the `Z = 50`, `N = 82` shell closure — and `windows_apply_to_data_sets` extends that
-from the trend curve to every data set. The first refuses structure the data does not earn; the
+130, fixed by the `Z = 50`, `N = 82` shell closure — and `windows_apply_to_datasets` extends that
+from the trend curve to every dataset. The first refuses structure the data does not earn; the
 second insists on structure the data ought to show.
 
 The `[yield]` section is optional. Given a directory of pre-neutron mass yield distributions, the
 run also reports the total average `⟨R_T⟩ = Σ Y(A_H) R_T(A_H) / Σ Y(A_H)` for every combination of
-parameterization and distribution — the quantity the literature tabulates, and the one a prompt
+segmented curve and distribution — the quantity the literature tabulates, and the one a prompt
 emission code takes when it uses a single temperature ratio for all fragmentations. Without it the
 run reports only the mean over the fragment mass range, which weights every mass number equally
 and is therefore dominated by the far-asymmetric tail. The normalization of `Y` cancels.
 
-Two level density prescriptions are available. The back-shifted Fermi gas is the default; setting
-`prescription = "GC"` selects Gilbert-Cameron, which for fission fragments returns markedly larger
+Two level density models are available. The back-shifted Fermi gas is the default; setting
+`model = "GC"` selects Gilbert-Cameron, which for fission fragments returns markedly larger
 parameters away from closed shells. Running both bounds a systematic uncertainty that the
 propagated experimental uncertainties do not cover.
 
-![Level density prescriptions](docs/src/assets/level_density_prescriptions.png)
+![Level density models](docs/src/assets/level_density_models.png)
 
 The two agree exactly at the symmetric split, where the identity of the fragments forces the ratio
-to one whatever the prescription, and part by about 0.1 across the shell region. Gilbert-Cameron
-was superseded by the back-shifted Fermi gas, so the spread between them is an upper bound on the
+to one whatever the model, and part by about 0.1 across the shell region. Gilbert-Cameron was
+superseded by the back-shifted Fermi gas, so the spread between them is an upper bound on the
 systematic rather than a symmetric error bar.
 
 ## Consuming the output
@@ -316,39 +330,47 @@ these curves as input, and it is meant to be read rather than parsed out of file
 
 ```toml
 [system]
-label = "U233_nf"
+label = "U233_nth"
+notation = "²³³U(nth,f)"
 target_A = 233
 target_Z = 92
+channel = "nth"
 reaction = "n,f"
 incident_energy_MeV = 2.53e-8
 compound_A = 234
 compound_Z = 92
 
 [run]
-columns = ["A_H", "value", "uncertainty"]
+ordinate = "R_T"
+abscissa = ["A_H"]
+columns = ["A_H", "R_T", "R_T_uncertainty"]
 quantity = "R_T = T_L/T_H of complementary fully accelerated fragments"
 
-[[parameterization]]
+[[segmented_curve]]
 label = "K. Nishio 1998"
-kind = "data_set"            # or "systematic_trend"
+kind = "dataset"             # or "systematic_trend"
 pooled = true
 segments = 5
-temperature_ratio_file = "R_T_parameterized_....csv"
-multiplicity_ratio_segments_file = "segments_....csv"
+temperature_ratio_file = "R_T_vs_A_H_segmented_....csv"
+multiplicity_ratio_pivots_file = "r_nu_vs_A_H_pivots_....csv"
 ```
 
-Three things worth knowing before writing against it.
+Four things worth knowing before writing against it.
 
-**Read `temperature_ratio_file`, not the segment file.** `R_T` is not piecewise-linear even where
+**Read the columns by position.** `columns` says what the three columns hold so that you know what
+you have; it is not there to be matched against the header text. Every reader in this toolchain
+takes columns positionally, which is what makes a header rename a no-op on both sides.
+
+**Read `temperature_ratio_file`, not the pivot file.** `R_T` is not piecewise-linear even where
 the multiplicity ratio is, because the level density parameter ratio carries the shell structure
-into it. The segment file states the multiplicity ratio parameterization; interpolating between
-its pivots to get `R_T` cuts straight across that structure. The temperature ratio is tabulated at
-every mass number, so whatever interpolation a consumer applies reproduces the tabulated value.
+into it. The pivot file states the multiplicity ratio as its joined points; interpolating between
+them to get `R_T` cuts straight across that structure. The temperature ratio is tabulated at every
+mass number, so whatever interpolation a consumer applies reproduces the tabulated value.
 
-**The parameterizations are alternatives, not an ensemble.** Take one. Which one describes reality
-is settled by running your code with each and comparing what it produces against experiment; that
-is what they are for. `kind = "systematic_trend"` is the one to take where a data set is too sparse
-or too scattered to resolve the shape.
+**The curves are alternatives, not an ensemble.** Take one. Which one describes reality is settled
+by running your code with each and comparing what it produces against experiment; that is what
+they are for. `kind = "systematic_trend"` is the one to take where a dataset is too sparse or too
+scattered to resolve the shape.
 
 **If your code re-expands `R_T` with unaveraged level density parameters** — that is, forms
 `a_L/a_H` per `(A_H, Z_H)` and reduces over charge afterwards — then run with
@@ -356,8 +378,8 @@ or too scattered to resolve the shape.
 which does not close that round trip. The difference is small, below a tenth of a per cent on the
 total average, and the setting appears in every output file name either way.
 
-`test/test_manifest.jl` is a consumer: it reads a run using nothing but the manifest and the three
-column names, and checks the contract this section describes.
+`test/test_manifest.jl` is a consumer: it reads a run using nothing but the manifest and the
+column positions, and checks the contract this section describes.
 
 ## Method
 
@@ -370,20 +392,20 @@ R_T = [(1 - r_ν) / (R_a r_ν)]^(1/2),
 ```
 
 which involves no fit and no prompt emission calculation. Because the ratio extracted point by
-point is scattered, it is `r_ν` that is parameterized — by a continuous piecewise-linear function
-whose segment count and breakpoints are selected from the data by the Bayesian information
-criterion — and `R_T` follows by the relation above.
+point is scattered, it is `r_ν` that is described by a continuous piecewise-linear function whose
+segment count and breakpoints are selected from the data by the Bayesian information criterion,
+and `R_T` follows by the relation above.
 
 Constraints that are exact are enforced rather than fitted: the charge polarization vanishes at
 the symmetric split, where the two fragments are the same nuclide; `r_ν` is pinned to one half
-there; and the parameterization may not leave `(0, 1)`, outside which the relation above is
+there; and the fitted curve may not leave `(0, 1)`, outside which the relation above is
 undefined. Together these make `R_T(A₀/2) = 1` hold exactly, as an outcome rather than an
 imposition.
 
-A run produces one parameterization per experimental data set, plus a systematic-trend curve
-fitted through all of them with the minimum at the heavy magic fragment placed rather than fitted.
-These are alternatives for a prompt emission code to choose between, not an ensemble to be
-averaged: the data sets of one fissioning nucleus can disagree well beyond their quoted
+A run produces one segmented curve per experimental dataset, plus a systematic-trend curve fitted
+through all of them with the minimum at the heavy magic fragment placed rather than fitted. These
+are alternatives for a prompt emission code to choose between, not an ensemble to be averaged: the
+datasets of one fissioning nucleus can disagree well beyond their quoted
 uncertainties, and which curve describes reality is settled downstream, by comparing the
 multiplicity distributions and yields the code produces against experiment.
 
@@ -406,40 +428,40 @@ Verified:
   where the two fragments are the same nuclide, as an outcome of the construction rather than an
   imposition, and a run reports it if they do not.
 - The algebra of the extraction. `R_T` inverts the excitation energy partition exactly, the
-  uncertainty propagation matches its closed form, and the parameterization is continuous at every
+  uncertainty propagation matches its closed form, and the fitted curve is continuous at every
   breakpoint and stays inside the physical range.
 - The shell structure. The level density parameter is suppressed threefold at the doubly magic
   heavy fragment relative to a mid-shell fragment, which is what gives `R_a(A_H)` its structure.
-- The shape of the result. The parameterized `r_ν(A_H)` reproduces the published systematic
+- The shape of the result. The segmented `r_ν(A_H)` reproduces the published systematic
   behaviour — one half at the symmetric split, a minimum near the heavy magic fragment, one half
   again near the most probable fragmentation, and a near-linear rise above it.
 - Sensitivity to the charge polarization. Substituting a tabulated polarization for the average
   values moves `R_T(A_H)` by at most 3.4 %, with a median of 0.27 %, worst at the shell minimum.
 - **The published total averages, to better than one per cent.** The `⟨R_T⟩` of Table 1 of the
-  paper, per `ν(A)` data set and per `Y(A)` distribution, comes back from independently retrieved
+  paper, per `ν(A)` dataset and per `Y(A)` distribution, comes back from independently retrieved
   archive data:
 
-  | System | `Y(A)` | Sets compared | Largest deviation |
+  | System | `Y(A)` | Datasets compared | Largest deviation |
   |---|---|---|---|
-  | 233-U(n,f) | Surin | 3 of 3 | 0.60 % |
-  | 252-Cf(sf) | Göök | 4 of 5 | 0.55 % |
-  | 235-U(n,f) | Al-Adili, Straede | 2 of 3 | 1.05 % |
+  | ²³³U(nth,f) | Surin | 3 of 3 | 0.60 % |
+  | ²⁵²Cf(sf) | Göök | 4 of 5 | 0.55 % |
+  | ²³⁵U(nth,f) | Al-Adili, Straede | 2 of 3 | 1.05 % |
 
   ![Published comparison](docs/src/assets/published_comparison.png)
 
   Table 2 reproduces too: the Gilbert-Cameron variant to 0.21 %, and the one-charge-per-mass
-  variant to 0.80 %. The remaining sets could not be compared because the archive query did not
-  return the `ν(A)` measurement the table names.
+  variant to 0.80 %. The remaining datasets could not be compared because the archive query did
+  not return the `ν(A)` measurement the table names.
 - The uncertainty of the total average. Both the ratio and the yield propagate, which is what
-  gives a data set quoting no `ν(A)` uncertainties a finite one; the paper's Table 1 shows the
+  gives a dataset quoting no `ν(A)` uncertainties a finite one; the paper's Table 1 shows the
   same structure, and the magnitudes agree — ±0.0020 against a published ±0.0021.
 - The suite passes on the declared Julia floor and on the current release.
-- The back-shifted Fermi gas prescription, against the published text. The three coefficients, the
+- The back-shifted Fermi gas model, against the published text. The three coefficients, the
   shell correction, the deuteron pairing term and all five liquid-drop coefficients reproduce
   Phys. Rev. C **72**, 044311 (2005), Eqs. (7) and (9), and Phys. Rev. C **80**, 054310 (2009),
   Eqs. (12) and (19).
 
-- The Gilbert-Cameron prescription, against its own paper. Both coefficients reproduce Eq. (20) of
+- The Gilbert-Cameron model, against its own paper. Both coefficients reproduce Eq. (20) of
   Can. J. Phys. **43**, 1446 (1965), and the shell corrections match that paper's Table III at the
   nucleon numbers that matter for fission fragments. They are also read in the order the table
   declares them and looked up at the right nucleon number, `S(Z)` at the proton number and `S(N)`
@@ -448,7 +470,7 @@ Verified:
 
 Not verified:
 
-- **239-Pu(n,f) is not reproduced to the same level**, deviating by 0.7 % to 2.1 %. The published
+- **²³⁹Pu(nth,f) is not reproduced to the same level**, deviating by 0.7 % to 2.1 %. The published
   table averages over a yield distribution its caption does not name, and over a second that is
   calculated rather than measured and so cannot be retrieved; neither distribution used here is
   demonstrably the one it used. This is an input identification problem rather than a
@@ -475,9 +497,9 @@ Not verified:
 | Level density parameter, Gilbert-Cameron | complete |
 | Fragmentation range and isobaric charge distribution | complete |
 | Multiplicity ratio and temperature ratio | complete |
-| Segmented parameterization with model selection | complete |
+| Segmented description with order selection | complete |
 | Pipeline, tabulated output, figures, provenance | complete |
-| Per-data-set and systematic-trend parameterizations | complete |
+| Per-dataset and systematic-trend curves | complete |
 | Averaging over a fragment mass yield distribution | complete |
 | Reproduction of published total averages | complete for 233-U, 252-Cf and 235-U; see the validation status |
 

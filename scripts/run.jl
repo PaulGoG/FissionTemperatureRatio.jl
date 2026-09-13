@@ -1,4 +1,4 @@
-# Entry point: julia --project scripts/run.jl config/<case>.toml
+# Entry point: julia --project scripts/run.jl config/<system>.toml
 
 using DrWatson: projectdir
 using FissionTemperatureRatio

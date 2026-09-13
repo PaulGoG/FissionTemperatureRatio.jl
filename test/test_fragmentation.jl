@@ -7,16 +7,16 @@
         # Each weight is the Gaussian as evaluated, carrying its own normalizing factor. This is
         # the invariant: the distribution is not rescaled to sum to one over the charges retained.
         Zₚ = most_probable_charge(130, A₀, Z₀, FLAT_CHARGES.fallback_ΔZ)
-        rms = FLAT_CHARGES.fallback_rms
+        σ_Z = FLAT_CHARGES.fallback_σ_Z
         for Z in charges(domain, 130)
             @test charge_probability(domain, 130, Z) ≈
-                exp(-(Z - Zₚ)^2 / (2 * rms^2)) / (sqrt(2π) * rms)
+                exp(-(Z - Zₚ)^2 / (2 * σ_Z^2)) / (sqrt(2π) * σ_Z)
         end
 
         # Summed over a mass number the result is near unity but not equal to it, two effects
         # pulling opposite ways: charges outside the retained window are lost, while evaluating a
         # density on a unit charge lattice counts the peak more heavily than integrating it. At
-        # five charges and rms 0.6 the window spans more than three dispersions, so the lattice
+        # five charges and a dispersion of 0.6 the window spans more than three of them, so the lattice
         # term dominates and the sum sits just above one.
         for A in unique(domain.A)
             @test sum(domain.p[domain.A .== A]) ≈ 1 atol = 5.0e-3

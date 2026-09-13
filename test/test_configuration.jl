@@ -5,30 +5,30 @@ const MINIMAL_CONFIGURATION = """
 [system]
 target_A = 252
 target_Z = 98
-reaction = "0,f"
+channel = "sf"
 
 [fragmentation]
 charges_per_mass = 5
-A_H_max = 140
+heavy_mass_max = 140
 
 [level_density]
-prescription = "BSFG"
-mass_excess_file = "masses.ANA"
+model = "BSFG"
+mass_excess_file = "mass_excess.dat"
 
 [multiplicity]
-directory = "sets"
+subdirectory = "datasets"
 
 [segments]
 max_segments = 3
 
 [output]
-digits = 6
+significant_digits = 6
 """
 
 function with_configuration(f, body::AbstractString)
     mktempdir() do directory
-        write(joinpath(directory, "masses.ANA"), "1 1 H 7289.0 0.0\n1 0 n 8071.0 0.0\n")
-        mkpath(joinpath(directory, "sets"))
+        write(joinpath(directory, "mass_excess.dat"), "1 1 H 7289.0 0.0\n1 0 n 8071.0 0.0\n")
+        mkpath(joinpath(directory, "datasets"))
         path = joinpath(directory, "configuration.toml")
         write(path, body)
         return f(path, directory)
@@ -40,12 +40,17 @@ end
         with_configuration(MINIMAL_CONFIGURATION) do path, directory
             configuration = load_configuration(path; data_directory = directory)
             @test configuration.system.A₀ == 252
-            @test A_H_min(configuration) == 126
+            @test configuration.system.channel == "sf"
+            @test configuration.system.reaction == "0,f"
+            # The smallest heavy mass defaults to the symmetric split.
+            @test configuration.fragmentation.heavy_mass_min == 126
             @test A_H_range(configuration) == 126:140
             @test has_symmetric_split(configuration)
             @test configuration.level_density.ratio_averaging isa RatioOfMeans
+            @test configuration.fragmentation.fallback_charge_dispersion == 0.6
             @test configuration.segments.pin_symmetric_split
-            @test configuration.output.subdirectory == "Cf252_0f"
+            @test configuration.output.significant_digits == 6
+            @test configuration.output.subdirectory == "Cf252_sf"
         end
     end
 
@@ -55,7 +60,10 @@ end
 
     @testset "each constraint is enforced" begin
         cases = [
-            ("missing section", replace(MINIMAL_CONFIGURATION, "[output]\ndigits = 6\n" => "")),
+            (
+                "missing section",
+                replace(MINIMAL_CONFIGURATION, "[output]\nsignificant_digits = 6\n" => ""),
+            ),
             ("missing key", replace(MINIMAL_CONFIGURATION, "target_A = 252\n" => "")),
             (
                 "wrong type",
@@ -72,49 +80,69 @@ end
                 replace(MINIMAL_CONFIGURATION, "target_Z = 98" => "target_Z = 300"),
             ),
             (
-                "unknown reaction",
-                replace(MINIMAL_CONFIGURATION, "reaction = \"0,f\"" => "reaction = \"p,f\""),
+                "unknown channel",
+                replace(MINIMAL_CONFIGURATION, "channel = \"sf\"" => "channel = \"p,f\""),
             ),
             (
                 "energy given for spontaneous fission",
                 replace(
                     MINIMAL_CONFIGURATION,
-                    "reaction = \"0,f\"" => "reaction = \"0,f\"\nincident_energy = 1.0",
+                    "channel = \"sf\"" => "channel = \"sf\"\nincident_energy = 1.0",
                 ),
             ),
             (
-                "range below symmetry",
-                replace(MINIMAL_CONFIGURATION, "A_H_max = 140" => "A_H_max = 100"),
-            ),
-            (
-                "range above A0",
-                replace(MINIMAL_CONFIGURATION, "A_H_max = 140" => "A_H_max = 300"),
-            ),
-            (
-                "unknown prescription",
+                "heavy mass range below symmetry",
                 replace(
-                    MINIMAL_CONFIGURATION, "prescription = \"BSFG\"" => "prescription = \"XYZ\""
+                    MINIMAL_CONFIGURATION, "heavy_mass_max = 140" => "heavy_mass_max = 100"
                 ),
+            ),
+            (
+                "heavy mass range above A0",
+                replace(
+                    MINIMAL_CONFIGURATION, "heavy_mass_max = 140" => "heavy_mass_max = 300"
+                ),
+            ),
+            (
+                "heavy_mass_min below the symmetric split",
+                replace(
+                    MINIMAL_CONFIGURATION,
+                    "heavy_mass_max = 140" => "heavy_mass_min = 120\nheavy_mass_max = 140",
+                ),
+            ),
+            (
+                "heavy_mass_min above heavy_mass_max",
+                replace(
+                    MINIMAL_CONFIGURATION,
+                    "heavy_mass_max = 140" => "heavy_mass_min = 141\nheavy_mass_max = 140",
+                ),
+            ),
+            (
+                "unknown level density model",
+                replace(MINIMAL_CONFIGURATION, "model = \"BSFG\"" => "model = \"XYZ\""),
+            ),
+            (
+                "Gilbert-Cameron without its shell corrections",
+                replace(MINIMAL_CONFIGURATION, "model = \"BSFG\"" => "model = \"GC\""),
             ),
             (
                 "unknown averaging",
-                MINIMAL_CONFIGURATION * "\n[level_density.extra]\n" |>
-                s -> replace(
+                replace(
                     MINIMAL_CONFIGURATION,
-                    "prescription = \"BSFG\"" => "prescription = \"BSFG\"\nratio_averaging = \"other\"",
+                    "model = \"BSFG\"" => "model = \"BSFG\"\nratio_averaging = \"other\"",
                 ),
             ),
             (
                 "absent mass excess file",
                 replace(
                     MINIMAL_CONFIGURATION,
-                    "mass_excess_file = \"masses.ANA\"" => "mass_excess_file = \"absent.ANA\"",
+                    "mass_excess_file = \"mass_excess.dat\"" => "mass_excess_file = \"absent.dat\"",
                 ),
             ),
             (
-                "absent multiplicity directory",
+                "absent multiplicity subdirectory",
                 replace(
-                    MINIMAL_CONFIGURATION, "directory = \"sets\"" => "directory = \"absent\""
+                    MINIMAL_CONFIGURATION,
+                    "subdirectory = \"datasets\"" => "subdirectory = \"absent\"",
                 ),
             ),
             (
@@ -122,8 +150,10 @@ end
                 replace(MINIMAL_CONFIGURATION, "max_segments = 3" => "max_segments = 99"),
             ),
             (
-                "digits out of range",
-                replace(MINIMAL_CONFIGURATION, "digits = 6" => "digits = 0"),
+                "significant digits out of range",
+                replace(
+                    MINIMAL_CONFIGURATION, "significant_digits = 6" => "significant_digits = 0"
+                ),
             ),
             (
                 "window outside range",
@@ -151,7 +181,7 @@ end
         end
     end
 
-    @testset "pinning requires an even fissioning nucleus" begin
+    @testset "pinning requires an even nucleus split at symmetry" begin
         body = replace(MINIMAL_CONFIGURATION, "target_A = 252" => "target_A = 251")
         with_configuration(body) do path, directory
             @test_throws ArgumentError load_configuration(path; data_directory = directory)
@@ -164,23 +194,41 @@ end
             configuration = load_configuration(path; data_directory = directory)
             @test !has_symmetric_split(configuration)
         end
+
+        # The fit is pinned at the first abscissa of the range, so a range starting above the
+        # symmetric split would fix the ratio to one half where nothing says it is.
+        body = replace(
+            MINIMAL_CONFIGURATION,
+            "heavy_mass_max = 140" => "heavy_mass_min = 130\nheavy_mass_max = 140",
+        )
+        with_configuration(body) do path, directory
+            @test_throws ArgumentError load_configuration(path; data_directory = directory)
+        end
+        with_configuration(
+            replace(body, "max_segments = 3" => "max_segments = 3\npin_symmetric_split = false")
+        ) do path, directory
+            configuration = load_configuration(path; data_directory = directory)
+            @test A_H_range(configuration) == 130:140
+        end
     end
 
     @testset "the fissioning nucleus and the label are derived" begin
         # Neutron-induced fission adds one mass unit to the target; the label follows from the
-        # target and the reaction, so it cannot contradict the nuclide it names.
+        # target and the channel, so it cannot contradict the nuclide it names.
         body = replace(
             MINIMAL_CONFIGURATION,
-            "target_A = 252\ntarget_Z = 98\nreaction = \"0,f\"" => "target_A = 235\ntarget_Z = 92\nreaction = \"n,f\"\nincident_energy = 2.53e-8",
+            "target_A = 252\ntarget_Z = 98\nchannel = \"sf\"" => "target_A = 235\ntarget_Z = 92\nchannel = \"nth\"\nincident_energy = 2.53e-8",
         )
+        body = replace(body, "heavy_mass_max = 140" => "heavy_mass_max = 160")
         with_configuration(body) do path, directory
             configuration = load_configuration(path; data_directory = directory)
             @test configuration.system.A₀ == 236
             @test configuration.system.Z₀ == 92
-            @test configuration.system.label == "U235_nf"
+            @test configuration.system.reaction == "n,f"
+            @test configuration.system.label == "U235_nth"
             @test configuration.system.incident_energy == 2.53e-8
 
-            # Two incident energies of one target and reaction are two systems, and must not
+            # Two incident energies of one target and channel are two systems, and must not
             # collide in the run identifier even though they share a label.
             other = joinpath(directory, "other.toml")
             write(other, replace(body, "incident_energy = 2.53e-8" => "incident_energy = 1.0"))
@@ -188,23 +236,51 @@ end
                 run_identifier(load_configuration(other; data_directory = directory))
         end
 
-        @test case_label(252, 98, "0,f") == "Cf252_0f"
-        @test case_label(235, 92, "n,f") == "U235_nf"
+        @test system_label(252, 98, "sf") == "Cf252_sf"
+        @test system_label(235, 92, "nth") == "U235_nth"
+        @test system_label(235, 92, "nres") == "U235_nres"
         @test element_symbol(98) == "Cf"
         @test_throws ArgumentError element_symbol(0)
     end
 
-    @testset "excluded data sets need a written reason" begin
+    @testset "the typeset notation is a separate name from the token" begin
+        # One name may not mean both the path token and the figure label.
+        @test system_notation(252, 98, "sf") == "²⁵²Cf(sf)"
+        @test system_notation(233, 92, "nth") == "²³³U(nth,f)"
+        @test system_notation(235, 92, "nres") == "²³⁵U(nres,f)"
+        @test system_notation(252, 98, "sf") != system_label(252, 98, "sf")
+        @test_throws ArgumentError system_notation(252, 98, "0,f")
+    end
+
+    @testset "every run-identifier key has an abbreviation" begin
+        # The identifier is built from configuration keys through one exported table. A key
+        # without an entry is an error rather than a silently invented token.
         with_configuration(MINIMAL_CONFIGURATION) do path, directory
-            @test isempty(load_configuration(path; data_directory = directory).excluded_sets)
+            configuration = load_configuration(path; data_directory = directory)
+            keys_used = keys(FissionTemperatureRatio._run_parameters(configuration))
+            @test all(in(keys(RUN_IDENTIFIER_ABBREVIATIONS)), keys_used)
+            identifier = run_identifier(configuration)
+            for key in keys_used
+                @test occursin("$(RUN_IDENTIFIER_ABBREVIATIONS[key])=", identifier)
+            end
+            # Distinct keys must not collapse onto one token.
+            @test allunique(values(RUN_IDENTIFIER_ABBREVIATIONS))
+        end
+    end
+
+    @testset "excluded datasets need a written reason" begin
+        with_configuration(MINIMAL_CONFIGURATION) do path, directory
+            @test isempty(
+                load_configuration(path; data_directory = directory).excluded_datasets
+            )
         end
 
         # Excluding a measurement is a judgement; an unexplained one cannot be told from a slip.
         for clause in (
-            "exclude = [{ set = \"A\" }]",
-            "exclude = [{ set = \"A\", reason = \"  \" }]",
+            "exclude = [{ dataset = \"A\" }]",
+            "exclude = [{ dataset = \"A\", reason = \"  \" }]",
             "exclude = [\"A\"]",
-            "exclude = [{ set = \"A\", reason = \"x\" }, { set = \"A\", reason = \"y\" }]",
+            "exclude = [{ dataset = \"A\", reason = \"x\" }, { dataset = \"A\", reason = \"y\" }]",
         )
             body = replace(
                 MINIMAL_CONFIGURATION, "[multiplicity]" => "[multiplicity]\n$(clause)"
@@ -216,11 +292,27 @@ end
 
         body = replace(
             MINIMAL_CONFIGURATION,
-            "[multiplicity]" => "[multiplicity]\nexclude = [{ set = \"A. Set 1999\", reason = \"too sparse\" }]",
+            "[multiplicity]" => "[multiplicity]\nexclude = [{ dataset = \"A. Set 1999\", reason = \"too sparse\" }]",
         )
         with_configuration(body) do path, directory
             configuration = load_configuration(path; data_directory = directory)
-            @test configuration.excluded_sets["A. Set 1999"] == "too sparse"
+            @test configuration.excluded_datasets["A. Set 1999"] == "too sparse"
+        end
+    end
+
+    @testset "the shipped configurations are named for the system they describe" begin
+        # A configuration file cannot drift from the system it runs.
+        directory = joinpath(pkgdir(FissionTemperatureRatio), "config")
+        files = filter(endswith(".toml"), readdir(directory))
+        @test !isempty(files)
+        for file in files
+            document = TOML.parsefile(joinpath(directory, file))
+            label = system_label(
+                document["system"]["target_A"],
+                document["system"]["target_Z"],
+                document["system"]["channel"],
+            )
+            @test file == "$(label).toml"
         end
     end
 end

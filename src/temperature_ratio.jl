@@ -50,7 +50,7 @@ known in advance. Offered for comparison; not the default.
 struct MeanOfRatios <: RatioAveraging end
 
 """
-    level_density_ratio(averaging, prescription, A₀, Z₀, domain) -> Dict{Int,Float64}
+    level_density_ratio(averaging, model, A₀, Z₀, domain) -> Dict{Int,Float64}
 
 The level density parameter ratio of complementary fragments,
 
@@ -66,7 +66,7 @@ are absent from the result.
 """
 function level_density_ratio(
     averaging::RatioAveraging,
-    prescription::LevelDensityPrescription,
+    model::LevelDensityModel,
     A₀::Integer,
     Z₀::Integer,
     domain::FragmentationDomain,
@@ -74,15 +74,15 @@ function level_density_ratio(
     ratio = Dict{Int,Float64}()
     for A_H in domain.A_H_range
         A_L = A₀ - A_H
-        value = _charge_averaged_ratio(averaging, prescription, A_H, A_L, Z₀, domain)
-        ismissing(value) || value ≤ 0 || (ratio[A_H] = value)
+        R_a = _charge_averaged_ratio(averaging, model, A_H, A_L, Z₀, domain)
+        ismissing(R_a) || R_a ≤ 0 || (ratio[A_H] = R_a)
     end
     return ratio
 end
 
 function _charge_averaged_ratio(
     ::MeanOfRatios,
-    prescription::LevelDensityPrescription,
+    model::LevelDensityModel,
     A_H::Integer,
     A_L::Integer,
     Z₀::Integer,
@@ -90,8 +90,8 @@ function _charge_averaged_ratio(
 )
     ratios = Dict{Int,Union{Float64,Missing}}()
     for Z_H in charges(domain, A_H)
-        a_H = level_density_parameter(prescription, A_H, Z_H)
-        a_L = level_density_parameter(prescription, A_L, Z₀ - Z_H)
+        a_H = level_density_parameter(model, A_H, Z_H)
+        a_L = level_density_parameter(model, A_L, Z₀ - Z_H)
         ratios[Z_H] = (ismissing(a_H) || ismissing(a_L)) ? missing : a_L / a_H
     end
     return average_over_charge(ratios, domain, A_H)
@@ -99,7 +99,7 @@ end
 
 function _charge_averaged_ratio(
     ::RatioOfMeans,
-    prescription::LevelDensityPrescription,
+    model::LevelDensityModel,
     A_H::Integer,
     A_L::Integer,
     Z₀::Integer,
@@ -108,8 +108,8 @@ function _charge_averaged_ratio(
     heavy = Dict{Int,Union{Float64,Missing}}()
     light = Dict{Int,Union{Float64,Missing}}()
     for Z_H in charges(domain, A_H)
-        a_H = level_density_parameter(prescription, A_H, Z_H)
-        a_L = level_density_parameter(prescription, A_L, Z₀ - Z_H)
+        a_H = level_density_parameter(model, A_H, Z_H)
+        a_L = level_density_parameter(model, A_L, Z₀ - Z_H)
         # Both parameters of a pair must exist, so that the two averages run over the same charges.
         if ismissing(a_H) || ismissing(a_L)
             heavy[Z_H] = missing
@@ -148,8 +148,8 @@ Uncertainties are propagated from those of `r_ν` alone,
 ```
 
 since the level density parameter systematic supplies no uncertainty. The uncertainty of `R_T` is
-therefore a lower bound: the spread between level density prescriptions is the larger effect, and
-is assessed by repeating the extraction with [`GilbertCameron`](@ref) in place of
+therefore a lower bound: the spread between level density models is the larger effect, and is
+assessed by repeating the extraction with [`GilbertCameron`](@ref) in place of
 [`BackShiftedFermiGas`](@ref).
 
 Mass numbers absent from `R_a` are omitted.
@@ -161,7 +161,7 @@ julia> r_ν = RatioCurve([132, 140], [0.40, 0.46], [0.01, 0.01], "example");
 
 julia> R_T = temperature_ratio(r_ν, Dict(132 => 1.05, 140 => 1.02));
 
-julia> round.(R_T.value; digits = 4)
+julia> round.(R_T.ratio; digits = 4)
 2-element Vector{Float64}:
  1.1952
  1.0728
@@ -179,24 +179,22 @@ julia> temperature_ratio(r_ν, Dict(132 => 1.05)).A_H
 """
 function temperature_ratio(r_ν::RatioCurve, R_a::AbstractDict{Int,Float64})
     A_H = Int[]
-    value = Float64[]
+    R_T = Float64[]
     σ = Float64[]
 
     for (index, mass) in enumerate(r_ν.A_H)
         haskey(R_a, mass) || continue
-        ratio = R_a[mass]
-        r = r_ν.value[index]
-        (r > 0 && r < 1 && ratio > 0) || continue
+        a_ratio = R_a[mass]
+        r = r_ν.ratio[index]
+        (r > 0 && r < 1 && a_ratio > 0) || continue
 
-        R_T = sqrt((1 - r) / (ratio * r))
-        σ_R_T = r_ν.σ[index] / (2 * R_T * ratio * r^2)
-
+        value = sqrt((1 - r) / (a_ratio * r))
         push!(A_H, mass)
-        push!(value, R_T)
-        push!(σ, σ_R_T)
+        push!(R_T, value)
+        push!(σ, r_ν.σ[index] / (2 * value * a_ratio * r^2))
     end
 
-    return RatioCurve(A_H, value, σ, r_ν.label)
+    return RatioCurve(A_H, R_T, σ, r_ν.label)
 end
 
 """
@@ -232,12 +230,12 @@ function weighted_mean(curve::RatioCurve)
     usable = curve.σ .> 0
     if !any(usable)
         n = length(curve)
-        μ = sum(curve.value) / n
+        μ = sum(curve.ratio) / n
         n == 1 && return (μ, 0.0)
-        return (μ, sqrt(sum(abs2, curve.value .- μ) / (n * (n - 1))))
+        return (μ, sqrt(sum(abs2, curve.ratio .- μ) / (n * (n - 1))))
     end
 
     w = 1 ./ curve.σ[usable] .^ 2
-    μ = sum(w .* curve.value[usable]) / sum(w)
+    μ = sum(w .* curve.ratio[usable]) / sum(w)
     return (μ, 1 / sqrt(sum(w)))
 end

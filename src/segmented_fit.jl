@@ -3,7 +3,7 @@
 # The multiplicity ratio r_ν(A_H) has a known systematic shape — below one half from the symmetric
 # split to the most probable fragmentation, a minimum at the heavy magic fragment, then an almost
 # linear rise — while the ratio extracted point by point from ν(A) data is scattered and, for some
-# data sets, sparse. Describing the ratio by a small number of joined straight segments imposes
+# datasets, sparse. Describing the ratio by a small number of joined straight segments imposes
 # that shape, and the temperature ratio obtained from the fitted ratio is smooth enough to serve
 # as tabulated input elsewhere.
 #
@@ -76,7 +76,7 @@ end
 Inverse-variance weights, together with the number of points whose uncertainty was absent.
 
 Points without an uncertainty carry no information about their own weight. They are given the
-median of the positive weights rather than being discarded, so that data sets quoting no
+median of the positive weights rather than being discarded, so that datasets quoting no
 uncertainties — of which there are several — still enter the fit. This borrows the scale of the
 uncertainties from the sets that do quote them, which is an assumption, and the number of points
 it was applied to is recorded with the fit. Where no point has an uncertainty the weights are
@@ -320,7 +320,7 @@ function fit_segments(
     ys = collect(Float64, y)
     pinned && (ys = ys .- pinned_value)
     w, imputed = fit_weights(σ)
-    # Several data sets of one fissioning nucleus contribute points at the same mass number, so
+    # Several datasets of one fissioning nucleus contribute points at the same mass number, so
     # the abscissae repeat. Breakpoints are positions, not points: the candidates are the distinct
     # interior mass numbers.
     distinct = unique(xs)

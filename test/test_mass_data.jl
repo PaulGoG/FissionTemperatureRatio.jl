@@ -6,11 +6,11 @@
     end
 
     @testset "reader rejects malformed input" begin
-        @test_throws ArgumentError read_mass_excess(joinpath(@__DIR__, "absent.ANA"))
+        @test_throws ArgumentError read_mass_excess_table(joinpath(@__DIR__, "absent.dat"))
         mktempdir() do directory
-            path = joinpath(directory, "no_proton.ANA")
+            path = joinpath(directory, "no_proton.dat")
             write(path, "50 132 Sn -76.5 0.3\n")
-            @test_throws ArgumentError read_mass_excess(path)
+            @test_throws ArgumentError read_mass_excess_table(path)
         end
     end
 end
