@@ -3,10 +3,30 @@
     A₀, Z₀ = 252, 98
     domain = fragmentation_domain(A₀, Z₀, 126:140, 5, FLAT_CHARGES)
 
-    @testset "charge distribution is normalized per mass number" begin
-        for A in unique(domain.A)
-            @test sum(domain.p[domain.A .== A]) ≈ 1 atol = 1e-12
+    @testset "charge distribution is the analytic Gaussian, not renormalized" begin
+        # Each weight is the Gaussian as evaluated, carrying its own normalizing factor. This is
+        # the invariant: the distribution is not rescaled to sum to one over the charges retained.
+        Zₚ = most_probable_charge(130, A₀, Z₀, FLAT_CHARGES.fallback_ΔZ)
+        rms = FLAT_CHARGES.fallback_rms
+        for Z in charges(domain, 130)
+            @test charge_probability(domain, 130, Z) ≈
+                exp(-(Z - Zₚ)^2 / (2 * rms^2)) / (sqrt(2π) * rms)
         end
+
+        # Summed over a mass number the result is near unity but not equal to it, two effects
+        # pulling opposite ways: charges outside the retained window are lost, while evaluating a
+        # density on a unit charge lattice counts the peak more heavily than integrating it. At
+        # five charges and rms 0.6 the window spans more than three dispersions, so the lattice
+        # term dominates and the sum sits just above one.
+        for A in unique(domain.A)
+            @test sum(domain.p[domain.A .== A]) ≈ 1 atol = 5.0e-3
+            @test sum(domain.p[domain.A .== A]) != 1
+        end
+
+        # Retaining too few charges per mass number is meant to cost something visible, which is
+        # the reason for not renormalizing: one charge per mass spans a third of the distribution.
+        narrow = fragmentation_domain(A₀, Z₀, 126:140, 1, FLAT_CHARGES)
+        @test sum(narrow.p[narrow.A .== 130]) < 0.7
     end
 
     @testset "both fragments of every pair are present" begin

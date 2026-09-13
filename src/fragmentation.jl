@@ -82,13 +82,17 @@ Z_p(A) = Z_UCD(A) + ΔZ(A),    Z_UCD(A) = A Z₀ / A₀,
 ```
 
 and the complementary light fragment `(A₀ - A_H, Z₀ - Z_H)` is entered as well, so that the domain
-covers both fragments of every pair. `p(Z, A)` is a Gaussian centred on `Z_p(A)` with dispersion
-`rms(A)`, normalized within each mass number over the charges actually retained.
+covers both fragments of every pair. `p(Z, A)` is the analytic Gaussian centred on `Z_p(A)` with
+dispersion `rms(A)`, taken as evaluated and *not* renormalized over the charges retained.
 
 # Fields
 
 - `A`, `Z`: the fragmentations, sorted by mass then charge.
-- `p`: `p(Z, A)`, normalized per mass number.
+- `p`: `p(Z, A)`, the analytic Gaussian as evaluated, not renormalized over the charges retained.
+  Summed over the charges of one mass number it is therefore near unity but not equal to it: the
+  charges outside the retained window are lost, while evaluating a density on a unit charge
+  lattice counts the peak more heavily than integrating it. Retaining few charges per mass number
+  makes the first effect dominate, and that cost is meant to be visible.
 - `A_H_range`: the heavy-fragment mass numbers the domain was built from.
 - `fallback_masses`: mass numbers for which the tabulated `ΔZ`/`rms` were unavailable.
 """
@@ -111,6 +115,11 @@ charges(domain::FragmentationDomain, A::Integer) = domain.Z[domain.A .== A]
     charge_probability(domain, A, Z) -> Union{Float64,Missing}
 
 The isobaric charge distribution `p(Z, A)`, or `missing` if `(A, Z)` is not in the domain.
+
+The analytic Gaussian, not renormalized over the retained charges, so summed over one mass number
+it is near unity rather than equal to it. Averages formed over the distribution divide by the
+weights they used, so the departure cancels in all of them; it survives where `p(Z, A)` weights a
+separate distribution, which is the one place it should.
 """
 function charge_probability(domain::FragmentationDomain, A::Integer, Z::Integer)
     index = findfirst(i -> domain.A[i] == A && domain.Z[i] == Z, eachindex(domain.A))
@@ -201,14 +210,16 @@ function fragmentation_domain(
     Z = [k[2] for k in keys_sorted]
     p = [entries[k] for k in keys_sorted]
 
-    # Normalize within each mass number, over the charges actually retained.
+    # Deliberately not renormalized over the retained charges. Renormalizing would hide how much
+    # of the distribution a given `charges_per_mass` actually spans, and retaining too few charges
+    # per mass number should cost something visible rather than being papered over. Every average
+    # formed here divides by the weights it used, so the choice cancels in each of them; it does
+    # not cancel where `p(Z, A)` multiplies a separate distribution, which is where the loss
+    # belongs.
     for mass in unique(A)
-        selection = A .== mass
-        total = sum(view(p, selection))
-        total > 0 || throw(
+        sum(view(p, A .== mass)) > 0 || throw(
             ArgumentError("isobaric charge distribution vanishes identically at A = $(mass)"),
         )
-        p[selection] ./= total
     end
 
     return FragmentationDomain(A, Z, p, A_H_range, sort!(unique!(fallback_masses)))
@@ -244,6 +255,9 @@ distribution at mass number `A`.
 Charges whose value is `missing` are excluded and the weights are renormalized over those that
 remain, so that a quantity undefined for part of the charge distribution still yields an average
 over the part where it is defined. Returns `missing` if no charge contributes.
+
+Dividing by the weights actually used also means the average is unaffected by `p(Z, A)` not being
+normalized over the retained charges.
 """
 function average_over_charge(
     values::AbstractDict{Int,<:Union{Real,Missing}}, domain::FragmentationDomain, A::Integer
