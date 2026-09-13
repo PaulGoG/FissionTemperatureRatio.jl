@@ -17,8 +17,8 @@ R_T = \left[\frac{1 - r_\nu}{R_a\, r_\nu}\right]^{1/2}.
 ```
 
 No fit and no prompt emission calculation enters. What remains to be chosen is the fragmentation
-range, the prescription for the level density parameter, and the order in which the parameter
-ratio is averaged over the isobaric charge distribution.
+range, the level density model, and the order in which the parameter ratio is averaged over the
+isobaric charge distribution.
 
 ## Exact behaviour at the symmetric split
 
