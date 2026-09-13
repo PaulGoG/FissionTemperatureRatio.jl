@@ -57,15 +57,22 @@ EXFOR accession and subentry numbers, so a given file cannot be traced to the ex
 came from, nor checked against a later revision of that entry. Restoring them is the main reason
 to regenerate this directory from a parser rather than to patch it by hand.
 
-**Two files carry a wrong column header.** `Cf252_0f_nuA_Sh.Zeynalov_2011.dat` and
-`Cf252_0f_nuA_A.Goeoek_2014.dat` label their second and third columns `nuPair errnuPair`, but the
-contents are the multiplicity of a single fragment, as the other files are. This was checked
-rather than assumed: the multiplicities of complementary fragments sum to 3.87 and 3.96
-respectively, against a total prompt neutron multiplicity of about 3.76 for the spontaneous
-fission of 252-Cf, whereas a genuine pair quantity would be symmetric about the symmetric split
-and would give a multiplicity ratio of one half at every mass. Readers take columns by position,
-so the mislabel has no effect on any result; it is recorded here because the file is wrong, not
-the reading of it.
+**Two files disagree with their archive coding.** `Cf252_0f_nuA_Sh.Zeynalov_2011.dat` and
+`Cf252_0f_nuA_A.Goeoek_2014.dat` label their second and third columns `nuPair errnuPair`, and the
+EXFOR entries they came from are coded `98-CF-252(0,F)MASS,PR,NU` — per fragment pair — where the
+other nine are `MASS,PR/FRG,NU`, per fragment.
+
+Their contents are per fragment. A quantity defined for a fragment pair is a property of the
+split and must be invariant under `A -> A0 - A`; these files are not. At `A = 120` they read 3.42
+and 3.18 against 0.76 and 0.80 at the complementary mass 132, tracking the uncontested
+per-fragment set (Vorobiev, 3.10 and 0.69) closely and failing symmetry by the same factor.
+Complementary values sum to 3.87 and 3.96, against a total prompt neutron multiplicity of about
+3.76 for the spontaneous fission of 252-Cf; a genuine pair quantity would sum to about 7.5.
+
+Readers take columns by position, so neither the header nor the coding affects any result, and
+excluding the two sets shifts the mean temperature ratio by 0.27 %. The discrepancy is recorded
+because it matters to whoever re-retrieves this directory: selecting on the `FRG` tag alone would
+discard two usable data sets.
 
 **Uncertainties are absent from several sets**, which is reflected in the `weights_imputed` field
 of every fit that used them.

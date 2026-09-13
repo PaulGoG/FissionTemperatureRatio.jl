@@ -172,6 +172,10 @@ Verified:
 - Sensitivity to the charge polarization. Substituting a tabulated polarization for the average
   values moves `R_T(A_H)` by at most 3.4 %, with a median of 0.27 %, worst at the shell minimum.
 - The suite passes on the declared Julia floor and on the current release, 223 assertions on each.
+- The back-shifted Fermi gas prescription, against the published text. The three coefficients, the
+  shell correction, the deuteron pairing term and all five liquid-drop coefficients reproduce
+  Phys. Rev. C **72**, 044311 (2005), Eqs. (7) and (9), and Phys. Rev. C **80**, 054310 (2009),
+  Eqs. (12) and (19).
 
 Not verified:
 
@@ -179,10 +183,6 @@ Not verified:
   literature is taken over a fission fragment mass yield distribution `Y(A)`, which this package
   does not take as input, so the one directly comparable quantity cannot yet be computed. The
   agreement established so far is of shape, not of value.
-- **The back-shifted Fermi gas coefficients have not been checked against the published text.**
-  They are consistent across the two independent sources available here and the reference is the
-  one the literature pairs for this systematic, but the article itself is paywalled and was not
-  consulted. Every number this package produces depends on them.
 - The Gilbert-Cameron prescription has been exercised for magnitude and for its expected departure
   from the back-shifted Fermi gas, but not against tabulated values.
 - The continuous integration workflow has never run.

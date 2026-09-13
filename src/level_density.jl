@@ -25,8 +25,14 @@ erratum Phys. Rev. C **73**, 049901 (2006), and Phys. Rev. C **80**, 054310 (200
 a = (p₁ + p₂ δW) A^p₃,   δW = δW₀ + P_d,
 ```
 
-with `δW₀` the shell correction, the difference between the liquid-drop and experimental binding
-energies, and `P_d` the deuteron pairing energy. For the majority of nuclei occurring as fission
+with `δW₀` the shell correction and `P_d` the deuteron pairing energy.
+
+The shell correction is `S(Z,N) = M_exp - M_LD` of Phys. Rev. C **72**, 044311 (2005), Eq. (7), a
+difference of masses; since `M = Z M_p + N M_n - E_b`, it is equivalently the difference of the
+liquid-drop and experimental binding energies, which is how it is computed here. The pairing term
+is `0.5 P'a` with `P'a` of Phys. Rev. C **80**, 054310 (2009), Eq. (12); the 2009 paper absorbs
+the sign alternation of the earlier definition into `P'a`, so no structure-dependent case
+distinction is needed. For the majority of nuclei occurring as fission
 fragments this systematic reproduces the superfluid-model level density parameter at the
 excitation energies fragments actually attain, which is why it is the default here.
 """
@@ -56,10 +62,8 @@ const LIQUID_DROP = LiquidDropCoefficients(15.65, 17.63, 0.864 / 1.233, 27.72, 2
     BSFGCoefficients
 
 The three fitted coefficients of the back-shifted Fermi gas expression
-`a = (p₁ + p₂ δW) A^p₃` of von Egidy and Bucurescu.
-
-These values have not been checked against the published text, which is paywalled; see the
-validation status in the README.
+`a = (p₁ + p₂ δW) A^p₃` of von Egidy and Bucurescu, Phys. Rev. C **80**, 054310 (2009), Eq. (19):
+`p₁ = 0.199(7)`, `p₂ = 0.0096(4)`, `p₃ = 0.869(7)`.
 """
 struct BSFGCoefficients
     p₁::Float64
