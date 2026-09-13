@@ -155,11 +155,14 @@ fitting segments to the temperature ratio a second time. The transformation is e
 second fit would discard the uncertainty of the first and impose a piecewise-linear shape on a
 quantity that is not piecewise-linear.
 
-With `write_output`, tabulated results, figures and run metadata are written under the results
-and plots directories; uncertainty of the input is preserved by never overwriting an existing
+With `write_output`, tabulated results, figures and run metadata are written under `output_root`; uncertainty of the input is preserved by never overwriting an existing
 file.
 """
-function run_pipeline(configuration::Configuration; write_output::Bool = true)
+function run_pipeline(
+    configuration::Configuration;
+    write_output::Bool = true,
+    output_root::AbstractString = projectdir(),
+)
     @info "reading input" configuration = configuration.source
     prescription = build_prescription(configuration.level_density)
     charge_data = read_charge_distribution(
@@ -285,7 +288,7 @@ function run_pipeline(configuration::Configuration; write_output::Bool = true)
         diagnostics,
     )
 
-    write_output && write_results(result)
+    write_output && write_results(result; root = output_root)
     return result
 end
 
@@ -471,15 +474,16 @@ end
 
 Write the tabulated ratios, the segment parameterization, the figures and the run metadata.
 
-Output goes to `results/<subdirectory>` and `plots/<subdirectory>`, both named by the
-configuration. Existing files are never overwritten; a suffix is appended instead, so that a
+Output goes to `<root>/results/<subdirectory>` and `<root>/plots/<subdirectory>`, both named by
+the configuration. `root` defaults to the active project, which is what a run from this repository
+wants; a caller using the package as a library passes its own. Existing files are never overwritten; a suffix is appended instead, so that a
 rerun cannot destroy a previous result. Returns the paths written, keyed by content.
 """
-function write_results(result::PipelineResult)
+function write_results(result::PipelineResult; root::AbstractString = projectdir())
     configuration = result.configuration
     identifier = run_identifier(configuration)
-    results_root = joinpath(projectdir(), "results", configuration.output.subdirectory)
-    plots_root = joinpath(projectdir(), "plots", configuration.output.subdirectory)
+    results_root = joinpath(root, "results", configuration.output.subdirectory)
+    plots_root = joinpath(root, "plots", configuration.output.subdirectory)
     digits = configuration.output.digits
     written = Dict{String,String}()
 

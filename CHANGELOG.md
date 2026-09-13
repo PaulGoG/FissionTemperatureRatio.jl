@@ -6,7 +6,19 @@ Notable changes to FissionTemperatureRatio.jl. The format follows
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- The output root of a run is configurable, so a caller using the package as a library chooses
+  where results go rather than inheriting the active project.
+- A test that consumes a run the way a downstream code would — reading the manifest and the files
+  it names, using no internal function — and checks the contract the README documents: the system
+  is identifiable without parsing a label, every parameterization names a file that exists and
+  parses, the temperature ratio is tabulated densely enough that interpolation is exact, and the
+  identity at the symmetric split survives the round trip.
+- A section of the README describing that contract, including the two things a consumer can get
+  wrong: reading the segment pivots instead of the tabulated temperature ratio, and leaving the
+  averaging order at the published default when the consuming code re-expands with unaveraged
+  level density parameters.
 
 ## [0.1.0] - 2026-09-13
 

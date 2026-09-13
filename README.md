@@ -281,6 +281,56 @@ to one whatever the prescription, and part by about 0.1 across the shell region.
 was superseded by the back-shifted Fermi gas, so the spread between them is an upper bound on the
 systematic rather than a symmetric error bar.
 
+## Consuming the output
+
+A run writes `manifest_<run>.toml` beside its results. It is the entry point for a code that takes
+these curves as input, and it is meant to be read rather than parsed out of file names:
+
+```toml
+[system]
+label = "U233_nf"
+target_A = 233
+target_Z = 92
+reaction = "n,f"
+incident_energy_MeV = 2.53e-8
+compound_A = 234
+compound_Z = 92
+
+[run]
+columns = ["A_H", "value", "uncertainty"]
+quantity = "R_T = T_L/T_H of complementary fully accelerated fragments"
+
+[[parameterization]]
+label = "K. Nishio 1998"
+kind = "data_set"            # or "systematic_trend"
+pooled = true
+segments = 5
+temperature_ratio_file = "R_T_parameterized_....csv"
+multiplicity_ratio_segments_file = "segments_....csv"
+```
+
+Three things worth knowing before writing against it.
+
+**Read `temperature_ratio_file`, not the segment file.** `R_T` is not piecewise-linear even where
+the multiplicity ratio is, because the level density parameter ratio carries the shell structure
+into it. The segment file states the multiplicity ratio parameterization; interpolating between
+its pivots to get `R_T` cuts straight across that structure. The temperature ratio is tabulated at
+every mass number, so whatever interpolation a consumer applies reproduces the tabulated value.
+
+**The parameterizations are alternatives, not an ensemble.** Take one. Which one describes reality
+is settled by running your code with each and comparing what it produces against experiment; that
+is what they are for. `kind = "systematic_trend"` is the one to take where a data set is too sparse
+or too scattered to resolve the shape.
+
+**If your code re-expands `R_T` with unaveraged level density parameters** — that is, forms
+`a_L/a_H` per `(A_H, Z_H)` and reduces over charge afterwards — then run with
+`ratio_averaging = "mean_of_ratios"`. The shipped default is the order the published method uses,
+which does not close that round trip. The difference is small, below a tenth of a per cent on the
+total average, and the setting appears in every output file name either way.
+
+`test/test_manifest.jl` is a consumer: it reads a run using nothing but the manifest and the three
+column names, and checks the contract this section describes.
+
 ## Method
 
 For each fragment pair the prompt neutron multiplicity ratio is identified with the excitation
