@@ -8,6 +8,14 @@ Notable changes to FissionTemperatureRatio.jl. The format follows
 
 ### Added
 
+- `parsimony`, multiplying the penalty the selection criterion charges per parameter, as the knob
+  for biasing the number of segments downwards. One is the criterion as published. A flat offset
+  was tried first and rejected: it scales neither with sample size nor with how many parameters a
+  segment costs, and on this data the criterion prefers five segments to four by a margin already
+  counted as very strong evidence, so no conventional offset moves it.
+- `windows_apply_to_data_sets`, extending the physics windows that place a breakpoint at the heavy
+  magic fragment from the systematic-trend curve to every data set.
+
 - The output root of a run is configurable, so a caller using the package as a library chooses
   where results go rather than inheriting the active project.
 - A test that consumes a run the way a downstream code would — reading the manifest and the files

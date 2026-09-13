@@ -123,4 +123,34 @@ using StableRNGs
             A_H, value, σ; min_segments = 5, max_segments = 4
         )
     end
+
+    @testset "parsimony biases the choice towards fewer segments" begin
+        A_H = collect(120:159)
+        value = [a ≤ 130 ? 0.50 - 0.02 * (a - 120) : 0.30 + 0.008 * (a - 130) for a in A_H]
+        value .+= 0.004 .* sin.(A_H)
+        σ = fill(0.004, length(A_H))
+
+        orders = [
+            segments(fit_segments(A_H, value, σ; max_segments = 6, parsimony = λ)) for
+            λ in (1.0, 2.0, 4.0, 8.0)
+        ]
+        # Never increasing with the multiplier. It does not reduce the order here, and should not:
+        # the kink in this data is genuine and well resolved, so the likelihood it buys outweighs
+        # any plausible penalty. The multiplier bites where the evidence is marginal — on the
+        # 252-Cf measurement of Göök it moves the choice from five segments to three.
+        @test issorted(orders; rev = true)
+
+        # At one it is the criterion as published, so the default cannot have moved.
+        @test segments(fit_segments(A_H, value, σ; max_segments = 6, parsimony = 1.0)) ==
+            segments(fit_segments(A_H, value, σ; max_segments = 6))
+
+        # The penalty is what changes, so the criterion reported must change with it even where
+        # the chosen order does not.
+        plain = fit_segments(A_H, value, σ; max_segments = 6)
+        penalised = fit_segments(A_H, value, σ; max_segments = 6, parsimony = 4.0)
+        segments(penalised) == segments(plain) && @test penalised.bic > plain.bic
+
+        @test_throws ArgumentError fit_segments(A_H, value, σ; parsimony = 0.0)
+        @test_throws ArgumentError fit_segments(A_H, value, σ; parsimony = -1.0)
+    end
 end

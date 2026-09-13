@@ -11,6 +11,7 @@ include(joinpath(@__DIR__, "activate.jl"))
 using CairoMakie
 using FissionTemperatureRatio
 using LaTeXStrings: @L_str
+using Statistics: quantile
 
 const ASSETS = joinpath(@__DIR__, "src", "assets")
 const SINGLE_COLUMN = 86 / 25.4 * 72
@@ -168,6 +169,21 @@ const SYSTEM_MARKER = Dict("U233_nf" => :circle, "Cf252_0f" => :rect, "U235_nf" 
 
 save_asset(name, figure) = save(joinpath(ASSETS, name), figure; px_per_unit = 4)
 
+# Okabe-Ito, the same order the package's own figures use, with seven markers against eight
+# colours so that the pairs stay distinct.
+const SERIES_COLOURS = [
+    RGBf(0.0, 0.447, 0.698),
+    RGBf(0.835, 0.369, 0.0),
+    RGBf(0.0, 0.62, 0.451),
+    RGBf(0.8, 0.475, 0.655),
+    RGBf(0.337, 0.706, 0.914),
+    RGBf(0.902, 0.624, 0.0),
+    RGBf(0.35, 0.35, 0.35),
+]
+const SERIES_MARKERS = [:circle, :rect, :utriangle, :diamond, :dtriangle, :xcross, :star5]
+data_set_colour(i::Integer) = SERIES_COLOURS[mod1(i, length(SERIES_COLOURS))]
+data_set_marker_symbol(i::Integer) = SERIES_MARKERS[mod1(i, length(SERIES_MARKERS))]
+
 "Published total averages against the ones this package produces, with the residuals beneath."
 function figure_published_comparison(results)
     points = NamedTuple[]
@@ -270,7 +286,7 @@ function figure_temperature_ratio(result)
     hlines!(axis, [1.0]; color = :black, linestyle = :dashdot, linewidth = 0.7)
     for curve in result.R_T
         isempty(curve) && continue
-        scatter!(axis, curve.A_H, curve.value; color = (:grey40, 0.45), markersize = 3.2)
+        scatter!(axis, curve.A_H, curve.value; color = (:grey45, 0.55), markersize = 5)
     end
     trend = systematic_trend(result).R_T
     band!(
@@ -294,76 +310,108 @@ function figure_temperature_ratio(result)
     return figure
 end
 
-"From the sawtooth to the temperature ratio, one measurement, on a shared abscissa."
-function figure_method_chain(result, label)
-    index = findfirst(set -> set.label == label, result.data_sets)
-    index === nothing && (index = argmax(length.(result.r_ν)))
-    data = result.data_sets[index]
-    A₀ = result.configuration.system.A₀
-    colour = RGBf(0.0, 0.447, 0.698)
+"""
+From the measured sawtooth to the temperature ratio, on a shared abscissa, for several
+measurements at once — and the curve combined from all of them.
 
-    figure = Figure(; size = (SINGLE_COLUMN, 1.25 * SINGLE_COLUMN))
+Several rather than one, because the step that needs showing is how measurements of the same
+quantity are used together: each is carried through separately, and only the combined curve of the
+middle panel merges them.
+"""
+function figure_method_chain(result, count = 5)
+    A₀ = result.configuration.system.A₀
+    order = sortperm(length.(result.r_ν); rev = true)
+    chosen = [i for i in order if !isempty(result.r_ν[i])][1:min(count, length(order))]
+
+    figure = Figure(; size = (1.05 * SINGLE_COLUMN, 1.45 * SINGLE_COLUMN))
     axes = [
         Axis(figure[row, 1]; ylabel = ylabel, xticklabelsvisible = row == 3) for
         (row, ylabel) in enumerate((L"\nu", L"r_\nu = \nu_H/(\nu_L + \nu_H)", L"R_T = T_L/T_H"))
     ]
-    axes[3].xlabel = L"Heavy fragment mass number $A_H$"
+    axes[3].xlabel = L"Fragment mass number $A$"
     linkxaxes!(axes...)
-    # Enough clearance that the lowest tick label of one panel cannot meet the highest of the next.
-    rowgap!(figure.layout, 10)
+    rowgap!(figure.layout, 8)
 
-    masses = A_H_range(result.configuration)
-    heavy = [(A, ν) for (A, ν) in zip(data.A, data.ν) if A in masses]
-    light = [(A₀ - A, ν) for (A, ν) in zip(data.A, data.ν) if A₀ - A in masses && 2A < A₀]
-    scatter!(
-        axes[1], first.(heavy), last.(heavy); color = colour, markersize = 3.5, label = L"\nu_H"
+    # The symmetric split separates the light wing from the heavy one, which is what a label on
+    # each wing used to say — and it says it without sitting on top of the data.
+    for axis in axes
+        vlines!(axis, [A₀ / 2]; color = (:grey, 0.55), linestyle = :dot, linewidth = 0.8)
+    end
+    hlines!(axes[2], [0.5]; color = :black, linestyle = :dashdot, linewidth = 0.7)
+    hlines!(axes[3], [1.0]; color = :black, linestyle = :dashdot, linewidth = 0.7)
+
+    for (position, index) in enumerate(chosen)
+        data = result.data_sets[index]
+        colour = data_set_colour(position)
+        marker = data_set_marker_symbol(position)
+        scatter!(
+            axes[1],
+            data.A,
+            data.ν;
+            color = colour,
+            marker = marker,
+            markersize = 6,
+            label = data.label,
+        )
+        for (axis, curve) in ((axes[2], result.r_ν[index]), (axes[3], result.R_T[index]))
+            scatter!(
+                axis, curve.A_H, curve.value; color = colour, marker = marker, markersize = 6
+            )
+        end
+    end
+
+    # The combined curve, which is the only place the measurements are merged.
+    consensus = result.consensus_r_ν
+    lines!(
+        axes[2],
+        consensus.A_H,
+        consensus.value;
+        color = :black,
+        linestyle = :dash,
+        linewidth = 1.6,
+        label = "combined",
     )
-    scatter!(
-        axes[1],
-        first.(light),
-        last.(light);
-        color = RGBf(0.835, 0.369, 0.0),
-        markersize = 3.5,
-        marker = :rect,
-        label = L"\nu_L",
-    )
-    axislegend(
+    trend = systematic_trend(result).R_T
+    lines!(axes[3], trend.A_H, trend.value; color = :black, linestyle = :dash, linewidth = 1.6)
+
+    Legend(
+        figure[0, 1],
         axes[1];
-        position = :lt,
+        orientation = :horizontal,
+        nbanks = 3,
         framevisible = false,
         labelsize = 6.5,
-        orientation = :horizontal,
-        patchsize = (8, 6),
+        patchsize = (9, 6),
+        tellheight = true,
+        tellwidth = false,
+        padding = (0, 0, 0, 0),
     )
-
-    hlines!(axes[2], [0.5]; color = :black, linestyle = :dashdot, linewidth = 0.7)
-    scatter!(
-        axes[2],
-        result.r_ν[index].A_H,
-        result.r_ν[index].value;
-        color = colour,
-        markersize = 3.5,
+    rowgap!(figure.layout, 1, 4)
+    # The far-asymmetric tail of some measurements reaches tens of neutrons per fragment; scaled
+    # to those, the sawtooth that carries the physics collapses to a line. Bounded by the bulk, as
+    # the package's own multiplicity figure is.
+    # The mass range the analysis actually uses, symmetric about the split.
+    masses = A_H_range(result.configuration)
+    low, high = A₀ - last(masses) - 2, last(masses) + 2
+    xlims!(axes[1], low, high)
+    bulk = reduce(
+        vcat,
+        (result.data_sets[i].ν[low .≤ result.data_sets[i].A .≤ high] for i in chosen);
+        init = Float64[],
     )
-    hlines!(axes[3], [1.0]; color = :black, linestyle = :dashdot, linewidth = 0.7)
-    scatter!(
-        axes[3],
-        result.R_T[index].A_H,
-        result.R_T[index].value;
-        color = colour,
-        markersize = 3.5,
-    )
-    text!(
-        axes[1],
-        0.97,
-        0.92;
-        text = "$(result.configuration.system.label) · $(data.label)",
-        space = :relative,
-        align = (:right, :top),
-        fontsize = 6.5,
-        color = :grey40,
-    )
+    ylims!(axes[1], 0, 1.1 * maximum(bulk))
     ylims!(axes[2], 0, 1)
     ylims!(axes[3], 0, 3)
+    text!(
+        axes[1],
+        0.02,
+        0.94;
+        text = result.configuration.system.label,
+        space = :relative,
+        align = (:left, :top),
+        fontsize = 7,
+        color = :grey40,
+    )
     return figure
 end
 
@@ -459,7 +507,7 @@ function main()
         for (name, figure) in (
             ("published_comparison.png", figure_published_comparison(results)),
             ("temperature_ratio.png", figure_temperature_ratio(results["Cf252_0f"])),
-            ("method_chain.png", figure_method_chain(results["Cf252_0f"], "A. Goeoek 2014")),
+            ("method_chain.png", figure_method_chain(results["Cf252_0f"])),
             (
                 "level_density_prescriptions.png",
                 figure_prescriptions(results["U233_nf"], gilbert_cameron),

@@ -206,7 +206,9 @@ function run_pipeline(
     # One curve per data set. These are the alternatives a prompt emission code chooses between.
     for index in usable
         curve = r_ν[index]
-        parameterization = _parameterize(curve, R_a, settings, curve.label, UnitRange{Int}[])
+        windows =
+            settings.windows_apply_to_data_sets ? settings.required_windows : UnitRange{Int}[]
+        parameterization = _parameterize(curve, R_a, settings, curve.label, windows)
         parameterization === nothing && continue
         push!(parameterizations, parameterization)
     end
@@ -336,6 +338,7 @@ function _parameterize(
             min_points_per_segment = settings.min_points_per_segment,
             pinned_value = settings.pin_symmetric_split ? 0.5 : nothing,
             required_windows = windows,
+            parsimony = settings.parsimony,
             bounds = (0.0, 1.0),
         )
     catch err

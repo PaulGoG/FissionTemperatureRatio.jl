@@ -132,15 +132,22 @@ Controls of the piecewise-linear parameterization: the largest number of segment
 smallest number of data points a segment may contain, whether the ratio is pinned to one half at
 the symmetric split, and mass-number windows that must each contain a breakpoint.
 
-`required_windows` constrains the systematic-trend curve only, not the per-data-set
-parameterizations, which are left to follow their own data. Its purpose is to place the minimum
-at the heavy magic fragment where a data set is too sparse or too scattered to resolve it.
+`required_windows` places a breakpoint where physics says there is one — the minimum at the heavy
+magic fragment, `A_H` near 130, where the `Z = 50`, `N = 82` shell closure fixes the sharing. It
+constrains the systematic-trend curve by default and the per-data-set parameterizations only when
+`windows_apply_to_data_sets` is set, since a set that resolves the feature on its own should be
+left to do so.
+
+`parsimony` biases the choice of order towards fewer segments by multiplying the penalty the
+selection criterion charges per parameter. One is the criterion as published.
 """
 struct SegmentSettings
     max_segments::Int
     min_points_per_segment::Int
     pin_symmetric_split::Bool
     required_windows::Vector{UnitRange{Int}}
+    windows_apply_to_data_sets::Bool
+    parsimony::Float64
 end
 
 """
@@ -542,6 +549,22 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
             ),
         )
     windows = _windows(segments_section, "segments.required_windows")
+    windows_apply = _value(
+        segments_section,
+        "windows_apply_to_data_sets",
+        Bool,
+        "segments.windows_apply_to_data_sets",
+        false,
+    )
+    parsimony = Float64(
+        _in_bounds(
+            _value(segments_section, "parsimony", Real, "segments.parsimony", 1.0),
+            "segments.parsimony";
+            min = 0,
+            max = 10,
+            exclusive_min = true,
+        ),
+    )
     for (index, window) in enumerate(windows)
         issubset(window, cld(A₀, 2):A_H_max) || throw(
             ArgumentError("segments.required_windows[$(index)] = $(window) lies outside the \
@@ -570,7 +593,7 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
         multiplicity_directory,
         excluded_sets,
         yield_directory,
-        SegmentSettings(max_segments, min_points, pin, windows),
+        SegmentSettings(max_segments, min_points, pin, windows, windows_apply, parsimony),
         OutputSettings(digits, subdirectory),
         source,
     )

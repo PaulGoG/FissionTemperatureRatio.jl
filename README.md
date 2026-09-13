@@ -235,6 +235,16 @@ The sets of one system disagree far beyond their quoted uncertainties: for 252-C
 between them at a given mass number runs to ten or twenty times the median quoted uncertainty. Two
 consequences shape what the package does.
 
+**How several measurements become one result — and where they do not.** Each data set is carried
+through the whole chain on its own: its own `r_ν`, its own segmented fit, its own `R_T`, its own
+total average. Those are never merged. What a run offers is one curve per measurement plus one
+more, the systematic trend, and a consuming code takes exactly one of them.
+
+The trend is the only place the measurements are combined, and the combination happens at the
+level of `r_ν`, before any fitting: at each mass number the values from every admitted set are
+merged into one, and the segmented fit is then run on that single combined curve. So the ordering
+is combine-then-fit, not fit-then-average.
+
 **Pooling.** The combined curve cannot be a concatenation weighted by the quoted uncertainties —
 that hands the result to whichever author quoted the smallest ones, and counts a set with many
 points more heavily than one with few. The sets are combined mass number by mass number with an
@@ -250,6 +260,14 @@ cover, points outside the physical range, the departure from one half at the sym
 `ν(A) + ν(A₀-A)` against the total multiplicity — written to `diagnostics_<run>.csv` for every set
 whether or not it was used.
 
+The archive itself is the first filter: the retrieval rejects datasets whose reaction code or
+units say they are not the quantity asked for, and records why. The diagnostics here are the
+second, structural filter, and they do catch sloppy data — for 252-Cf the complementary sums
+separate cleanly into sets consistent with the total multiplicity of 3.76 (Alkhazov 3.75, Mehta
+3.72, Budtz-Jørgensen 3.70, Vorobiev 3.83) and sets a tenth high (Basova 4.27, Zamyatnin 4.21,
+Ding Shengyao 4.18, Göök 4.17), which is a normalization discrepancy rather than a measurement
+one.
+
 Nothing is filtered automatically. A set is kept out of the pooling only when the configuration
 names it and says why:
 
@@ -263,6 +281,14 @@ exclude = [
 
 An excluded set is still read, still fitted, still written and still diagnosed. It is excluded
 from the combination, not from the record.
+
+Two controls bias the choice of how many segments to fit. `parsimony` multiplies the penalty the
+selection criterion charges per parameter: at one it is the criterion as published, above one each
+added segment must buy more of a fit to be worth its parameters. `required_windows` places a
+breakpoint where physics says there is one — the minimum at the heavy magic fragment, `A_H` near
+130, fixed by the `Z = 50`, `N = 82` shell closure — and `windows_apply_to_data_sets` extends that
+from the trend curve to every data set. The first refuses structure the data does not earn; the
+second insists on structure the data ought to show.
 
 The `[yield]` section is optional. Given a directory of pre-neutron mass yield distributions, the
 run also reports the total average `⟨R_T⟩ = Σ Y(A_H) R_T(A_H) / Σ Y(A_H)` for every combination of

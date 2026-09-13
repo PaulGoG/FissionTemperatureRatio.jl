@@ -161,11 +161,15 @@ function _within_bounds(
     return true
 end
 
-function _bic(wrss::Float64, n::Int, parameters::Int)
+function _bic(wrss::Float64, n::Int, parameters::Int, parsimony::Float64)
     # Gaussian likelihood with the noise scale estimated from the residuals, plus the Schwarz
     # penalty, Ann. Stat. 6, 461 (1978). The breakpoints are counted as parameters: they are
     # fitted, and a criterion that ignored them would always prefer more segments.
-    return n * log(wrss / n) + parameters * log(n)
+    #
+    # `parsimony` scales that penalty. At one this is the criterion as published; above one each
+    # added segment must buy more of a fit to be worth its parameters, which is how the choice is
+    # biased towards fewer segments without inventing a different criterion.
+    return n * log(wrss / n) + parsimony * parameters * log(n)
 end
 
 # Enumerate ascending interior breakpoint sets drawn from `candidates`, subject to a minimum
@@ -219,6 +223,13 @@ breakpoint; the criterion for every order examined is retained in the result.
 # Arguments
 
 - `max_segments`: largest number of segments examined.
+- `parsimony`: multiplies the penalty the criterion charges per parameter. One, the default, is
+  the criterion as published. Above one each added segment must buy more of a fit to be worth its
+  parameters, which biases the choice towards fewer segments; the effect scales with sample size
+  and with how many parameters a segment costs, which a flat offset would not. Predicting one
+  measurement from a fit to another stops improving at about four segments while the fit to its
+  own data keeps improving, so this is the knob for refusing structure that describes the
+  measurement rather than the quantity.
 - `min_segments`: smallest number examined, `1` by default. Setting it equal to `max_segments`
   fits exactly that many segments rather than selecting, which is how a given order is inspected
   on its own; the criterion is still reported for every order examined.
@@ -276,6 +287,7 @@ function fit_segments(
     σ::AbstractVector{<:Real};
     max_segments::Integer = 6,
     min_segments::Integer = 1,
+    parsimony::Real = 1.0,
     min_points_per_segment::Integer = 4,
     pinned_value::Union{Real,Nothing} = nothing,
     required_windows::Vector{UnitRange{Int}} = UnitRange{Int}[],
@@ -286,6 +298,7 @@ function fit_segments(
                            $(length(x)), $(length(y)), $(length(σ))"))
     max_segments ≥ 1 ||
         throw(ArgumentError("max_segments must be at least 1, got $(max_segments)"))
+    parsimony > 0 || throw(ArgumentError("parsimony must be positive, got $(parsimony)"))
     1 ≤ min_segments ≤ max_segments || throw(
         ArgumentError("min_segments must lie between 1 and max_segments = $(max_segments), \
              got $(min_segments)"),
@@ -338,7 +351,7 @@ function fit_segments(
             dof = n - parameters
             dof > 0 || return nothing
             _within_bounds(bounds, xs, ψ, β, pinned, pinned_value) || return nothing
-            criterion = _bic(wrss, n, parameters)
+            criterion = _bic(wrss, n, parameters, Float64(parsimony))
             if best_for_order === nothing || criterion < best_for_order.bic
                 covariance = Symmetric(inv(gram)) * (wrss / dof)
                 best_for_order = (

@@ -30,6 +30,8 @@ max_segments = 6                                    # largest segment count exam
 min_points_per_segment = 4                          # data points a segment must contain, 2 to 50
 pin_symmetric_split = true                          # fix r_nu = 1/2 at A0/2; requires even A0
 required_windows = [[128, 132]]                    # windows the systematic-trend curve must break in
+windows_apply_to_data_sets = false                  # apply them to each data set too, not only the trend
+parsimony = 1.0                                     # penalty multiplier per parameter, above 0 to 10
 
 [output]
 digits = 6                                          # decimals in tabulated output, 1 to 15
