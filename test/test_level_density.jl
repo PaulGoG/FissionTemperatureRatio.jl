@@ -48,6 +48,14 @@ DATA_AVAILABLE && @testset "level density parameter" begin
         end
         @test level_density_parameter(GC_PRESCRIPTION, 132, 50) <
             level_density_parameter(GC_PRESCRIPTION, 140, 54)
+        # The table declares `n S(N) S(Z)`, and the expression looks S(Z) up at the proton number
+        # and S(N) at the neutron number. Exchanging the two columns is not absorbed by their sum:
+        # it evaluates the neutron correction at the proton number and the reverse, silently. The
+        # first tabulated row fixes the order, and the closed form fixes the lookup keys.
+        @test TEST_SHELLS.S_N[11] ≈ 6.80
+        @test TEST_SHELLS.S_Z[11] ≈ -2.91
+        @test level_density_parameter(GC_PRESCRIPTION, 132, 50) ≈
+            132 * (9.17e-3 * (TEST_SHELLS.S_Z[50] + TEST_SHELLS.S_N[82]) + 1.42e-1)
         # Outside the tabulated nucleon numbers the prescription is undefined.
         @test ismissing(level_density_parameter(GC_PRESCRIPTION, 400, 200))
     end
