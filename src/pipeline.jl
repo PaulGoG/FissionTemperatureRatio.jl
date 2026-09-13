@@ -470,31 +470,12 @@ function write_results(result::PipelineResult)
         end
     end
 
-    with_theme(publication_theme()) do
-        written["figure/multiplicity"] = save_figure(
-            joinpath(plots_root, "multiplicity_$(identifier).pdf"),
-            plot_multiplicities(result.data_sets; A₀ = configuration.system.A₀),
-        )
-        written["figure/r_nu"] = save_figure(
-            joinpath(plots_root, "r_nu_$(identifier).pdf"),
-            plot_ratio(
-                filter(!isempty, result.r_ν),
-                [p.r_ν for p in result.parameterizations];
-                ylabel = L"r_\nu = \nu_H / (\nu_L + \nu_H)",
-                reference = 0.5,
-                reference_label = "Equal sharing",
-            ),
-        )
-        return written["figure/R_T"] = save_figure(
-            joinpath(plots_root, "R_T_$(identifier).pdf"),
-            plot_ratio(
-                filter(!isempty, result.R_T),
-                [p.R_T for p in result.parameterizations];
-                ylabel = L"R_T = T_L / T_H",
-                reference = 1.0,
-                reference_label = "Equal temperatures",
-            ),
-        )
+    # Figures come from the CairoMakie extension. A run without it still writes every table and
+    # its metadata, rather than failing at the last step for want of a plotting stack.
+    if _plotting_extension() === nothing
+        @warn "figures skipped; load CairoMakie alongside this package to write them"
+    else
+        merge!(written, write_figures(result, plots_root, identifier))
     end
 
     metadata = run_metadata(configuration)

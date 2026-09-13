@@ -22,6 +22,11 @@ Notable changes to FissionTemperatureRatio.jl. The format follows
 - Experimental input sourced with `ExforFissionData.jl` in place of hand-assembled files. Every
   data file carries its EXFOR DatasetID and each directory holds the retrieval run record; the
   readers ignore anything that is not a `.dat`, so the record sits beside the data.
+- The plotting stack as a weak dependency. `publication_theme`, `plot_multiplicities`,
+  `plot_ratio`, `save_figure` and `write_figures` are declared by the package and implemented in
+  an extension that loads with CairoMakie, so a package whose output is tabulated data no longer
+  costs a graphics stack on `using`: about a second, with no Makie loaded. A run without it writes
+  every table and its metadata, and says that figures were skipped.
 - `CITATION.cff`, a version-bounded `formatter/` environment, a `check.jl` pre-commit gate, a
   JuliaFormatter CI workflow, and documentation deployment.
 - Extraction of the temperature ratio `R_T = T_L/T_H` of complementary fully accelerated

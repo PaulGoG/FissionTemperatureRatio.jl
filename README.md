@@ -54,6 +54,8 @@ FissionTemperatureRatio/
 │   ├── make.jl
 │   ├── Project.toml
 │   └── src/
+├── ext/                            weak-dependency extensions
+│   └── FissionTemperatureRatioCairoMakieExt.jl   publication figures, loaded with CairoMakie
 ├── formatter/                      JuliaFormatter environment, version-bounded
 │   ├── activate.jl
 │   └── Project.toml
@@ -67,7 +69,7 @@ FissionTemperatureRatio/
 │   ├── mass_data.jl                mass excess input
 │   ├── multiplicity_ratio.jl       ν(A) input and the multiplicity ratio
 │   ├── pipeline.jl                 the run, from input to tabulated output
-│   ├── plotting.jl                 publication figures
+│   ├── plotting.jl                 figure interface; the implementation is in ext/
 │   ├── provenance.jl               run identification and metadata
 │   ├── segmented_fit.jl            continuous piecewise-linear regression
 │   ├── temperature_ratio.jl        level density parameter ratio and R_T
@@ -76,6 +78,25 @@ FissionTemperatureRatio/
 ```
 
 Generated output is written to `results/` and `plots/`, neither of which is version-controlled.
+
+## Figures
+
+The plotting stack is a weak dependency, so `using FissionTemperatureRatio` loads in about a
+second and pulls in no graphics. Figures come from an extension that appears as soon as CairoMakie
+is loaded alongside the package:
+
+```julia
+using FissionTemperatureRatio, CairoMakie
+```
+
+`scripts/run.jl` loads it when the environment provides it and says so when it does not; the run
+writes every table and its metadata either way. Because CairoMakie is not a dependency of this
+project, install it into your default environment, which stays on the load path alongside the
+active project:
+
+```
+julia -e 'using Pkg; Pkg.add("CairoMakie")'
+```
 
 ## Environments
 

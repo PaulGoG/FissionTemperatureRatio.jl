@@ -1,0 +1,246 @@
+# Publication figures, laid out at the printed width of a single journal column so that they enter
+# a manuscript at native size without rescaling.
+#
+# The implementations live here rather than in the package so that `using FissionTemperatureRatio`
+# does not load a plotting stack. CairoMakie depends on LaTeXStrings and MathTeXEngine, so loading
+# CairoMakie alone triggers this extension. The docstrings are on the stubs in `src/plotting.jl`,
+# where the documentation build can find them.
+
+module FissionTemperatureRatioCairoMakieExt
+
+using CairoMakie
+using LaTeXStrings: @L_str
+using MathTeXEngine: texfont
+
+using FissionTemperatureRatio:
+    FissionTemperatureRatio, MultiplicityData, PipelineResult, RatioCurve, TREND_LABEL
+
+const SINGLE_COLUMN_WIDTH = 86 / 25.4 * 72
+
+function FissionTemperatureRatio.publication_theme()
+    return Theme(;
+        fonts = (; regular = texfont(:text), bold = texfont(:bold), italic = texfont(:italic)),
+        fontsize = 8,
+        figure_padding = 4,
+        Axis = (
+            xgridstyle = :dash,
+            ygridstyle = :dash,
+            xgridcolor = (:grey, 0.12),
+            ygridcolor = (:grey, 0.12),
+            xminorticksvisible = false,
+            yminorticksvisible = false,
+            xtickalign = 1,
+            ytickalign = 1,
+            spinewidth = 0.8,
+            xtickwidth = 0.8,
+            ytickwidth = 0.8,
+            xlabelpadding = 2,
+            ylabelpadding = 2,
+        ),
+        Legend = (
+            framevisible = false,
+            padding = (2, 2, 2, 2),
+            rowgap = 0,
+            colgap = 6,
+            patchsize = (10, 6),
+        ),
+        Scatter = (markersize = 4, strokewidth = 0),
+        Lines = (linewidth = 1,),
+    )
+end
+
+# One colour per data set, consistent across every figure of a run. Okabe-Ito, which stays
+# distinguishable in grayscale and for the common colour vision deficiencies.
+const DATA_SET_COLORS = [
+    RGBf(0.0, 0.447, 0.698),
+    RGBf(0.835, 0.369, 0.0),
+    RGBf(0.0, 0.620, 0.451),
+    RGBf(0.800, 0.475, 0.655),
+    RGBf(0.337, 0.706, 0.914),
+    RGBf(0.941, 0.894, 0.259),
+    RGBf(0.902, 0.624, 0.0),
+    RGBf(0.35, 0.35, 0.35),
+]
+
+const DATA_SET_MARKERS = [
+    :circle, :rect, :utriangle, :diamond, :dtriangle, :cross, :xcross, :star5
+]
+
+data_set_color(index::Integer) = DATA_SET_COLORS[mod1(index, length(DATA_SET_COLORS))]
+data_set_marker(index::Integer) = DATA_SET_MARKERS[mod1(index, length(DATA_SET_MARKERS))]
+
+function FissionTemperatureRatio.plot_multiplicities(
+    data_sets::Vector{MultiplicityData}; A₀::Integer
+)
+    figure = Figure(; size = (SINGLE_COLUMN_WIDTH, 0.78 * SINGLE_COLUMN_WIDTH))
+    axis = Axis(
+        figure[1, 1];
+        xlabel = L"Fragment mass number $A$",
+        ylabel = L"Prompt neutron multiplicity $\nu$",
+    )
+
+    for (index, data) in enumerate(data_sets)
+        color = data_set_color(index)
+        if any(>(0), data.σν)
+            errorbars!(
+                axis, data.A, data.ν, data.σν; color = color, linewidth = 0.6, whiskerwidth = 3
+            )
+        end
+        scatter!(
+            axis,
+            data.A,
+            data.ν;
+            color = color,
+            marker = data_set_marker(index),
+            label = data.label,
+        )
+    end
+
+    _legend_above(figure, axis, length(data_sets))
+    return figure
+end
+
+function FissionTemperatureRatio.plot_ratio(
+    curves::Vector{RatioCurve},
+    fitted::Vector{RatioCurve} = RatioCurve[];
+    ylabel,
+    reference::Union{Real,Nothing} = nothing,
+    reference_label::AbstractString = "",
+)
+    figure = Figure(; size = (SINGLE_COLUMN_WIDTH, 0.78 * SINGLE_COLUMN_WIDTH))
+    axis = Axis(figure[1, 1]; xlabel = L"Heavy fragment mass number $A_H$", ylabel = ylabel)
+
+    if reference !== nothing
+        hlines!(
+            axis,
+            [reference];
+            color = :black,
+            linestyle = :dashdot,
+            linewidth = 0.7,
+            label = isempty(reference_label) ? nothing : reference_label,
+        )
+    end
+
+    for (index, curve) in enumerate(curves)
+        isempty(curve) && continue
+        color = data_set_color(index)
+        if any(>(0), curve.σ)
+            errorbars!(
+                axis,
+                curve.A_H,
+                curve.value,
+                curve.σ;
+                color = color,
+                linewidth = 0.6,
+                whiskerwidth = 3,
+            )
+        end
+        scatter!(
+            axis,
+            curve.A_H,
+            curve.value;
+            color = color,
+            marker = data_set_marker(index),
+            label = curve.label,
+        )
+    end
+
+    # The parameterizations are alternatives, so each is drawn in the colour of the data set it
+    # came from, and the systematic-trend curve in black, dashed, to mark that it follows no single
+    # measurement.
+    for (index, curve) in enumerate(fitted)
+        isempty(curve) && continue
+        trend = curve.label == TREND_LABEL
+        color = trend ? RGBf(0, 0, 0) : data_set_color(index)
+        band!(
+            axis,
+            curve.A_H,
+            curve.value .- curve.σ,
+            curve.value .+ curve.σ;
+            color = (color, 0.15),
+        )
+        lines!(
+            axis,
+            curve.A_H,
+            curve.value;
+            color = color,
+            linewidth = 1.2,
+            linestyle = trend ? :dash : :solid,
+            label = trend ? curve.label : "$(curve.label) fit",
+        )
+    end
+
+    _legend_above(
+        figure,
+        axis,
+        count(!isempty, curves) + count(!isempty, fitted) + (reference === nothing ? 0 : 1),
+    )
+    return figure
+end
+
+# Legends sit above the axes, horizontally, so that they cannot collide with the data however the
+# points and their error bars happen to fall.
+function _legend_above(figure::Figure, axis::Axis, entries::Integer)
+    # At a single column width three entries fit on one line; more must be banked, or the last
+    # label is silently clipped.
+    Legend(
+        figure[0, 1],
+        axis;
+        orientation = :horizontal,
+        nbanks = entries ≤ 3 ? 1 : cld(entries, 3),
+        framevisible = false,
+        labelsize = 6,
+        padding = (0, 0, 0, 0),
+        tellheight = true,
+        tellwidth = false,
+    )
+    rowgap!(figure.layout, 2)
+    return figure
+end
+
+function FissionTemperatureRatio.save_figure(path::AbstractString, figure::Figure)
+    mkpath(dirname(path))
+    target = FissionTemperatureRatio._unused_path(path)
+    save(target, figure; pt_per_unit = 1)
+    return target
+end
+
+# The run's figures. Held here, rather than in the pipeline, so that the pipeline carries no
+# reference to a plotting type; `write_results` calls it through `Base.get_extension`.
+function FissionTemperatureRatio.write_figures(
+    result::PipelineResult, directory::AbstractString, identifier::AbstractString
+)
+    written = Dict{String,String}()
+    configuration = result.configuration
+    with_theme(FissionTemperatureRatio.publication_theme()) do
+        written["figure/multiplicity"] = FissionTemperatureRatio.save_figure(
+            joinpath(directory, "multiplicity_$(identifier).pdf"),
+            FissionTemperatureRatio.plot_multiplicities(
+                result.data_sets; A₀ = configuration.system.A₀
+            ),
+        )
+        written["figure/r_nu"] = FissionTemperatureRatio.save_figure(
+            joinpath(directory, "r_nu_$(identifier).pdf"),
+            FissionTemperatureRatio.plot_ratio(
+                filter(!isempty, result.r_ν),
+                [p.r_ν for p in result.parameterizations];
+                ylabel = L"r_\nu = \nu_H / (\nu_L + \nu_H)",
+                reference = 0.5,
+                reference_label = "Equal sharing",
+            ),
+        )
+        return written["figure/R_T"] = FissionTemperatureRatio.save_figure(
+            joinpath(directory, "R_T_$(identifier).pdf"),
+            FissionTemperatureRatio.plot_ratio(
+                filter(!isempty, result.R_T),
+                [p.R_T for p in result.parameterizations];
+                ylabel = L"R_T = T_L / T_H",
+                reference = 1.0,
+                reference_label = "Equal temperatures",
+            ),
+        )
+    end
+    return written
+end
+
+end

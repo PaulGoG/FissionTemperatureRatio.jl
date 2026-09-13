@@ -42,13 +42,10 @@ result = run_pipeline(configuration)
 module FissionTemperatureRatio
 
 using CSV: CSV
-using CairoMakie
 using DataFrames: DataFrame, eachrow
 using Dates: Dates
 using DrWatson: datadir, gitdescribe, projectdir, savename
-using LaTeXStrings: @L_str
 using LinearAlgebra: LinearAlgebra, Symmetric, cond, dot
-using MathTeXEngine: texfont
 using Statistics: median
 using TOML: TOML
 
@@ -100,6 +97,6 @@ export PipelineResult, Parameterization, run_pipeline, write_results, pool, syst
 export run_identifier, run_metadata
 
 # Figures
-export publication_theme, plot_multiplicities, plot_ratio, save_figure
+export publication_theme, plot_multiplicities, plot_ratio, save_figure, write_figures
 
 end

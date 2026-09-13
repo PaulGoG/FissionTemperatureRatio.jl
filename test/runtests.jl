@@ -1,3 +1,4 @@
+using TOML
 using Test
 using FissionTemperatureRatio
 
@@ -13,4 +14,6 @@ include("fixtures.jl")
     include("test_temperature_ratio.jl")
     include("test_segmented_fit.jl")
     include("test_configuration.jl")
+    # Last: this one loads CairoMakie, and asserts the extension is absent until it does.
+    include("test_plotting.jl")
 end

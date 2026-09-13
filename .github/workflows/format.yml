@@ -26,7 +26,7 @@ jobs:
           Pkg.instantiate()
           using JuliaFormatter
           formatted = all(format(directory; overwrite = false)
-                          for directory in ("src", "test", "scripts", "bench", "docs"))
+                          for directory in ("src", "test", "scripts", "bench", "docs", "ext"))
           if !formatted
               @error "Formatting differs from .JuliaFormatter.toml. Run `julia check.jl` locally."
               exit(1)

@@ -5,7 +5,7 @@
 #
 # Mirrors the gate that CI applies, so a failure is reproducible locally.
 
-const DIRECTORIES = ("src", "test", "scripts", "bench", "docs")
+const DIRECTORIES = ("src", "test", "scripts", "bench", "docs", "ext")
 
 let overwrite = !("--check" in ARGS)
     include(joinpath(@__DIR__, "formatter", "activate.jl"))
