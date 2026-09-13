@@ -47,14 +47,14 @@ cited as such in any result derived from it; the EXFOR DatasetID that opens each
 identifies the entry, and the `retrieval.toml` beside it records the reaction code and units.
 
 Retrieved with [ExforFissionData.jl](https://github.com/PaulGoG/ExforFissionData.jl), which writes
-this layout directly. To reproduce a directory, run that package's retrieval for the corresponding
-configuration with this package as the output root:
+this layout directly. To reproduce a directory, clone that package and run its retrieval — from
+*its* checkout, not this one — naming this package as the output root:
 
 ```
-julia --project scripts/retrieve.jl config/U233_nf_yield_A.toml <path to this package>
+julia --project scripts/retrieve.jl config/U233_nf_yield_A.toml /path/to/FissionTemperatureRatio.jl
 ```
 
-EXFOR entries are immutable once published, so the configuration and that package reproduce a
+EXFOR entries are immutable once published, so a configuration and that package reproduce a
 retrieval exactly.
 
 ## Selecting prompt multiplicity data: the archive coding is not sufficient

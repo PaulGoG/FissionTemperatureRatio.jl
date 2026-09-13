@@ -28,10 +28,15 @@ kept or excluded. This package reads those files; it does not query the archive 
 
 ```
 FissionTemperatureRatio/
+├── .github/                        continuous integration and dependency updates
+│   ├── dependabot.yml
+│   └── workflows/                  CI.yml (tests, docs) and format.yml (formatting gate)
+├── .JuliaFormatter.toml            formatting rules, enforced by check.jl and CI
 ├── activate.jl                     activate and instantiate the root environment
 ├── CHANGELOG.md                    notable changes, and what was corrected in the rewrite
 ├── CITATION.cff                    how to cite this package and the method
 ├── check.jl                        pre-commit: format, then test
+├── LICENSE                         MIT, covering the source code only
 ├── Project.toml                    dependencies and compatibility bounds
 ├── bench/                          benchmark suite, own environment
 │   ├── activate.jl
@@ -49,8 +54,9 @@ FissionTemperatureRatio/
 │   ├── make.jl
 │   ├── Project.toml
 │   └── src/
-├── formatter/                      pinned JuliaFormatter environment
-│   └── activate.jl
+├── formatter/                      JuliaFormatter environment, version-bounded
+│   ├── activate.jl
+│   └── Project.toml
 ├── scripts/
 │   └── run.jl                      pipeline entry point
 ├── src/
@@ -87,6 +93,13 @@ julia --project=test -e 'include("test/activate.jl")'
 julia --project=docs -e 'include("docs/activate.jl")'
 julia --project=bench -e 'include("bench/activate.jl")'
 ```
+
+The formatting environment under `formatter/` is instantiated by `check.jl` and by CI; it is not
+one you normally activate by hand.
+
+Below Julia 1.11 the `[sources]` entry that points each auxiliary environment at the package is
+ignored by Pkg, so the activation scripts develop it by path instead. Either way these
+environments always run against the local source, never a registered snapshot.
 
 ## Entry points
 
@@ -260,7 +273,6 @@ Not verified:
   `E* = a T²` the method is published under. `E1` differs between the two fragments, so it does not
   cancel in the ratio; at order ±1 MeV against fragment excitations of 10-20 MeV the effect is
   expected to be small, but it has not been quantified.
-- The continuous integration workflow has never run.
 - The path for a fissioning nucleus of odd mass number is covered only by unit tests; no such case
   exists in the data.
 
@@ -276,8 +288,8 @@ Not verified:
 | Segmented parameterization with model selection | complete |
 | Pipeline, tabulated output, figures, provenance | complete |
 | Per-data-set and systematic-trend parameterizations | complete |
-| Averaging over a fragment mass yield distribution | not implemented; needs Y(A) as input |
-| Reproduction of published total averages | blocked on the above |
+| Averaging over a fragment mass yield distribution | complete |
+| Reproduction of published total averages | complete for 233-U, 252-Cf and 235-U; see the validation status |
 
 ## Licensing
 
@@ -285,7 +297,7 @@ The source code is under the MIT licence in `LICENSE`.
 
 That licence does not extend to the contents of `data/`, none of which originates with this
 package. The atomic mass evaluation, the charge distribution systematics, the shell corrections
-and every prompt neutron multiplicity measurement are third-party scientific data, redistributed
-here for reproducibility under the terms of their own sources. `data/README.md` records what each
-file is, where it came from, and how it should be cited; any result derived from a measurement
-should cite that measurement.
+and every prompt neutron multiplicity and fragment mass yield measurement are third-party
+scientific data, held locally and not redistributed here — `data/` carries only its own README.
+That file records what each input is, where it came from and how it should be cited; any result
+derived from a measurement should cite that measurement.

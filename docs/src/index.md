@@ -25,7 +25,7 @@ Pkg.instantiate()
 ```julia
 using FissionTemperatureRatio
 
-configuration = load_configuration(joinpath(projectdir(), "config", "U233_nf.toml"))
+configuration = load_configuration("config/U233_nf.toml")
 result = run_pipeline(configuration)
 ```
 

@@ -5,7 +5,7 @@ abstract: >-
   Extraction of the temperature ratio of complementary fully accelerated fission fragments from
   experimental prompt neutron multiplicity data, independently of any prompt emission model
   calculation, and its parameterization by joined straight segments. Reproduces the total average
-  temperature ratios published for 233-U(n,f), 235-U(n,f), 239-Pu(n,f) and 252-Cf(sf).
+  temperature ratios published for 233-U(n,f), 235-U(n,f) and 252-Cf(sf).
 type: software
 authors:
   - family-names: Gogîță

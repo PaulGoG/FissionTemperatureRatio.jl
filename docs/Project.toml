@@ -1,7 +1,9 @@
 [deps]
-DocStringExtensions = "ffbed154-4ef7-542d-bbb7-c09d3a79fcae"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 FissionTemperatureRatio = "59d20cd3-813a-4745-b3df-4e6739f766a3"
 
 [sources]
 FissionTemperatureRatio = {path = ".."}
+
+[compat]
+Documenter = "1"

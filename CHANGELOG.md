@@ -22,9 +22,8 @@ Notable changes to FissionTemperatureRatio.jl. The format follows
 - Experimental input sourced with `ExforFissionData.jl` in place of hand-assembled files. Every
   data file carries its EXFOR DatasetID and each directory holds the retrieval run record; the
   readers ignore anything that is not a `.dat`, so the record sits beside the data.
-- `CITATION.cff`, a pinned `formatter/` environment, a `check.jl` pre-commit gate, a
+- `CITATION.cff`, a version-bounded `formatter/` environment, a `check.jl` pre-commit gate, a
   JuliaFormatter CI workflow, and documentation deployment.
-
 - Extraction of the temperature ratio `R_T = T_L/T_H` of complementary fully accelerated
   fragments from experimental prompt neutron multiplicity `ν(A)`, with no prompt emission
   calculation entering, following Eur. Phys. J. A **60**, 190 (2024).

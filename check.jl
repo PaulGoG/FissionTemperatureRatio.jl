@@ -1,11 +1,11 @@
-# Pre-commit: format against .JuliaFormatter.toml with the pinned formatter, then run the tests.
+# Pre-commit: format against .JuliaFormatter.toml with the version-bounded formatter, then run the tests.
 #
 #     julia check.jl            format in place, then test
 #     julia check.jl --check    fail on formatting differences, do not rewrite
 #
 # Mirrors the gate that CI applies, so a failure is reproducible locally.
 
-const DIRECTORIES = ("src", "test", "scripts", "bench")
+const DIRECTORIES = ("src", "test", "scripts", "bench", "docs")
 
 let overwrite = !("--check" in ARGS)
     include(joinpath(@__DIR__, "formatter", "activate.jl"))

@@ -35,7 +35,7 @@ Method and conventions follow Eur. Phys. J. A **60**, 190 (2024).
 # Entry point
 
 ```julia
-configuration = load_configuration(joinpath(projectdir(), "config", "U233_nf.toml"))
+configuration = load_configuration("config/U233_nf.toml")
 result = run_pipeline(configuration)
 ```
 """
