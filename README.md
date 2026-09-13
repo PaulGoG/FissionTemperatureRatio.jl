@@ -295,9 +295,9 @@ Not verified:
   disagreement about the method, but it is unresolved.
 - The effect of using the undeformed Gilbert-Cameron correlation for every fragment. That paper
   fits a second line for deformed nuclei, Eq. (21), with the same slope and an offset some fifteen
-  per cent lower. Fragments in the rare-earth region are strongly deformed, so applying Eq. (20)
-  throughout is an approximation; it is the choice the published results were obtained under, and
-  its size has not been assessed.
+  per cent lower. Applying Eq. (20) throughout is deliberate — the data behind the deformed branch
+  is thin, and that thinness is part of why the systematic was later superseded by the
+  back-shifted Fermi gas — but its size has not been assessed.
 - The effect of neglecting the back-shift. The level density parameter is taken from a systematic
   that fits it jointly with a back-shift `E1`, while the extraction rests on the un-shifted
   `E* = a T²` the method is published under. `E1` differs between the two fragments, so it does not

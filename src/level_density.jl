@@ -153,9 +153,12 @@ neutron number.
 
 Eq. (20) is the correlation the authors fit to **undeformed** nuclei. They give a second line,
 parallel to it, for deformed nuclei — Eq. (21), the same slope with an offset of `0.120` in place
-of `0.142`, some fifteen per cent lower. Only Eq. (20) is implemented, which is the choice the
-published results of this method were obtained under; for fragments in the rare-earth region,
-which are strongly deformed, that is an approximation rather than a neutral default.
+of `0.142`, some fifteen per cent lower. Only Eq. (20) is implemented. That is deliberate: the
+data behind the deformed branch is thin, and the resulting uncertainty in where the deformation
+boundary falls is part of why this systematic was later superseded by the back-shifted Fermi gas
+of [`BackShiftedFermiGas`](@ref), which needs no such division. Applying Eq. (20) throughout is
+therefore the same choice the published results of this method were obtained under, and it is
+retained for that reason rather than for want of the alternative.
 
 It is provided for assessing how much the extracted temperature ratio depends on the level density
 prescription, not as an equal alternative: for nuclei occurring as fission fragments it returns
