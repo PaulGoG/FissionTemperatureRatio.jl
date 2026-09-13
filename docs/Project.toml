@@ -5,3 +5,6 @@ FissionTemperatureRatio = "59d20cd3-813a-4745-b3df-4e6739f766a3"
 
 [compat]
 Documenter = "1"
+
+[sources]
+FissionTemperatureRatio = {path = ".."}

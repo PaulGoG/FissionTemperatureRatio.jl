@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/PaulGoG/FissionTemperatureRatio.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/PaulGoG/FissionTemperatureRatio.jl/actions/workflows/CI.yml)
 [![Documentation](https://img.shields.io/badge/docs-dev-blue.svg)](https://PaulGoG.github.io/FissionTemperatureRatio.jl/dev/)
-[![Julia](https://img.shields.io/badge/Julia-1.10%2B-9558B2?logo=julia&logoColor=white)](https://julialang.org)
+[![Julia](https://img.shields.io/badge/Julia-1.11%2B-9558B2?logo=julia&logoColor=white)](https://julialang.org)
 [![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
 [![JET](https://img.shields.io/badge/%F0%9F%9B%A9%EF%B8%8F_tested_with-JET.jl-233f9a)](https://github.com/aviatesk/JET.jl)
 [![Code style: JuliaFormatter](https://img.shields.io/badge/code%20style-JuliaFormatter-informational)](https://github.com/domluna/JuliaFormatter.jl)
@@ -118,10 +118,11 @@ julia --project=bench -e 'include("bench/activate.jl")'
 The formatting environment under `formatter/` is instantiated by `check.jl` and by CI; it is not
 one you normally activate by hand.
 
-Each auxiliary environment develops the package by path rather than declaring it in `[sources]`:
-that key is honoured only from Pkg 1.11, and on the declared floor `Pkg.test` refuses to merge a
-test project carrying it. Either way these environments run against the local source, never a
-registered snapshot.
+Each auxiliary environment points at the package with a relative `[sources]` entry, so they run
+against the local source rather than a registered snapshot. That key is honoured from Pkg 1.11,
+which is the declared floor: below it `Pkg.test` refuses to merge a test project carrying the key,
+and the alternative — developing the package by path — writes a machine-specific absolute path
+into a version-controlled file.
 
 ## Entry points
 
