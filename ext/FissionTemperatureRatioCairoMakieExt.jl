@@ -9,6 +9,7 @@
 module FissionTemperatureRatioCairoMakieExt
 
 using CairoMakie
+using Statistics: quantile
 using LaTeXStrings: @L_str
 using MathTeXEngine: texfont
 
@@ -62,17 +63,28 @@ const DATA_SET_COLORS = [
     RGBf(0.35, 0.35, 0.35),
 ]
 
-const DATA_SET_MARKERS = [
-    :circle, :rect, :utriangle, :diamond, :dtriangle, :cross, :xcross, :star5
-]
+# Seven markers against eight colours, deliberately: the two cycles are then coprime, so the
+# (colour, marker) pair is unique for 56 data sets rather than repeating every eight. With sixteen
+# sets for one nucleus, equal cycles put two measurements under the same blue circle.
+const DATA_SET_MARKERS = [:circle, :rect, :utriangle, :diamond, :dtriangle, :xcross, :star5]
 
 data_set_color(index::Integer) = DATA_SET_COLORS[mod1(index, length(DATA_SET_COLORS))]
 data_set_marker(index::Integer) = DATA_SET_MARKERS[mod1(index, length(DATA_SET_MARKERS))]
 
+# Two legend entries per row: at a single column width three columns of author-and-year labels
+# overflow the figure and the rightmost is silently clipped.
+const LEGEND_COLUMNS = 2
+legend_rows(entries::Integer) = max(1, cld(entries, LEGEND_COLUMNS))
+
+# The axes keep a constant height; the figure grows to make room for the legend above them.
+function _figure_size(entries::Integer)
+    return (SINGLE_COLUMN_WIDTH, 0.78 * SINGLE_COLUMN_WIDTH + 7.5 * legend_rows(entries))
+end
+
 function FissionTemperatureRatio.plot_multiplicities(
     data_sets::Vector{MultiplicityData}; A₀::Integer
 )
-    figure = Figure(; size = (SINGLE_COLUMN_WIDTH, 0.78 * SINGLE_COLUMN_WIDTH))
+    figure = Figure(; size = _figure_size(length(data_sets)))
     axis = Axis(
         figure[1, 1];
         xlabel = L"Fragment mass number $A$",
@@ -96,6 +108,15 @@ function FissionTemperatureRatio.plot_multiplicities(
         )
     end
 
+    # The far-asymmetric tail of some measurements reaches tens of neutrons per fragment with
+    # uncertainties to match. Scaled to those, the sawtooth that carries the physics collapses to a
+    # flat line, so the view is bounded by the bulk of the data. No point is discarded — points
+    # above the bound simply fall outside the axes.
+    bulk = reduce(vcat, (data.ν for data in data_sets); init = Float64[])
+    if !isempty(bulk)
+        ylims!(axis, 0, 1.15 * quantile(bulk, 0.99))
+    end
+
     _legend_above(figure, axis, length(data_sets))
     return figure
 end
@@ -107,7 +128,11 @@ function FissionTemperatureRatio.plot_ratio(
     reference::Union{Real,Nothing} = nothing,
     reference_label::AbstractString = "",
 )
-    figure = Figure(; size = (SINGLE_COLUMN_WIDTH, 0.78 * SINGLE_COLUMN_WIDTH))
+    entries =
+        count(!isempty, curves) +
+        (reference === nothing ? 0 : 1) +
+        count(curve -> !isempty(curve) && curve.label == TREND_LABEL, fitted)
+    figure = Figure(; size = _figure_size(entries))
     axis = Axis(figure[1, 1]; xlabel = L"Heavy fragment mass number $A_H$", ylabel = ylabel)
 
     if reference !== nothing
@@ -152,10 +177,14 @@ function FissionTemperatureRatio.plot_ratio(
         isempty(curve) && continue
         trend = curve.label == TREND_LABEL
         color = trend ? RGBf(0, 0, 0) : data_set_color(index)
+        # Both ratios drawn here are non-negative by construction, so the band is clipped at zero
+        # rather than drawn into a region the quantity cannot occupy. The symmetric interval is a
+        # Gaussian approximation; where it reaches below zero it is the approximation failing, not
+        # the quantity.
         band!(
             axis,
             curve.A_H,
-            curve.value .- curve.σ,
+            max.(curve.value .- curve.σ, 0.0),
             curve.value .+ curve.σ;
             color = (color, 0.15),
         )
@@ -166,28 +195,24 @@ function FissionTemperatureRatio.plot_ratio(
             color = color,
             linewidth = 1.2,
             linestyle = trend ? :dash : :solid,
-            label = trend ? curve.label : "$(curve.label) fit",
+            label = trend ? curve.label : nothing,
         )
     end
 
-    _legend_above(
-        figure,
-        axis,
-        count(!isempty, curves) + count(!isempty, fitted) + (reference === nothing ? 0 : 1),
-    )
+    _legend_above(figure, axis, entries)
     return figure
 end
 
 # Legends sit above the axes, horizontally, so that they cannot collide with the data however the
 # points and their error bars happen to fall.
 function _legend_above(figure::Figure, axis::Axis, entries::Integer)
-    # At a single column width three entries fit on one line; more must be banked, or the last
-    # label is silently clipped.
+    # Banked so that no row exceeds LEGEND_COLUMNS entries; wider rows overflow the figure and the
+    # rightmost label is clipped without any error.
     Legend(
         figure[0, 1],
         axis;
         orientation = :horizontal,
-        nbanks = entries ≤ 3 ? 1 : cld(entries, 3),
+        nbanks = legend_rows(entries),
         framevisible = false,
         labelsize = 6,
         padding = (0, 0, 0, 0),
