@@ -46,7 +46,7 @@ using DataFrames: DataFrame, eachrow
 using Dates: Dates
 using DrWatson: datadir, gitdescribe, projectdir, savename
 using LinearAlgebra: LinearAlgebra, Symmetric, cond, dot
-using Statistics: median
+using Statistics: mean, median, std
 using TOML: TOML
 
 # `@__DIR__` is resolved when this file is parsed, so the path is always available. `pkgdir` is
@@ -61,6 +61,7 @@ include("level_density.jl")
 include("fragmentation.jl")
 include("multiplicity_ratio.jl")
 include("yields.jl")
+include("consensus.jl")
 include("temperature_ratio.jl")
 include("segmented_fit.jl")
 include("configuration.jl")
@@ -70,6 +71,7 @@ include("pipeline.jl")
 
 # Configuration
 export Configuration, load_configuration, build_prescription
+export REACTIONS, case_label, element_symbol
 export A_H_min, A_H_range, has_symmetric_split
 
 # Input data
@@ -88,6 +90,7 @@ export RatioAveraging, RatioOfMeans, MeanOfRatios
 export RatioCurve,
     TREND_LABEL, multiplicity_ratio, level_density_ratio, temperature_ratio, weighted_mean
 export total_average
+export DataSetDiagnostics, diagnose, consensus
 
 # Parameterization
 export SegmentedFit, fit_segments, fit_weights, evaluate, pivots, segments

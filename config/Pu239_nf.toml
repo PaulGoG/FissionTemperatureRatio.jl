@@ -1,9 +1,10 @@
 # Thermal-neutron-induced fission of 239-Pu.
 
 [system]
-label = "Pu239_nf"                                   # case identifier, used in output paths
-A0 = 240                                            # mass number of the fissioning nucleus, 2 to 400
-Z0 = 94                                             # charge number of the fissioning nucleus, 1 to 120
+target_A = 239                                # mass number of the target nuclide, 2 to 400
+target_Z = 94                                 # charge number of the target nuclide, 1 to 118
+reaction = "n,f"                              # one of: "0,f" | "n,f"
+incident_energy = 2.53e-8                     # MeV, at least 0; must be 0 for "0,f"
 
 [fragmentation]
 charges_per_mass = 5                                # charge numbers per mass number, odd, 1 to 15

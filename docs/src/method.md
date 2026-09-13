@@ -109,6 +109,34 @@ which is why a multiplicity data set quoting no uncertainties still yields an un
 the yield distribution supplies it. Correlations between mass numbers are neglected in both
 inputs, the sources not reporting them.
 
+## Combining data sets
+
+Several measurements of one fissioning system are not merged into one. Each is parameterized on
+its own, and a further curve is fitted to their combination.
+
+That combination is not a concatenation. At each mass number the available values are combined
+with inverse-variance weights carrying an additional between-set variance ``\tau^2``, estimated
+from their dispersion after DerSimonian and Laird,
+
+```math
+w = \frac{1}{\sigma^2 + \tau^2}, \qquad
+\bar{r} = \frac{\sum w\, r}{\sum w}, \qquad
+\sigma_{\bar{r}} = \left(\sum w\right)^{-1/2}.
+```
+
+The reason is empirical. The sets of one system disagree by ten to twenty times their quoted
+uncertainties, so ``\tau^2`` dominates ``\sigma^2``, the weights become nearly equal, and the
+combination stops being decided by whichever author quoted the smallest errors. It also makes the
+fitted chi-squared of the combined curve a statement about the fit rather than about the
+disagreement: for 252-Cf it falls from about 16 to about 2.
+
+The same disagreement is why no data set is rejected for being far from the others. In units of
+the quoted uncertainties none of them agrees with any other, so such a criterion rejects whatever
+it is tuned to reject. What can be said about a set without reference to the rest — how many
+usable fragment pairs it has, whether its ratio stays inside ``(0,1)``, whether it satisfies the
+identity at the symmetric split, whether complementary multiplicities sum to the total — is
+reported for every set, and exclusions are named explicitly rather than inferred.
+
 ## References
 
 - Eur. Phys. J. A **60**, 190 (2024) — the method and its conventions.
@@ -116,3 +144,4 @@ inputs, the sources not reporting them.
 - A. C. Wahl, At. Data Nucl. Data Tables **38**, 1 (1988) — charge polarization and dispersion.
 - V. M. R. Muggeo, Stat. Med. **22**, 3055 (2003) — regression with unknown breakpoints.
 - G. Schwarz, Ann. Stat. **6**, 461 (1978) — the information criterion.
+- R. DerSimonian, N. Laird, Control. Clin. Trials **7**, 177 (1986) — the between-set variance.

@@ -207,8 +207,53 @@ fragmentation range, the level density prescription, the segment search and the 
 The parser enforces the types, enumerated choices and bounds its comments document, and fails
 naming the offending key, so a run cannot start from a configuration it cannot honour.
 
+A system is declared by what was irradiated, not by what fissions: the target, the reaction and
+the incident energy. The fissioning nucleus and the case label are **derived** from them, so a
+label cannot contradict the nuclide it names, and two incident energies of the same target are two
+systems rather than one — they share a label but not a run identifier.
+
 To add a fissioning nucleus, place its ν(A) data sets in a directory under `data/multiplicity/`
 as whitespace-separated `A ν σν` tables with one header line, and copy a configuration.
+
+### Several measurements of one system
+
+Data sets are never merged. Each is fitted on its own, and a further curve — the systematic trend
+— is fitted to all of them combined. They are alternatives offered to a prompt emission code, not
+an ensemble to be averaged; which one describes reality is settled downstream, by comparing the
+multiplicity distributions and yields that code produces against experiment.
+
+The sets of one system disagree far beyond their quoted uncertainties: for 252-Cf the spread
+between them at a given mass number runs to ten or twenty times the median quoted uncertainty. Two
+consequences shape what the package does.
+
+**Pooling.** The combined curve cannot be a concatenation weighted by the quoted uncertainties —
+that hands the result to whichever author quoted the smallest ones, and counts a set with many
+points more heavily than one with few. The sets are combined mass number by mass number with an
+additional between-set variance, so the weights become nearly equal and the uncertainty of the
+combination reflects the disagreement instead of hiding it. The combined curve is written out,
+so the trend can be checked against its own input.
+
+**Admission.** For the same reason, a data set cannot be judged by how far it sits from the others
+in units of its own uncertainty: no set is consistent with any other, and a reduced chi-squared
+ranks how generously an author quoted errors rather than how good the measurement is. Every set is
+therefore described by structural diagnostics instead — usable fragment pairs and the span they
+cover, points outside the physical range, the departure from one half at the symmetric split, and
+`ν(A) + ν(A₀-A)` against the total multiplicity — written to `diagnostics_<run>.csv` for every set
+whether or not it was used.
+
+Nothing is filtered automatically. A set is kept out of the pooling only when the configuration
+names it and says why:
+
+```toml
+[multiplicity]
+directory = "multiplicity/Cf252_0f"
+exclude = [
+    { set = "E. Nardi 1968", reason = "one usable fragment pair in range" },
+]
+```
+
+An excluded set is still read, still fitted, still written and still diagnosed. It is excluded
+from the combination, not from the record.
 
 The `[yield]` section is optional. Given a directory of pre-neutron mass yield distributions, the
 run also reports the total average `⟨R_T⟩ = Σ Y(A_H) R_T(A_H) / Σ Y(A_H)` for every combination of

@@ -44,6 +44,9 @@ written to disk.
   the far-asymmetric tail, where the yield is negligible.
 - `yield_sets`: the fragment mass yield distributions read, empty when the configuration names
   none.
+- `consensus_r_ν`: the combined multiplicity ratio the systematic-trend curve was fitted to, so
+  that the trend can be checked against its own input rather than taken on trust.
+- `data_set_diagnostics`: one record per multiplicity data set read, in the order read.
 - `total_average_R_T`: the quantity the literature quotes, `⟨R_T⟩` over each yield distribution,
   keyed by parameterization label and then by yield label. Empty when no yields were given.
 - `diagnostics`: checks of the exact identities at the symmetric split.
@@ -58,6 +61,8 @@ struct PipelineResult
     range_mean_R_T::Dict{String,Tuple{Float64,Float64}}
     yield_sets::Vector{YieldData}
     total_average_R_T::Dict{String,Dict{String,Tuple{Float64,Float64}}}
+    consensus_r_ν::RatioCurve
+    data_set_diagnostics::Vector{DataSetDiagnostics}
     diagnostics::Dict{String,Any}
 end
 
@@ -112,11 +117,11 @@ end
 
 Concatenate ratio curves from several data sets into one, sorted by mass number.
 
-Used for the systematic-trend curve, which is meant to follow the general behaviour of the ratio
-rather than any one measurement. The per-set parameterizations are fitted to their own data: where
-the sets of one fissioning nucleus disagree, as they do markedly for some nuclei, a curve fitted
-through all of them at once describes none of them, and a prompt emission code has nothing to
-validate it against.
+This is the naive combination, kept for comparison. It is **not** what builds the systematic-trend
+curve: concatenating and weighting by the quoted uncertainties gives the result to whichever
+author quoted the smallest ones and counts a set with many points more heavily than one with few.
+[`consensus`](@ref) combines the sets mass number by mass number instead, with a between-set
+variance term.
 """
 function pool(curves::Vector{RatioCurve}; label::AbstractString = "pooled")
     A_H = reduce(vcat, (curve.A_H for curve in curves); init = Int[])
@@ -208,7 +213,17 @@ function run_pipeline(configuration::Configuration; write_output::Bool = true)
     # through the whole body of data, so its slope falls between those of the individual sets.
     # This is the curve to use where a data set is too sparse or too scattered to determine the
     # shape on its own.
-    pooled = pool(r_ν[usable]; label = TREND_LABEL)
+    # Sets named in the configuration are kept out of the pooling but not out of the run: they are
+    # still fitted, written and diagnosed, so an exclusion is visible rather than a silent absence.
+    admitted = [i for i in usable if !haskey(configuration.excluded_sets, data_sets[i].label)]
+    for (label, reason) in configuration.excluded_sets
+        any(set.label == label for set in data_sets) ||
+            @warn "configuration excludes a data set that was not read" set = label
+    end
+    isempty(admitted) && throw(
+        ArgumentError("every usable data set is excluded from the pooling by configuration")
+    )
+    pooled = consensus(r_ν[admitted]; label = TREND_LABEL)
     trend = _parameterize(pooled, R_a, settings, TREND_LABEL, settings.required_windows)
     if trend === nothing && !isempty(settings.required_windows)
         @warn "no parameterization satisfies the required windows; the systematic-trend curve \
@@ -234,6 +249,8 @@ function run_pipeline(configuration::Configuration; write_output::Bool = true)
     for (key, message) in diagnostics["warnings"]
         @warn message identity = key
     end
+
+    diagnostics_by_set = [diagnose(data_sets[i], r_ν[i], A₀) for i in eachindex(data_sets)]
 
     yield_sets = if configuration.yield_directory === nothing
         YieldData[]
@@ -263,6 +280,8 @@ function run_pipeline(configuration::Configuration; write_output::Bool = true)
         Dict(p.label => weighted_mean(p.R_T) for p in parameterizations),
         yield_sets,
         total_average_R_T,
+        pooled,
+        diagnostics_by_set,
         diagnostics,
     )
 
@@ -372,6 +391,76 @@ function _symmetry_diagnostics(
     return checks
 end
 
+# A machine-readable index of what a run produced, for a code that consumes these curves rather
+# than a person reading them. It names the system, lists every parameterization with the file to
+# read for it, and says which sets were pooled. Deliberately separate from the run metadata, which
+# records how the result was produced; this records what is on offer.
+function _write_manifest(
+    result::PipelineResult,
+    directory::AbstractString,
+    identifier::AbstractString,
+    written::Dict{String,String},
+)
+    system = result.configuration.system
+    entries = Dict{String,Any}[]
+    for parameterization in result.parameterizations
+        label = parameterization.label
+        trend = label == TREND_LABEL
+        averages = get(result.total_average_R_T, label, Dict{String,Tuple{Float64,Float64}}())
+        entry = Dict{String,Any}(
+            "label" => label,
+            "kind" => trend ? "systematic_trend" : "data_set",
+            "pooled" => trend || !haskey(result.configuration.excluded_sets, label),
+            "segments" => segments(parameterization.fit),
+            "breakpoints" => parameterization.fit.breakpoints,
+            # Parallel arrays rather than pairs: a mixed array of integers and floats is
+            # promoted to floats on serialization, and a mass number is not a float.
+            "pivot_mass" => [p[1] for p in pivots(parameterization.fit)],
+            "pivot_value" => [p[2] for p in pivots(parameterization.fit)],
+            "reduced_chi_squared" => parameterization.fit.wrss / parameterization.fit.dof,
+            "range_mean_R_T" => collect(result.range_mean_R_T[label]),
+            "total_average_R_T" => Dict{String,Any}(k => collect(v) for (k, v) in averages),
+        )
+        # The file a consumer should read. The temperature ratio is tabulated at every mass
+        # number, because it is not piecewise-linear even where the multiplicity ratio is:
+        # interpolating between the segment pivots would cut across the structure the level
+        # density parameter ratio puts into it.
+        for (key, name) in (
+            ("R_T_parameterized/$(label)", "temperature_ratio_file"),
+            ("segments/$(label)", "multiplicity_ratio_segments_file"),
+        )
+            haskey(written, key) && (entry[name] = basename(written[key]))
+        end
+        push!(entries, entry)
+    end
+
+    manifest = Dict{String,Any}(
+        "system" => Dict{String,Any}(
+            "label" => system.label,
+            "target_A" => system.target_A,
+            "target_Z" => system.target_Z,
+            "reaction" => system.reaction,
+            "incident_energy_MeV" => system.incident_energy,
+            "compound_A" => system.A₀,
+            "compound_Z" => system.Z₀,
+        ),
+        "run" => Dict{String,Any}(
+            "identifier" => identifier,
+            "package_version" => string(PACKAGE_VERSION),
+            "quantity" => "R_T = T_L/T_H of complementary fully accelerated fragments",
+            "abscissa" => "A_H, heavy fragment mass number",
+            "columns" => ["A_H", "value", "uncertainty"],
+        ),
+        "parameterization" => entries,
+    )
+    path = _unused_path(joinpath(directory, "manifest_$(identifier).toml"))
+    mkpath(dirname(path))
+    open(path, "w") do io
+        return TOML.print(io, manifest; sorted = true)
+    end
+    return path
+end
+
 function _summarize_range(masses::Vector{Int})
     isempty(masses) && return "none"
     return "$(first(masses)):$(last(masses)) ($(length(masses)) mass numbers)"
@@ -394,7 +483,8 @@ function write_results(result::PipelineResult)
     digits = configuration.output.digits
     written = Dict{String,String}()
 
-    for (curves, name) in ((result.r_ν, "r_nu"), (result.R_T, "R_T"))
+    for (curves, name) in
+        ((result.r_ν, "r_nu"), (result.R_T, "R_T"), ([result.consensus_r_ν], "r_nu_consensus"))
         for curve in curves
             isempty(curve) && continue
             table = DataFrame(;
@@ -417,6 +507,12 @@ function write_results(result::PipelineResult)
         segment_table = DataFrame(;
             A_H = [point[1] for point in points],
             r_nu = [round(point[2]; digits = digits) for point in points],
+            # The propagated uncertainty at each pivot. The fit carries it, and a file that states
+            # the parameterization without it invites the reader to assume there is none.
+            uncertainty = [
+                round(last(evaluate(parameterization.fit, Float64(point[1]))); digits = digits)
+                for point in points
+            ],
         )
         path = _unused_path(joinpath(results_root, "segments_$(token)_$(identifier).csv"))
         mkpath(dirname(path))
@@ -477,6 +573,33 @@ function write_results(result::PipelineResult)
     else
         merge!(written, write_figures(result, plots_root, identifier))
     end
+
+    # Per-set diagnostics, written for every set whether or not it was pooled.
+    if !isempty(result.data_set_diagnostics)
+        excluded = configuration.excluded_sets
+        rows = [
+            (
+                set = d.label,
+                points = d.points,
+                pairs = d.pairs,
+                first_pair = d.first_pair,
+                last_pair = d.last_pair,
+                outside_physical_range = d.outside_physical_range,
+                symmetry_departure = d.symmetry_departure,
+                complement_sum = d.complement_sum,
+                complement_spread = d.complement_spread,
+                without_uncertainties = d.without_uncertainties,
+                pooled = !haskey(excluded, d.label),
+                exclusion_reason = get(excluded, d.label, ""),
+            ) for d in result.data_set_diagnostics
+        ]
+        path = _unused_path(joinpath(results_root, "diagnostics_$(identifier).csv"))
+        mkpath(dirname(path))
+        CSV.write(path, DataFrame(rows))
+        written["diagnostics"] = path
+    end
+
+    written["manifest"] = _write_manifest(result, results_root, identifier, written)
 
     metadata = run_metadata(configuration)
     metadata["result"] = Dict{String,Any}(

@@ -3,14 +3,73 @@
 """
     SystemSpecification
 
-The fissioning nucleus. `label` identifies the case in output paths and figure legends; `A₀` and
-`Z₀` are the mass and charge numbers of the nucleus undergoing fission, that is, of the compound
-nucleus for neutron-induced fission and of the parent for spontaneous fission.
+The fissioning system: what was irradiated, with what, and at what energy.
+
+The target and the reaction are what a configuration declares; the nucleus that actually undergoes
+fission follows from them and is **derived**, never declared. `A₀` and `Z₀` are therefore the
+compound nucleus for neutron-induced fission and the parent for spontaneous fission, and cannot
+contradict the target they came from. `label` is derived too, by [`case_label`](@ref).
+
+Incident energy is carried even though the extraction does not yet use it, because it is part of
+what identifies a system: the same target and reaction at two energies are two systems, and a
+downstream code matching on the label alone would conflate them.
+
+# Fields
+
+- `target_A`, `target_Z`: the nuclide irradiated, or the one that fissions spontaneously.
+- `reaction`: one of [`REACTIONS`](@ref).
+- `incident_energy`: in MeV; zero for spontaneous fission.
+- `A₀`, `Z₀`: the fissioning nucleus, derived.
+- `label`: the canonical case identifier, derived.
 """
 struct SystemSpecification
-    label::String
+    target_A::Int
+    target_Z::Int
+    reaction::String
+    incident_energy::Float64
     A₀::Int
     Z₀::Int
+    label::String
+end
+
+"""
+    REACTIONS
+
+The reactions a fissioning system can be formed by: spontaneous fission, `"0,f"`, and
+neutron-induced fission, `"n,f"`. The compound nucleus follows — neutron-induced fission adds one
+mass unit to the target, spontaneous fission none — so `A₀` and `Z₀` are derived rather than
+declared, and cannot disagree with the target they came from.
+"""
+const REACTIONS = Dict("0,f" => 0, "n,f" => 1)
+
+# Element symbols by proton number, for deriving the case label from the target.
+const ELEMENT_SYMBOLS = split(
+    "H He Li Be B C N O F Ne Na Mg Al Si P S Cl Ar K Ca Sc Ti V Cr Mn Fe Co Ni Cu Zn Ga Ge As \
+     Se Br Kr Rb Sr Y Zr Nb Mo Tc Ru Rh Pd Ag Cd In Sn Sb Te I Xe Cs Ba La Ce Pr Nd Pm Sm Eu Gd \
+     Tb Dy Ho Er Tm Yb Lu Hf Ta W Re Os Ir Pt Au Hg Tl Pb Bi Po At Rn Fr Ra Ac Th Pa U Np Pu Am \
+     Cm Bk Cf Es Fm Md No Lr Rf Db Sg Bh Hs Mt Ds Rg Cn Nh Fl Mc Lv Ts Og",
+)
+
+"""
+    element_symbol(Z) -> String
+
+Chemical symbol of the element with proton number `Z`.
+"""
+function element_symbol(Z::Integer)
+    1 ≤ Z ≤ length(ELEMENT_SYMBOLS) || throw(ArgumentError("no element symbol for Z = $(Z)"))
+    return String(ELEMENT_SYMBOLS[Z])
+end
+
+"""
+    case_label(system) -> String
+
+The canonical identifier of a fissioning system, `<symbol><target A>_<reaction>` with the comma
+dropped — `Cf252_0f`, `U235_nf`. Derived from the target and the reaction rather than declared, so
+that two runs of the same system cannot be labelled differently, and a label cannot contradict the
+nuclide it names. It is the key a downstream code matches on.
+"""
+function case_label(target_A::Integer, target_Z::Integer, reaction::AbstractString)
+    return string(element_symbol(target_Z), target_A, "_", replace(reaction, "," => ""))
 end
 
 """
@@ -106,6 +165,7 @@ struct Configuration
     fragmentation::FragmentationSettings
     level_density::LevelDensitySettings
     multiplicity_directory::String
+    excluded_sets::Dict{String,String}
     yield_directory::Union{String,Nothing}
     segments::SegmentSettings
     output::OutputSettings
@@ -186,6 +246,34 @@ function _one_of(value::String, options::AbstractDict, path::String)
     return options[value]
 end
 
+# Data sets kept out of the pooling, each with the reason written down. A reason is required:
+# excluding a measurement is a judgement, and an unexplained one is indistinguishable from a
+# mistake to anyone reading the configuration later.
+function _exclusions(section::AbstractDict, path::String)
+    haskey(section, "exclude") || return Dict{String,String}()
+    raw = section["exclude"]
+    raw isa AbstractVector ||
+        throw(ArgumentError("$(path) must be an array of tables, each with `set` and `reason`"))
+    exclusions = Dict{String,String}()
+    for (index, entry) in enumerate(raw)
+        entry isa AbstractDict &&
+        haskey(entry, "set") &&
+        haskey(entry, "reason") &&
+        entry["set"] isa String &&
+        entry["reason"] isa String || throw(
+            ArgumentError(
+                "$(path)[$(index)] must be a table with string keys `set` and `reason`"
+            ),
+        )
+        isempty(strip(entry["reason"])) &&
+            throw(ArgumentError("$(path)[$(index)] must give a non-empty reason"))
+        haskey(exclusions, entry["set"]) &&
+            throw(ArgumentError("$(path) names $(repr(entry["set"])) more than once"))
+        exclusions[entry["set"]] = entry["reason"]
+    end
+    return exclusions
+end
+
 function _windows(section::AbstractDict, path::String)
     haskey(section, "required_windows") || return UnitRange{Int}[]
     raw = section["required_windows"]
@@ -232,20 +320,43 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
     source = String(path)
 
     system_section = _section(document, "system", source)
-    label = _value(system_section, "label", String, "system.label")
-    isempty(label) && throw(ArgumentError("system.label must not be empty"))
-    A₀ = Int(
+    target_A = Int(
         _in_bounds(
-            _value(system_section, "A0", Integer, "system.A0"), "system.A0"; min = 2, max = 400
+            _value(system_section, "target_A", Integer, "system.target_A"),
+            "system.target_A";
+            min = 2,
+            max = 400,
         ),
     )
-    Z₀ = Int(
+    target_Z = Int(
         _in_bounds(
-            _value(system_section, "Z0", Integer, "system.Z0"), "system.Z0"; min = 1, max = 120
+            _value(system_section, "target_Z", Integer, "system.target_Z"),
+            "system.target_Z";
+            min = 1,
+            max = 118,
         ),
     )
-    Z₀ < A₀ || throw(ArgumentError("system.Z0 must be smaller than system.A0, \
-                                    got Z0 = $(Z₀), A0 = $(A₀)"))
+    target_Z < target_A ||
+        throw(ArgumentError("system.target_Z must be smaller than system.target_A, \
+             got target_Z = $(target_Z), target_A = $(target_A)"))
+    reaction = _value(system_section, "reaction", String, "system.reaction")
+    neutrons_absorbed = _one_of(reaction, REACTIONS, "system.reaction")
+    incident_energy = Float64(
+        _in_bounds(
+            _value(system_section, "incident_energy", Real, "system.incident_energy", 0.0),
+            "system.incident_energy";
+            min = 0,
+        ),
+    )
+    # Spontaneous fission has no incident particle, so an energy for it is a contradiction rather
+    # than a harmless extra.
+    reaction == "0,f" &&
+        incident_energy != 0 &&
+        throw(ArgumentError("system.incident_energy must be zero for spontaneous fission, \
+             got $(incident_energy) MeV with reaction \"0,f\""))
+    A₀ = target_A + neutrons_absorbed
+    Z₀ = target_Z
+    label = case_label(target_A, target_Z, reaction)
 
     fragmentation_section = _section(document, "fragmentation", source)
     charges_per_mass = Int(
@@ -379,6 +490,7 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
     )
     isdir(multiplicity_directory) ||
         throw(ArgumentError("multiplicity.directory does not exist: $(multiplicity_directory)"))
+    excluded_sets = _exclusions(multiplicity_section, "multiplicity.exclude")
 
     # Optional. Without it the run reports the mean over the fragment mass range only; with it,
     # the total average over each yield distribution, which is the quantity the literature quotes.
@@ -424,9 +536,9 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
         isodd(A₀) &&
         throw(
             ArgumentError(
-                "segments.pin_symmetric_split requires an even system.A0, since the ratio \
+                "segments.pin_symmetric_split requires an even fissioning mass number, since the ratio \
                        equals one half only where the two fragments are identical; got \
-                       A0 = $(A₀)"
+                       A0 = $(A₀)",
             ),
         )
     windows = _windows(segments_section, "segments.required_windows")
@@ -450,12 +562,13 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
     isempty(subdirectory) && throw(ArgumentError("output.subdirectory must not be empty"))
 
     return Configuration(
-        SystemSpecification(label, A₀, Z₀),
+        SystemSpecification(target_A, target_Z, reaction, incident_energy, A₀, Z₀, label),
         FragmentationSettings(
             charges_per_mass, A_H_max, charge_file, fallback_ΔZ, fallback_rms
         ),
         LevelDensitySettings(prescription, mass_excess_file, shell_correction_file, averaging),
         multiplicity_directory,
+        excluded_sets,
         yield_directory,
         SegmentSettings(max_segments, min_points, pin, windows),
         OutputSettings(digits, subdirectory),

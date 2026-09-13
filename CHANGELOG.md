@@ -8,6 +8,24 @@ Notable changes to FissionTemperatureRatio.jl. The format follows
 
 ### Added
 
+- A fissioning system is declared as target, reaction and incident energy; the fissioning nucleus
+  and the case label are derived from them. A label can no longer contradict the nuclide it names,
+  and two incident energies of one target are two systems, distinguished in the run identifier.
+- Combination of several measurements of one system by inverse-variance weighting with a
+  between-set variance term, mass number by mass number, in place of concatenating them. The sets
+  disagree by ten to twenty times their quoted uncertainties, so a concatenation weighted by those
+  uncertainties is decided by whichever author quoted the smallest ones. The reduced chi-squared of
+  the trend curve falls from about 16 to about 2 for 252-Cf, and now describes the fit rather than
+  the disagreement. The combined curve is written out.
+- Structural diagnostics for every data set — usable pairs and their span, points outside the
+  physical range, departure from one half at the symmetric split, complementary multiplicities
+  against the total — written whether or not the set was used. Sets are kept out of the
+  combination only when the configuration names them and gives a reason; an excluded set is still
+  read, fitted, written and diagnosed.
+- A run manifest naming the system, every parameterization, and the file to read for each, for
+  codes that consume these curves rather than read them.
+- A propagated uncertainty column in the segment files.
+
 - Fragment mass yield input and the total average `⟨R_T⟩ = Σ Y(A_H) R_T(A_H) / Σ Y(A_H)`, reported
   for every combination of parameterization and yield distribution. This is the quantity the
   literature tabulates; the mean over the fragment mass range, which the run also reports, weights

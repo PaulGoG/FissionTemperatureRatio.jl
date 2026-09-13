@@ -1,9 +1,9 @@
 # Spontaneous fission of 252-Cf.
 
 [system]
-label = "Cf252_0f"                                   # case identifier, used in output paths
-A0 = 252                                            # mass number of the fissioning nucleus, 2 to 400
-Z0 = 98                                             # charge number of the fissioning nucleus, 1 to 120
+target_A = 252                                # mass number of the target nuclide, 2 to 400
+target_Z = 98                                 # charge number of the target nuclide, 1 to 118
+reaction = "0,f"                              # one of: "0,f" | "n,f"
 
 [fragmentation]
 charges_per_mass = 5                                # charge numbers per mass number, odd, 1 to 15

@@ -20,6 +20,10 @@ function run_identifier(configuration::Configuration)
         "minpts" => configuration.segments.min_points_per_segment,
         "pin" => configuration.segments.pin_symmetric_split,
     )
+    # The label does not distinguish two incident energies of the same target and reaction, which
+    # are two systems; the identifier must.
+    configuration.system.incident_energy > 0 &&
+        (parameters["E"] = configuration.system.incident_energy)
     return savename(parameters; connector = "_", sort = true)
 end
 
@@ -46,6 +50,15 @@ function run_metadata(configuration::Configuration)
     return Dict{String,Any}(
         "run" => Dict{String,Any}(
             "identifier" => run_identifier(configuration),
+            "system" => Dict{String,Any}(
+                "label" => configuration.system.label,
+                "target_A" => configuration.system.target_A,
+                "target_Z" => configuration.system.target_Z,
+                "reaction" => configuration.system.reaction,
+                "incident_energy_MeV" => configuration.system.incident_energy,
+                "compound_A" => configuration.system.A₀,
+                "compound_Z" => configuration.system.Z₀,
+            ),
             "timestamp" => Dates.format(Dates.now(), Dates.ISODateTimeFormat),
             "configuration_file" => configuration.source,
         ),
