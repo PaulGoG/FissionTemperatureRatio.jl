@@ -1,8 +1,9 @@
 # Input data
 
-Every file here is third-party scientific data, redistributed for reproducibility. None of it
-originates with this package, and the MIT licence covering the source code does not extend to it:
-each collection carries the terms and the attribution of its own source, recorded below.
+This directory describes the input data; the data itself is held locally and is not part of what
+the repository ships. None of it originates with this package, and the MIT licence covering the
+source code does not extend to it: each collection carries the terms and the attribution of its
+own source, recorded below.
 
 ## Layout
 
@@ -37,7 +38,8 @@ No table is held for 233-U; see the known defects below.
 **`shell_corrections/SZSN.GC`** — shell corrections `S(N)` and `S(Z)`, tabulated against nucleon
 number from 11 to 150.
 A. Gilbert, A. G. W. Cameron, *Canadian Journal of Physics* **43**, 1446 (1965), as distributed in
-the IAEA Reference Input Parameter Library, segment on level densities, file `Beijing.gc`.
+the IAEA Reference Input Parameter Library, segment on level densities, file `Beijing.gc`. Checked
+against Table III of that paper: the values and the column order agree.
 
 **`multiplicity/<nucleus>/*.dat`** and **`yield/<nucleus>/*.dat`** — experimental prompt neutron
 multiplicity and pre-neutron fragment mass yield against fragment mass, from the EXFOR

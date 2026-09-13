@@ -54,6 +54,22 @@ DATA_AVAILABLE && @testset "level density parameter" begin
         # first tabulated row fixes the order, and the closed form fixes the lookup keys.
         @test TEST_SHELLS.S_N[11] ≈ 6.80
         @test TEST_SHELLS.S_Z[11] ≈ -2.91
+        # Against Table III of Gilbert and Cameron, Can. J. Phys. 43, 1446 (1965), at the nucleon
+        # numbers that matter most for fission fragments: the proton and neutron shell closures,
+        # and the heaviest entries the table carries.
+        for (n, S_Z, S_N) in (
+            (50, -19.83, 12.88),
+            (52, -18.35, 13.71),
+            (54, -16.54, 15.16),
+            (82, -8.86, 9.09),
+            (98, -7.74, 9.65),
+        )
+            @test TEST_SHELLS.S_Z[n] ≈ S_Z
+            @test TEST_SHELLS.S_N[n] ≈ S_N
+        end
+        # Eq. (20), the undeformed correlation, not Eq. (21) which offsets by 0.120 instead.
+        @test level_density_parameter(GC_PRESCRIPTION, 132, 50) ≈
+            132 * (0.00917 * (TEST_SHELLS.S_Z[50] + TEST_SHELLS.S_N[82]) + 0.142)
         @test level_density_parameter(GC_PRESCRIPTION, 132, 50) ≈
             132 * (9.17e-3 * (TEST_SHELLS.S_Z[50] + TEST_SHELLS.S_N[82]) + 1.42e-1)
         # Outside the tabulated nucleon numbers the prescription is undefined.

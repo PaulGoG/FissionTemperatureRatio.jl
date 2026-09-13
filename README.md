@@ -279,10 +279,12 @@ Verified:
   Phys. Rev. C **72**, 044311 (2005), Eqs. (7) and (9), and Phys. Rev. C **80**, 054310 (2009),
   Eqs. (12) and (19).
 
-- The shell corrections of the Gilbert-Cameron prescription are read in the order the table
+- The Gilbert-Cameron prescription, against its own paper. Both coefficients reproduce Eq. (20) of
+  Can. J. Phys. **43**, 1446 (1965), and the shell corrections match that paper's Table III at the
+  nucleon numbers that matter for fission fragments. They are also read in the order the table
   declares them and looked up at the right nucleon number, `S(Z)` at the proton number and `S(N)`
-  at the neutron number. Exchanging the two columns is not absorbed by their sum, and would be
-  silent; a test pins the order against the first tabulated row and the closed form.
+  at the neutron number: exchanging the two columns is not absorbed by their sum and would be
+  silent.
 
 Not verified:
 
@@ -291,6 +293,11 @@ Not verified:
   calculated rather than measured and so cannot be retrieved; neither distribution used here is
   demonstrably the one it used. This is an input identification problem rather than a
   disagreement about the method, but it is unresolved.
+- The effect of using the undeformed Gilbert-Cameron correlation for every fragment. That paper
+  fits a second line for deformed nuclei, Eq. (21), with the same slope and an offset some fifteen
+  per cent lower. Fragments in the rare-earth region are strongly deformed, so applying Eq. (20)
+  throughout is an approximation; it is the choice the published results were obtained under, and
+  its size has not been assessed.
 - The effect of neglecting the back-shift. The level density parameter is taken from a systematic
   that fits it jointly with a back-shift `E1`, while the extraction rests on the un-shifted
   `E* = a T²` the method is published under. `E1` differs between the two fragments, so it does not

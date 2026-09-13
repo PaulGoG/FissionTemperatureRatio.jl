@@ -142,14 +142,20 @@ end
 """
     GilbertCameron <: LevelDensityPrescription
 
-Level density systematic of Gilbert and Cameron, Can. J. Phys. **43**, 1446 (1965), for spherical
-nuclei,
+Level density systematic of Gilbert and Cameron, Can. J. Phys. **43**, 1446 (1965), Eq. (20),
 
 ```
 a = A [c₁ (S_Z + S_N) + c₂],
 ```
 
-with `S_Z` and `S_N` the tabulated shell corrections.
+with `S_Z` and `S_N` the shell corrections of that paper's Table III, tabulated against proton and
+neutron number.
+
+Eq. (20) is the correlation the authors fit to **undeformed** nuclei. They give a second line,
+parallel to it, for deformed nuclei — Eq. (21), the same slope with an offset of `0.120` in place
+of `0.142`, some fifteen per cent lower. Only Eq. (20) is implemented, which is the choice the
+published results of this method were obtained under; for fragments in the rare-earth region,
+which are strongly deformed, that is an approximation rather than a neutral default.
 
 It is provided for assessing how much the extracted temperature ratio depends on the level density
 prescription, not as an equal alternative: for nuclei occurring as fission fragments it returns
@@ -165,7 +171,8 @@ end
     GilbertCameronCoefficients
 
 The two coefficients of `a/A = c₁ (S_Z + S_N) + c₂` of Gilbert and Cameron, Can. J. Phys. **43**,
-1446 (1965).
+1446 (1965), Eq. (20), the correlation fitted to undeformed nuclei. Their Eq. (21) keeps `c₁` and
+replaces `c₂` by `0.120` for deformed nuclei; see [`GilbertCameron`](@ref).
 """
 struct GilbertCameronCoefficients
     c₁::Float64
