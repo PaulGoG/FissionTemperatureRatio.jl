@@ -219,6 +219,9 @@ breakpoint; the criterion for every order examined is retained in the result.
 # Arguments
 
 - `max_segments`: largest number of segments examined.
+- `min_segments`: smallest number examined, `1` by default. Setting it equal to `max_segments`
+  fits exactly that many segments rather than selecting, which is how a given order is inspected
+  on its own; the criterion is still reported for every order examined.
 - `min_points_per_segment`: smallest number of data points a segment may contain; the
   identifiability guard on the search.
 - `pinned_value`: when given, the fit is constrained to pass through `(first(x), pinned_value)`.
@@ -272,6 +275,7 @@ function fit_segments(
     y::AbstractVector{<:Real},
     σ::AbstractVector{<:Real};
     max_segments::Integer = 6,
+    min_segments::Integer = 1,
     min_points_per_segment::Integer = 4,
     pinned_value::Union{Real,Nothing} = nothing,
     required_windows::Vector{UnitRange{Int}} = UnitRange{Int}[],
@@ -282,6 +286,10 @@ function fit_segments(
                            $(length(x)), $(length(y)), $(length(σ))"))
     max_segments ≥ 1 ||
         throw(ArgumentError("max_segments must be at least 1, got $(max_segments)"))
+    1 ≤ min_segments ≤ max_segments || throw(
+        ArgumentError("min_segments must lie between 1 and max_segments = $(max_segments), \
+             got $(min_segments)"),
+    )
     min_points_per_segment ≥ 2 || throw(
         ArgumentError(
             "min_points_per_segment must be at least 2, got $(min_points_per_segment)"
@@ -312,7 +320,7 @@ function fit_segments(
     best = nothing
     selection = Tuple{Int,Float64}[]
 
-    for count in 0:(max_segments - 1)
+    for count in (min_segments - 1):(max_segments - 1)
         # A model with `count` interior breakpoints needs enough points for every segment, and
         # cannot use more breakpoints than there are interior abscissae.
         count ≤ length(candidates) || break

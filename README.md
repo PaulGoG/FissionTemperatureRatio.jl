@@ -26,6 +26,14 @@ sourced from the IAEA EXFOR archive with
 retrieves fission observables and writes them as tabulated files with a record of every dataset it
 kept or excluded. This package reads those files; it does not query the archive itself.
 
+![Segment selection](docs/src/assets/segment_selection.gif)
+
+The multiplicity ratio of one measurement fitted with an increasing number of joined segments. The
+breakpoints are not placed by hand: for each order they are searched exhaustively over the
+abscissae the data occupies, and the order itself is chosen by the Bayesian information criterion,
+which prices every added segment and every added breakpoint. The pivots move as the fit gains
+freedom, and the criterion decides where that stops paying.
+
 ```
 FissionTemperatureRatio/
 ├── .github/                        continuous integration and dependency updates
@@ -51,9 +59,10 @@ FissionTemperatureRatio/
 │   └── README.md                   what each input file is, where it comes from, its terms
 ├── docs/                           Documenter site, own environment
 │   ├── activate.jl
+│   ├── assets.jl                   regenerates the figures the README shows
 │   ├── make.jl
 │   ├── Project.toml
-│   └── src/
+│   └── src/                        pages, and src/assets/ for generated figures
 ├── ext/                            weak-dependency extensions
 │   └── FissionTemperatureRatioCairoMakieExt.jl   publication figures, loaded with CairoMakie
 ├── formatter/                      JuliaFormatter environment, version-bounded
@@ -154,6 +163,12 @@ Build the documentation:
 
 ```
 julia --project=docs docs/make.jl
+```
+
+Regenerate the figures shown above, from the configuration and the input data:
+
+```
+julia --project=docs docs/assets.jl [config/<case>.toml]
 ```
 
 ## Input data

@@ -101,4 +101,26 @@ using StableRNGs
         @test last(points)[1] == 170
         @test length(points) == segments(fit) + 1
     end
+
+    @testset "a single order can be fitted rather than selected" begin
+        A_H = collect(120:139)
+        value = [a ≤ 130 ? 0.50 - 0.02 * (a - 120) : 0.30 + 0.008 * (a - 130) for a in A_H]
+        value .+= 0.002 .* iseven.(A_H)
+        σ = fill(0.004, length(A_H))
+
+        # Setting the two bounds equal fits exactly that many segments, which is how one order is
+        # inspected on its own; the criterion still prefers two here.
+        for k in 1:4
+            fit = fit_segments(A_H, value, σ; min_segments = k, max_segments = k)
+            @test segments(fit) == k
+            @test length(fit.selection) == 1
+            @test first(only(fit.selection)) == k
+        end
+        @test segments(fit_segments(A_H, value, σ; max_segments = 4)) == 2
+
+        @test_throws ArgumentError fit_segments(A_H, value, σ; min_segments = 0)
+        @test_throws ArgumentError fit_segments(
+            A_H, value, σ; min_segments = 5, max_segments = 4
+        )
+    end
 end
