@@ -1,3 +1,6 @@
+# The input data is not shipped on this branch. It stays reachable in the history; see README.md.
+/inputData/
+
 # Generated results
 outputData/
 
