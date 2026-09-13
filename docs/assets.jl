@@ -40,87 +40,103 @@ function reference_case(configuration)
 end
 
 """
-Animate the model selection: the same data fitted with an increasing number of segments, the
-pivots moving as the fit gains freedom, and the criterion deciding where to stop.
+Animate the model selection across four fissioning systems at once: each panel shows one system's
+richest measurement fitted with an increasing number of joined segments, the pivots moving as the
+fit gains freedom, and the criterion deciding where each of them stops. The systems do not stop at
+the same order, which is the point of showing them together.
+
+Points carry the uncertainty propagated from the multiplicity data, where the archive quotes one.
 """
-function animate_selection(curve, settings; path, caption, max_segments = 6, hold = 8)
-    orders = vcat(1:max_segments, fill(max_segments, 0))
-    fits = [
-        fit_segments(
-            curve.A_H,
-            curve.value,
-            curve.σ;
-            min_segments = k,
-            max_segments = k,
-            min_points_per_segment = settings.min_points_per_segment,
-            pinned_value = settings.pinned_value,
-            bounds = (0.0, 1.0),
-        ) for k in orders
-    ]
-    chosen = argmin(fit.bic for fit in fits)
-    # The chosen order is held at the end, so the animation settles on the answer.
-    frames = vcat(1:length(fits), fill(chosen, hold))
+function animate_selection(panels; path, max_segments = 6, hold = 8)
+    prepared = map(panels) do panel
+        fits = [
+            fit_segments(
+                panel.curve.A_H,
+                panel.curve.value,
+                panel.curve.σ;
+                min_segments = k,
+                max_segments = k,
+                min_points_per_segment = panel.min_points_per_segment,
+                pinned_value = panel.pinned_value,
+                bounds = (0.0, 1.0),
+            ) for k in 1:max_segments
+        ]
+        return (; panel.curve, panel.label, fits, chosen = argmin(fit.bic for fit in fits))
+    end
+    # Each panel settles on its own selected order, so the animation ends on four answers.
+    frames = vcat(1:max_segments, fill(0, hold))
 
-    # Extra padding on the right: the last tick label sits on the frame and is otherwise clipped.
-    figure = Figure(; size = (470, 300), figure_padding = (6, 14, 6, 8))
-    axis = Axis(
-        figure[1, 1];
-        xlabel = L"Heavy fragment mass number $A_H$",
-        ylabel = L"r_\nu = \nu_H / (\nu_L + \nu_H)",
-        xticks = WilkinsonTicks(6),
-    )
-    xlims!(axis, first(curve.A_H) - 1, last(curve.A_H) + 1)
-    ylims!(axis, 0, 1)
+    figure = Figure(; size = (880, 620), figure_padding = (8, 16, 8, 10))
+    axes = Axis[]
+    for (index, prep) in enumerate(prepared)
+        row, column = fldmod1(index, 2)
+        axis = Axis(
+            figure[row, column];
+            xlabel = row == 2 ? L"Heavy fragment mass number $A_H$" : "",
+            ylabel = column == 1 ? L"r_\nu = \nu_H / (\nu_L + \nu_H)" : "",
+            # Every panel keeps its tick labels: the systems span different mass ranges, so
+            # hiding them on the top row would imply a shared abscissa that does not exist.
+            xticklabelsvisible = true,
+            yticklabelsvisible = column == 1,
+            xticks = WilkinsonTicks(5),
+        )
+        xlims!(axis, first(prep.curve.A_H) - 1, last(prep.curve.A_H) + 1)
+        ylims!(axis, 0, 1)
+        push!(axes, axis)
+    end
+    colgap!(figure.layout, 10)
+    rowgap!(figure.layout, 10)
 
-    record(figure, path, frames; framerate = 2) do index
-        fit = fits[index]
-        empty!(axis)
-        scatter!(
-            axis,
-            curve.A_H,
-            curve.value;
-            color = (:grey30, 0.55),
-            markersize = 5,
-            label = curve.label,
-        )
-        evaluated = evaluate(fit, first(curve.A_H):last(curve.A_H))
-        selected = index == chosen
-        lines!(
-            axis,
-            evaluated.A_H,
-            evaluated.value;
-            color = selected ? RGBf(0.0, 0.62, 0.451) : RGBf(0.0, 0.447, 0.698),
-            linewidth = 2,
-        )
-        points = pivots(fit)
-        scatter!(
-            axis,
-            [p[1] for p in points],
-            [p[2] for p in points];
-            color = :black,
-            marker = :diamond,
-            markersize = 11,
-        )
-        text!(
-            axis,
-            0.03,
-            0.95;
-            text = "$(segments(fit)) segment$(segments(fit) == 1 ? "" : "s")\nBIC $(round(Int, fit.bic))" *
-                   (selected ? "   ← selected" : ""),
-            space = :relative,
-            align = (:left, :top),
-            fontsize = 13,
-        )
-        text!(
-            axis,
-            0.97,
-            0.05;
-            text = caption,
-            space = :relative,
-            align = (:right, :bottom),
-            fontsize = 11,
-            color = :grey40,
-        )
+    record(figure, path, frames; framerate = 2) do frame
+        for (axis, prep) in zip(axes, prepared)
+            order = frame == 0 ? prep.chosen : min(frame, length(prep.fits))
+            fit = prep.fits[order]
+            selected = order == prep.chosen
+            empty!(axis)
+
+            if any(>(0), prep.curve.σ)
+                errorbars!(
+                    axis,
+                    prep.curve.A_H,
+                    prep.curve.value,
+                    prep.curve.σ;
+                    color = (:grey30, 0.5),
+                    linewidth = 0.7,
+                    whiskerwidth = 3,
+                )
+            end
+            scatter!(
+                axis, prep.curve.A_H, prep.curve.value; color = (:grey30, 0.6), markersize = 5
+            )
+
+            evaluated = evaluate(fit, first(prep.curve.A_H):last(prep.curve.A_H))
+            lines!(
+                axis,
+                evaluated.A_H,
+                evaluated.value;
+                color = selected ? RGBf(0.0, 0.62, 0.451) : RGBf(0.0, 0.447, 0.698),
+                linewidth = 2,
+            )
+            points = pivots(fit)
+            scatter!(
+                axis,
+                [p[1] for p in points],
+                [p[2] for p in points];
+                color = :black,
+                marker = :diamond,
+                markersize = 10,
+            )
+            text!(
+                axis,
+                0.03,
+                0.96;
+                text = "$(prep.label)\n$(segments(fit)) segment$(segments(fit) == 1 ? "" : "s")" *
+                       (selected ? "   ← selected" : ""),
+                space = :relative,
+                align = (:left, :top),
+                fontsize = 12,
+            )
+        end
         return nothing
     end
     return path
@@ -389,20 +405,33 @@ end
 
 function main()
     mkpath(ASSETS)
-    # The active project here is `docs/`, so DrWatson's default data directory would resolve
-    # under it; the data lives beside the package.
-    configuration = load_configuration(CONFIG; data_directory = DATA_DIRECTORY)
-    curve, _ = reference_case(configuration)
-    settings = configuration.segments
-    pinned = settings.pin_symmetric_split && has_symmetric_split(configuration) ? 0.5 : nothing
+    cases = ("U233_nf", "U235_nf", "Pu239_nf", "Cf252_0f")
+    configurations = Dict(
+        case => load_configuration(
+            joinpath(dirname(@__DIR__), "config", "$(case).toml");
+            data_directory = DATA_DIRECTORY,
+        ) for case in cases
+    )
 
-    with_theme(publication_theme(); fontsize = 13) do
-        path = animate_selection(
+    panels = map(cases) do case
+        configuration = configurations[case]
+        curve, _ = reference_case(configuration)
+        settings = configuration.segments
+        pinned =
+            settings.pin_symmetric_split && has_symmetric_split(configuration) ? 0.5 : nothing
+        return (;
             curve,
-            (min_points_per_segment = settings.min_points_per_segment, pinned_value = pinned);
+            label = "$(configuration.system.label) · $(curve.label)",
+            min_points_per_segment = settings.min_points_per_segment,
+            pinned_value = pinned,
+        )
+    end
+
+    with_theme(publication_theme(); fontsize = 12) do
+        path = animate_selection(
+            panels;
             path = joinpath(ASSETS, "segment_selection.gif"),
-            caption = "$(configuration.system.label)   ·   $(curve.label)",
-            max_segments = settings.max_segments,
+            max_segments = maximum(configurations[c].segments.max_segments for c in cases),
         )
         @info "written" path filesize = filesize(path)
     end
@@ -411,11 +440,7 @@ function main()
     # again here; these read the results in memory.
     results = Dict{String,PipelineResult}()
     for case in ("U233_nf", "U235_nf", "Cf252_0f")
-        settings = load_configuration(
-            joinpath(dirname(@__DIR__), "config", "$(case).toml");
-            data_directory = DATA_DIRECTORY,
-        )
-        results[case] = run_pipeline(settings; write_output = false)
+        results[case] = run_pipeline(configurations[case]; write_output = false)
     end
     # The same system under the other prescription, for the comparison of the two.
     source = joinpath(dirname(@__DIR__), "config", "U233_nf.toml")

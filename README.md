@@ -34,11 +34,13 @@ the pair, and the ratio crosses unity near the most probable fragmentation.
 
 ![Segment selection](docs/src/assets/segment_selection.gif)
 
-The multiplicity ratio of one measurement fitted with an increasing number of joined segments. The
-breakpoints are not placed by hand: for each order they are searched exhaustively over the
-abscissae the data occupies, and the order itself is chosen by the Bayesian information criterion,
-which prices every added segment and every added breakpoint. The pivots move as the fit gains
-freedom, and the criterion decides where that stops paying.
+One measurement from each of the four configured systems, fitted with an increasing number of
+joined segments. Points carry the uncertainty propagated from the multiplicity data where the
+archive quotes one. The breakpoints are not placed by hand: for each order they are searched
+exhaustively over the abscissae the data occupies, and the order itself is chosen by the Bayesian
+information criterion, which prices every added segment and every added breakpoint. The four
+systems do not stop at the same order — five, six, four and five — which is why they are shown
+together.
 
 ```
 FissionTemperatureRatio/
