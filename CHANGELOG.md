@@ -6,6 +6,15 @@ Notable changes to FissionTemperatureRatio.jl. The format follows
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.1.0] - 2026-09-13
+
+First release. The package extracts the temperature ratio of complementary fully accelerated
+fission fragments from experimental prompt neutron multiplicity data, parameterizes it, and
+reproduces the total averages published for 233-U(n,f), 235-U(n,f) and 252-Cf(sf) to better than
+one per cent.
+
 ### Added
 
 - A fissioning system is declared as target, reaction and incident energy; the fissioning nucleus
@@ -107,3 +116,6 @@ branch:
 - Paths were relative to a `cd` at load, output directories were created on a single existence
   check so a partially present tree failed, and results were overwritten in place with no run
   identifier, commit or hardware record.
+
+[unreleased]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/releases/tag/v0.1.0
