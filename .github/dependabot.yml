@@ -18,6 +18,16 @@ updates:
       - "/test"
     schedule:
       interval: "weekly"
+    # Standard libraries ship with Julia itself. Pinning one to the version carried by a single
+    # release makes the declared compatibility floor unsatisfiable, which has broken this
+    # repository once already; their entries stay at "1".
+    ignore:
+      - dependency-name: "Dates"
+      - dependency-name: "LinearAlgebra"
+      - dependency-name: "Pkg"
+      - dependency-name: "Statistics"
+      - dependency-name: "TOML"
+      - dependency-name: "Test"
     groups:
       julia-dependencies:
         patterns:
