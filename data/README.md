@@ -52,27 +52,44 @@ The first author and year of each measurement are encoded in the file name:
 
 ## Known defects
 
-**EXFOR entry identifiers are not recorded.** The files carry the first author and year but not the
-EXFOR accession and subentry numbers, so a given file cannot be traced to the exact retrieval it
-came from, nor checked against a later revision of that entry. Restoring them is the main reason
-to regenerate this directory from a parser rather than to patch it by hand.
+**EXFOR entry identifiers are mostly not recorded.** The files carry the first author and year but
+not, in general, the EXFOR accession and subentry numbers, so a given file cannot be traced to the
+exact retrieval it came from, nor checked against a later revision of that entry. Four of the
+252-Cf files have since been matched row for row against the archive and can be stated:
 
-**Two files disagree with their archive coding.** `Cf252_0f_nuA_Sh.Zeynalov_2011.dat` and
-`Cf252_0f_nuA_A.Goeoek_2014.dat` label their second and third columns `nuPair errnuPair`, and the
-EXFOR entries they came from are coded `98-CF-252(0,F)MASS,PR,NU` — per fragment pair — where the
-other nine are `MASS,PR/FRG,NU`, per fragment.
+| File | EXFOR DatasetID | Reaction code |
+|---|---|---|
+| `Cf252_0f_nuA_A.Goeoek_2014.dat` | 23268005 | `98-CF-252(0,F)MASS,PR,NU` |
+| `Cf252_0f_nuA_Sh.Zeynalov_2011.dat` | 23118006 | `98-CF-252(0,F)MASS,PR,NU` |
+| `Cf252_0f_nuA_A.S.Vorobiev_2001.dat` | 41425014 | `98-CF-252(0,F)MASS,PRE/PR/FRG,NU` |
+| `Cf252_0f_nuA_Sh.Zeynalov_2019.dat` | 41739002 | `98-CF-252(0,F)MASS,PRE/PR/FRG,NU` |
 
-Their contents are per fragment. A quantity defined for a fragment pair is a property of the
-split and must be invariant under `A -> A0 - A`; these files are not. At `A = 120` they read 3.42
-and 3.18 against 0.76 and 0.80 at the complementary mass 132, tracking the uncontested
+The remaining files are still unidentified. Restoring the identifiers is the main reason to
+regenerate this directory from a parser rather than to patch it by hand.
+
+**The archive coding does not identify what a file contains.**
+`Cf252_0f_nuA_Sh.Zeynalov_2011.dat` and `Cf252_0f_nuA_A.Goeoek_2014.dat` label their second and
+third columns `nuPair errnuPair`, and their EXFOR entries are coded `98-CF-252(0,F)MASS,PR,NU`,
+without the `FRG` tag that the others carry.
+
+Their contents are nonetheless per fragment. A quantity defined for a fragment pair is a property
+of the split and must be invariant under `A -> A0 - A`; these files are not. At `A = 120` they
+read 3.42 and 3.18 against 0.76 and 0.80 at the complementary mass 132, tracking the uncontested
 per-fragment set (Vorobiev, 3.10 and 0.69) closely and failing symmetry by the same factor.
 Complementary values sum to 3.87 and 3.96, against a total prompt neutron multiplicity of about
 3.76 for the spontaneous fission of 252-Cf; a genuine pair quantity would sum to about 7.5.
 
+Checked against the archive, the coding turns out not to separate the two quantities at all for
+this nucleus: of the eight 252-Cf data sets coded `MASS,PR,NU`, four are per fragment — the two
+above, together with Budtz-Jørgensen 1988 and Britt 1964, neither of which is held here — and
+three are per pair, reporting the total multiplicity of the split at 3 to 5 neutrons per fission.
+So a retrieval that selects on the `FRG` tag would discard four usable measurements, and one that
+admits `MASS,PR,NU` would mix pair data into `ν(A)`. The discriminator that does work is the data
+itself: complement invariance, or equivalently whether the values approach the total multiplicity
+on one wing.
+
 Readers take columns by position, so neither the header nor the coding affects any result, and
-excluding the two sets shifts the mean temperature ratio by 0.27 %. The discrepancy is recorded
-because it matters to whoever re-retrieves this directory: selecting on the `FRG` tag alone would
-discard two usable data sets.
+excluding the two sets shifts the mean temperature ratio by 0.27 %.
 
 **Uncertainties are absent from several sets**, which is reflected in the `weights_imputed` field
 of every fit that used them.

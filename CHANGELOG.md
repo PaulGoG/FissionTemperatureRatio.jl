@@ -1,0 +1,70 @@
+# Changelog
+
+Notable changes to FissionTemperatureRatio.jl. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
+[semantic versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Added
+
+- Extraction of the temperature ratio `R_T = T_L/T_H` of complementary fully accelerated
+  fragments from experimental prompt neutron multiplicity `ν(A)`, with no prompt emission
+  calculation entering, following Eur. Phys. J. A **60**, 190 (2024).
+- Parameterization of the multiplicity ratio `r_ν = ν_H/(ν_L + ν_H)` by joined straight segments.
+  Breakpoints are restricted to abscissae present in the data and searched exhaustively, so the
+  criterion attains its global optimum; the number of segments is chosen by the Bayesian
+  information criterion, which prices the breakpoints as the fitted parameters they are.
+- One parameterization per `ν(A)` data set, and separately a systematic-trend curve fitted
+  through the pooled data with the minimum forced into `A_H` 128-132. The paper determines
+  `R_T(A_H)` per data set where the sets disagree, and supplies the trend curve for the cases
+  where the data cannot resolve the shape.
+- Two level density prescriptions behind one interface, each carrying its own tabulated data:
+  back-shifted Fermi gas and Gilbert-Cameron, selected by configuration.
+- Both orders of reducing the level density parameter ratio over the isobaric charge
+  distribution, `⟨a_L⟩/⟨a_H⟩` and `⟨a_L/a_H⟩`. The first is the default: it alone returns exactly
+  one at the symmetric split, where the two fragments are the same nuclide.
+- Validated TOML configurations for 233-U(n,f), 235-U(n,f), 239-Pu(n,f) and 252-Cf(sf). The
+  parser enforces the types, enumerated choices and numerical bounds its comments document, and
+  fails naming the offending key.
+- Run provenance: a run identifier, the git commit, the resolved versions of the direct
+  dependencies, and a hardware fingerprint, written with every result. Results are written
+  through `safesave`, so no previous run is overwritten.
+- Publication-width CairoMakie figures at journal column size.
+- Uncertainty propagated through the segment model from the parameter covariance, scaled by the
+  reduced chi-squared, so the band widens away from the data and vanishes at a pinned abscissa.
+- Test suite with Aqua, JET restricted to the package's own frames, and ExplicitImports;
+  benchmarks for the breakpoint search and the level density parameter ratio.
+
+### Fixed
+
+Corrections relative to the prototype this package replaces, preserved on the `legacy/prototype`
+branch:
+
+- The level density parameter ratio was formed per charge and then averaged, `⟨a_L/a_H⟩`, where
+  the published method uses `⟨a_L⟩/⟨a_H⟩`. Both are now available and the published order is the
+  default; the two differ by Jensen's inequality and coincide only for a degenerate charge
+  distribution.
+- The segment-selection objective was the mean residual sum of squares over segments, with no
+  penalty on breakpoint placement, minimised from a magic initial score. It preferred more
+  segments by construction.
+- The uncertainty band carried the slope standard error alone, and was zeroed before the second
+  fit, so it was not the propagated uncertainty of the segment model. Reported average
+  uncertainties used `sqrt(Σσ²)/N`, which is not the uncertainty of a weighted mean.
+- `ν(A)` points were deleted by undocumented thresholds on the ratio of the third column to the
+  second, which guessed whether that column was an uncertainty. Experimental data is no longer
+  discarded on the basis of its value; a point quoting no uncertainty is given the median weight
+  and recorded as imputed.
+- The multiplicity ratio was clamped to exactly one where it exceeded one, which is the singular
+  point of the transformation to `R_T`. Such points are now excluded, and a candidate fit leaving
+  the physical interval is rejected outright rather than repaired.
+- The fragmentation domain sorted the mass and charge columns independently and then looked
+  values up by pair, which can mispair rows and throws on duplicates. Rows are sorted as rows.
+- The guard suppressing the duplicate push at the symmetric split compared the light fragment
+  mass against the first mass of the range rather than against the heavy fragment mass. The two
+  agree only when the range starts at `A₀/2`; the guard is now stated as `A_L != A_H`.
+- Parameters were hardwired as constants in the source: target nucleus, `A₀`, `Z₀`, charges per
+  mass number, segment count and bounds, rounding. They are configuration.
+- Paths were relative to a `cd` at load, output directories were created on a single existence
+  check so a partially present tree failed, and results were overwritten in place with no run
+  identifier, commit or hardware record.

@@ -7,6 +7,7 @@ straight segments.
 ```
 FissionTemperatureRatio/
 ├── activate.jl                     activate and instantiate the root environment
+├── CHANGELOG.md                    notable changes, and what was corrected in the rewrite
 ├── Project.toml                    dependencies and compatibility bounds
 ├── bench/                          benchmark suite, own environment
 │   ├── activate.jl
@@ -177,14 +178,25 @@ Verified:
   Phys. Rev. C **72**, 044311 (2005), Eqs. (7) and (9), and Phys. Rev. C **80**, 054310 (2009),
   Eqs. (12) and (19).
 
+- The shell corrections of the Gilbert-Cameron prescription are read in the order the table
+  declares them and looked up at the right nucleon number, `S(Z)` at the proton number and `S(N)`
+  at the neutron number. Exchanging the two columns is not absorbed by their sum, and would be
+  silent; a test pins the order against the first tabulated row and the closed form.
+
 Not verified:
 
 - **No published number has been reproduced.** The total average temperature ratio quoted in the
   literature is taken over a fission fragment mass yield distribution `Y(A)`, which this package
   does not take as input, so the one directly comparable quantity cannot yet be computed. The
   agreement established so far is of shape, not of value.
-- The Gilbert-Cameron prescription has been exercised for magnitude and for its expected departure
-  from the back-shifted Fermi gas, but not against tabulated values.
+- The Gilbert-Cameron prescription has been exercised for magnitude, for its expected departure
+  from the back-shifted Fermi gas, and for the table lookup, but its values have not been compared
+  against a published tabulation.
+- The effect of neglecting the back-shift. The level density parameter is taken from a systematic
+  that fits it jointly with a back-shift `E1`, while the extraction rests on the un-shifted
+  `E* = a T²` the method is published under. `E1` differs between the two fragments, so it does not
+  cancel in the ratio; at order ±1 MeV against fragment excitations of 10-20 MeV the effect is
+  expected to be small, but it has not been quantified.
 - The continuous integration workflow has never run.
 - The path for a fissioning nucleus of odd mass number is covered only by unit tests; no such case
   exists in the data.
