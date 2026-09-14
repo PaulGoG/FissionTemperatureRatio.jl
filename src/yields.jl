@@ -89,9 +89,9 @@ function read_mass_yield(path::AbstractString; label::AbstractString = "")
             skipto = 2,
             silencewarnings = true,
         )
-    catch err
+    catch exception
         throw(ArgumentError("yield file $(path) does not have the layout \
-                             `A Y Y_uncertainty`: $(err)"))
+                             `A Y Y_uncertainty`: $(exception)"))
     end
 
     A = Int[]

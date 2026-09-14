@@ -83,9 +83,9 @@ function read_multiplicity(path::AbstractString; label::AbstractString = "")
             skipto = 2,
             silencewarnings = true,
         )
-    catch err
+    catch exception
         throw(ArgumentError("multiplicity file $(path) does not have the layout \
-                 `A nu nu_uncertainty`: $(err)"))
+                 `A nu nu_uncertainty`: $(exception)"))
     end
 
     A = Int[]

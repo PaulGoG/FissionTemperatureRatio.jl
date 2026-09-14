@@ -303,10 +303,10 @@ function _total_averages(curves::Vector{SegmentedCurve}, mass_yields::Vector{Mas
         for distribution in mass_yields
             try
                 per_distribution[distribution.label] = total_average(curve.R_T, distribution)
-            catch err
-                err isa ArgumentError || rethrow()
+            catch exception
+                exception isa ArgumentError || rethrow()
                 @warn "no total average" dataset = curve.label yield = distribution.label reason =
-                    err.msg
+                    exception.msg
             end
         end
         isempty(per_distribution) || (averages[curve.label] = per_distribution)
@@ -335,9 +335,9 @@ function _segment(
             parsimony = settings.parsimony,
             bounds = (0.0, 1.0),
         )
-    catch err
-        err isa ArgumentError || rethrow()
-        @warn "no segmented curve for this dataset" dataset = label reason = err.msg
+    catch exception
+        exception isa ArgumentError || rethrow()
+        @warn "no segmented curve for this dataset" dataset = label reason = exception.msg
         return nothing
     end
 

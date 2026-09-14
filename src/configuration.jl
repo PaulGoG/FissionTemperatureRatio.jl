@@ -432,8 +432,8 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
     isfile(path) || throw(ArgumentError("configuration file not found: $(path)"))
     document = try
         TOML.parsefile(path)
-    catch err
-        throw(ArgumentError("configuration $(path) is not valid TOML: $(err)"))
+    catch exception
+        throw(ArgumentError("configuration $(path) is not valid TOML: $(exception)"))
     end
     source = String(path)
 

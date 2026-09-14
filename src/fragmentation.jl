@@ -53,9 +53,9 @@ function read_charge_distribution(
             skipto = 2,
             types = Dict(:A => Float64, :ΔZ => Float64, :σ_Z => Float64),
         )
-    catch err
+    catch exception
         throw(ArgumentError("charge distribution file $(path) does not have the layout \
-                             `A dZ sigma_Z`: $(err)"))
+                             `A dZ sigma_Z`: $(exception)"))
     end
 
     ΔZ = Dict{Int,Float64}()

@@ -60,9 +60,9 @@ function read_mass_excess_table(path::AbstractString)
             header = ["Z", "A", "symbol", "Δ", "σΔ"],
             types = Dict(:Z => Int, :A => Int, :Δ => Float64, :σΔ => Float64),
         )
-    catch err
+    catch exception
         throw(ArgumentError("mass excess file $(path) does not have the layout \
-                             `Z A symbol mass_excess mass_excess_uncertainty`: $(err)"))
+                             `Z A symbol mass_excess mass_excess_uncertainty`: $(exception)"))
     end
 
     Δ = Dict{Tuple{Int,Int},Float64}()
@@ -129,9 +129,9 @@ function read_shell_correction_table(path::AbstractString)
             skipto = 2,
             types = Dict(:n => Int, :S_N => Float64, :S_Z => Float64),
         )
-    catch err
+    catch exception
         throw(ArgumentError("shell correction file $(path) does not have the layout \
-                             `n S_N S_Z`: $(err)"))
+                             `n S_N S_Z`: $(exception)"))
     end
 
     S_N = Dict{Int,Float64}()
