@@ -10,7 +10,8 @@ module FissionTemperatureRatioCairoMakieExt
 
 using CairoMakie
 using Statistics: quantile
-using LaTeXStrings: @L_str
+using LaTeXStrings: @L_str, LaTeXString
+using Printf: @sprintf
 using MathTeXEngine: texfont
 
 using FissionTemperatureRatio:
@@ -141,7 +142,7 @@ function FissionTemperatureRatio.plot_ratio(
     reference_label::AbstractString = "",
     order::Vector{String} = String[],
     limits = nothing,
-    annotation::AbstractString = "",
+    annotation::Union{AbstractString,AbstractVector{<:AbstractString}} = "",
 )
     entries =
         count(!isempty, curves) +
@@ -219,19 +220,37 @@ function FissionTemperatureRatio.plot_ratio(
         )
     end
 
-    # The takeaway belongs where the reader is looking, to two or three significant digits.
-    isempty(annotation) || text!(
-        axis,
-        0.98,
-        0.04;
-        text = annotation,
-        space = :relative,
-        align = (:right, :bottom),
-        fontsize = 7,
-    )
+    # The takeaway belongs where the reader is looking, inside the axes.
+    _annotate!(axis, annotation)
 
     _legend_above(figure, axis, entries)
     return figure
+end
+
+# An in-axis annotation, one string per line. Each line is drawn on its own because a line is one
+# typeset expression and MathTeXEngine has no line break; the leading is therefore set in the same
+# units as the font, from a shared anchor, which a relative coordinate cannot express.
+#
+# The anchor is the upper right, the one corner a temperature ratio leaves free: R_T is unity at
+# the symmetric split, peaks near the shell closure and falls below unity towards the heavy wing,
+# so the large-mass, large-ratio corner holds no data in any system. The lower right, where this
+# annotation used to sit, is exactly where the heavy wing descends through it.
+function _annotate!(axis::Axis, annotation; fontsize = 7, leading = 1.3)
+    lines =
+        annotation isa AbstractString ? (isempty(annotation) ? () : (annotation,)) : annotation
+    for (position, line) in enumerate(lines)
+        text!(
+            axis,
+            0.98,
+            0.96;
+            text = line,
+            space = :relative,
+            align = (:right, :top),
+            offset = (0, -(position - 1) * leading * fontsize),
+            fontsize = fontsize,
+        )
+    end
+    return axis
 end
 
 # Legends sit above the axes, horizontally, so that they cannot collide with the data however the
@@ -261,19 +280,26 @@ function FissionTemperatureRatio.save_figure(path::AbstractString, figure::Figur
     return target
 end
 
+# A value and its uncertainty share their decimal places, as a measured quantity is written: three
+# of them, which is what a ratio near unity with an uncertainty of a few parts per thousand needs.
+# `round` alone would drop a trailing zero and print 1.18 ± 0.006, two precisions for one number.
+_measured(value::Real, uncertainty::Real) = @sprintf("%.3f \\pm %.3f", value, uncertainty)
+
 # The systematic-trend result, as the reader of the figure wants it: the total average where a
 # yield distribution was given, and the range mean otherwise, since only one of them exists.
 function _trend_annotation(result::ExtractionResult)
-    haskey(result.range_mean_R_T, TREND_LABEL) || return ""
+    haskey(result.range_mean_R_T, TREND_LABEL) || return LaTeXString[]
     averages = get(result.total_average_R_T, TREND_LABEL, nothing)
     if averages !== nothing && !isempty(averages)
         name = first(sort!(collect(keys(averages))))
         value, uncertainty = averages[name]
-        return "Trend ⟨R_T⟩ = $(round(value; digits = 3)) ± $(round(uncertainty; digits = 3))" *
-               "\nover Y(A) of $(name)"
+        return [
+            L"Trend $\langle R_T \rangle = %$(_measured(value, uncertainty))$",
+            L"over $Y(A)$ of %$(name)",
+        ]
     end
     value, uncertainty = result.range_mean_R_T[TREND_LABEL]
-    return "Trend range mean = $(round(value; digits = 3)) ± $(round(uncertainty; digits = 3))"
+    return [L"Trend range mean $= %$(_measured(value, uncertainty))$"]
 end
 
 # The run's figures. Held here, rather than in the pipeline, so that the pipeline carries no

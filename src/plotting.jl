@@ -30,7 +30,7 @@ Requires CairoMakie to be loaded.
 function plot_multiplicities end
 
 """
-    plot_ratio(curves, fitted; ylabel, reference, reference_label) -> Figure
+    plot_ratio(curves, fitted; ylabel, reference, reference_label, annotation) -> Figure
 
 A ratio against the heavy-fragment mass number: the values extracted from each dataset with
 their uncertainties, and optionally a fitted curve with its uncertainty band.
@@ -38,6 +38,10 @@ their uncertainties, and optionally a fitted curve with its uncertainty band.
 `reference` draws a horizontal guide line at a value the ratio takes by construction — one half
 for the multiplicity ratio, unity for the temperature ratio — labelled so that the reader need
 not infer what it marks.
+
+`annotation` puts the quantitative takeaway inside the axes, at the lower right. Give it one
+string per line, or a single string for one line; each line is typeset on its own, so a
+`LaTeXString` line renders as mathematics rather than as its own source.
 
 Requires CairoMakie to be loaded.
 """

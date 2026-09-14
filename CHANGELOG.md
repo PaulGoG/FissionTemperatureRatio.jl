@@ -83,12 +83,24 @@ names while refusing old keys is worse to debug than a clean break.
   `R_T_vs_A_H_segmented_…`, `segments_…` → `r_nu_vs_A_H_pivots_…`, `diagnostics_…` →
   `dataset_diagnostics_…`. The manifest lists `[[segmented_curve]]` entries and declares the
   ordinate, the abscissa and the column names.
+- Caught exceptions are bound to `exception` rather than `err`, which the naming convention
+  forbids as an abbreviation and which the two companion packages do not use either.
+- `Printf` is a dependency, for writing a value and its uncertainty to the same precision.
 
 ### Fixed
 
 - Tick labels of adjacent panels ran together in the method-chain figure. The row gaps were being
   set by index before the legend was added, which renumbers them, so the gap that was tightened
   was not the one intended.
+- The in-axis annotation of the temperature-ratio figure was built as a plain string, so it
+  printed `⟨R_T⟩` with a literal underscore instead of a subscript. It is typeset now, one
+  `LaTeXString` per line, since a line is one expression and the engine has no line break.
+  `plot_ratio` accordingly accepts a list of lines for `annotation` as well as a single string.
+- That annotation sat at the lower right, which for a temperature ratio is where the heavy wing
+  descends: the curves ran straight through the text. It is anchored at the upper right, the one
+  corner the quantity leaves empty in every system.
+- The annotation printed a value and its uncertainty at different precisions — `1.18 ± 0.006` —
+  because rounding drops a trailing zero. Both are written to the same three decimal places.
 
 ## [0.1.0] - 2026-09-13
 
