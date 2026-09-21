@@ -297,6 +297,16 @@ function run_pipeline(
     return result
 end
 
+# Whether a yield distribution carries positive weight at any mass number of the curve.
+function _overlaps(curve::RatioCurve, distribution::MassYield)
+    total = 0.0
+    for mass in curve.A_H
+        entry = mass_yield(distribution, mass)
+        ismissing(entry) || (total += entry[1])
+    end
+    return total > 0
+end
+
 # The total average of every segmented curve over every yield distribution. A pair that shares no
 # mass number is omitted rather than reported as zero: a distribution covering only the light wing
 # says nothing about a ratio defined on the heavy one.
@@ -306,12 +316,10 @@ function _total_averages(curves::Vector{SegmentedCurve}, mass_yields::Vector{Mas
     for curve in curves
         per_distribution = Dict{String,Tuple{Float64,Float64}}()
         for distribution in mass_yields
-            try
+            if _overlaps(curve.R_T, distribution)
                 per_distribution[distribution.label] = total_average(curve.R_T, distribution)
-            catch exception
-                exception isa ArgumentError || rethrow()
-                @warn "no total average" dataset = curve.label yield = distribution.label reason =
-                    exception.msg
+            else
+                @warn "no total average" dataset = curve.label yield = distribution.label reason = "no mass number in common carries a positive yield"
             end
         end
         isempty(per_distribution) || (averages[curve.label] = per_distribution)
@@ -347,7 +355,7 @@ function _segment(
             bounds = (0.0, 1.0),
         )
     catch exception
-        exception isa ArgumentError || rethrow()
+        exception isa InsufficientDataError || rethrow()
         @warn "no segmented curve for this dataset" dataset = label reason = exception.msg
         return nothing
     end
@@ -644,6 +652,8 @@ function write_results(result::ExtractionResult; root::AbstractString = projectd
     written["metadata"] = write_metadata(
         joinpath(results_root, "metadata_$(identifier).toml"), metadata
     )
+    snapshot = _write_environment_snapshot(results_root, identifier)
+    snapshot === nothing || (written["environment"] = snapshot)
 
     @info "results written" results = results_root plots = plots_root
     return written

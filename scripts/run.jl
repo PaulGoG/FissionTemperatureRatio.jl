@@ -1,26 +1,25 @@
-# Entry point: julia --project scripts/run.jl config/<system>.toml
+# Entry point: julia scripts/run.jl config/<system>.toml
+#
+# Runs in the environment of this directory, which carries CairoMakie, so a run always writes its
+# figures and the plotting stack is resolved and recorded like every other dependency.
 
-using DrWatson: projectdir
+include(joinpath(@__DIR__, "activate.jl"))
+
+using CairoMakie: CairoMakie
 using FissionTemperatureRatio
 
-# Figures are supplied by the CairoMakie extension, a weak dependency, so that the package itself
-# loads without a plotting stack. Load it where the environment provides it, and say plainly where
-# it does not — the run is still complete, but it writes tables and metadata only.
-if Base.identify_package("CairoMakie") === nothing
-    @warn "CairoMakie is not reachable from this environment: the run will write its tables and \
-           metadata but no figures. Install it into your default environment, which stays on the \
-           load path alongside this project: `julia -e 'using Pkg; Pkg.add(\"CairoMakie\")'`."
-else
-    @eval using CairoMakie
-end
+const ROOT = dirname(@__DIR__)
 
 function main(arguments::Vector{String})
     if length(arguments) != 1
-        println("usage: julia --project scripts/run.jl <configuration.toml>")
+        println("usage: julia scripts/run.jl <configuration.toml>")
         return 1
     end
-    path = isabspath(arguments[1]) ? arguments[1] : joinpath(projectdir(), arguments[1])
-    run_pipeline(load_configuration(path))
+    # A path is taken as given when it exists from the working directory, and otherwise relative
+    # to the repository root, so `config/<system>.toml` works from anywhere.
+    path = isfile(arguments[1]) ? abspath(arguments[1]) : joinpath(ROOT, arguments[1])
+    configuration = load_configuration(path; data_directory = joinpath(ROOT, "data"))
+    run_pipeline(configuration; output_root = ROOT)
     return 0
 end
 

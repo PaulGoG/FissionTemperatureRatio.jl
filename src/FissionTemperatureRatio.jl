@@ -46,6 +46,7 @@ using CSV: CSV
 using DataFrames: DataFrame, eachrow
 using Dates: Dates
 using DrWatson: datadir, gitdescribe, projectdir, savename
+using InteractiveUtils: versioninfo
 using LinearAlgebra: LinearAlgebra, Symmetric, cond, dot
 using Statistics: mean, median, std
 using TOML: TOML
@@ -56,6 +57,10 @@ using TOML: TOML
 const PACKAGE_VERSION = VersionNumber(
     TOML.parsefile(joinpath(dirname(@__DIR__), "Project.toml"))["version"]
 )
+
+# The root of this package's source tree. Provenance describes the code that ran, so the commit is
+# read here and not from whatever project happens to be active.
+const PACKAGE_ROOT = dirname(@__DIR__)
 
 include("mass_data.jl")
 include("level_density.jl")
@@ -94,7 +99,8 @@ export total_average
 export DatasetDiagnostics, diagnose, consensus
 
 # Segmented description of the ratio
-export SegmentedFit, fit_segments, fit_weights, evaluate, pivots, segments
+export SegmentedFit,
+    fit_segments, fit_weights, evaluate, pivots, segments, InsufficientDataError
 
 # Pipeline
 export ExtractionResult, SegmentedCurve, run_pipeline, write_results, pool, systematic_trend

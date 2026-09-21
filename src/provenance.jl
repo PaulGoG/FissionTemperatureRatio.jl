@@ -103,11 +103,7 @@ Recorded alongside every set of results, so that a number can be attributed to a
 commit and a hardware platform without relying on memory.
 """
 function run_metadata(configuration::Configuration)
-    blas_threads = try
-        LinearAlgebra.BLAS.get_num_threads()
-    catch
-        missing
-    end
+    blas_threads = LinearAlgebra.BLAS.get_num_threads()
     cpu = Sys.cpu_info()
 
     return Dict{String,Any}(
@@ -128,12 +124,13 @@ function run_metadata(configuration::Configuration)
         "source" => Dict{String,Any}(
             "package_version" => string(PACKAGE_VERSION),
             "dependencies" => _dependency_versions(),
-            "commit" => something(gitdescribe(projectdir()), "unavailable"),
+            "commit" => something(gitdescribe(PACKAGE_ROOT), "unavailable"),
         ),
         "julia" => Dict{String,Any}(
             "version" => string(VERSION),
             "threads" => Threads.nthreads(),
-            "blas_threads" => blas_threads === missing ? "unavailable" : blas_threads,
+            "blas_threads" => blas_threads,
+            "versioninfo" => sprint(versioninfo),
         ),
         "platform" => Dict{String,Any}(
             "hostname" => gethostname(),
@@ -171,6 +168,25 @@ function write_metadata(path::AbstractString, metadata::AbstractDict)
     return target
 end
 
+# The resolved manifest of the active environment, copied beside the results. Manifests are not
+# version-controlled, so this copy is what pins a run to exact dependency versions, the plotting
+# stack included. Returns nothing when the active environment has no manifest.
+function _write_environment_snapshot(directory::AbstractString, identifier::AbstractString)
+    project = Base.active_project()
+    project === nothing && return nothing
+    candidates = (
+        "Manifest-v$(VERSION.major).$(VERSION.minor).toml",
+        "JuliaManifest.toml",
+        "Manifest.toml",
+    )
+    index = findfirst(name -> isfile(joinpath(dirname(project), name)), candidates)
+    index === nothing && return nothing
+    target = _unused_path(joinpath(directory, "environment_$(identifier).toml"))
+    mkpath(dirname(target))
+    cp(joinpath(dirname(project), candidates[index]), target)
+    return target
+end
+
 # The manifests are not version-controlled, because this package supports a range of Julia
 # versions and a manifest is resolved against one of them. The versions a run actually used are
 # recorded here instead, so a result remains attributable to the code that produced it. The active
@@ -198,7 +214,8 @@ function _dependency_versions()
                 version === nothing || (versions[name] = version)
             end
         end
-    catch
+    catch exception
+        exception isa TOML.ParserError || rethrow()
         return Dict{String,Any}("status" => "unavailable")
     end
     return versions

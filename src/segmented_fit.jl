@@ -13,7 +13,8 @@
 #
 # so continuity at every breakpoint ψₖ holds identically rather than being imposed afterwards,
 # and the fit at fixed breakpoints is a single weighted linear least-squares solve which yields
-# the full parameter covariance. See Muggeo, Stat. Med. 22, 3055 (2003) for the formulation.
+# the full parameter covariance. See Muggeo, Stat. Med. 22, 3055 (2003), doi:10.1002/sim.1545, for
+# the formulation.
 
 """
     SegmentedFit
@@ -163,8 +164,9 @@ end
 
 function _bic(wrss::Float64, n::Int, parameters::Int, parsimony::Float64)
     # Gaussian likelihood with the noise scale estimated from the residuals, plus the Schwarz
-    # penalty, Ann. Stat. 6, 461 (1978). The breakpoints are counted as parameters: they are
-    # fitted, and a criterion that ignored them would always prefer more segments.
+    # penalty, Ann. Stat. 6, 461 (1978), doi:10.1214/aos/1176344136. The breakpoints are counted
+    # as parameters: they are fitted, and a criterion that ignored them would always prefer more
+    # segments.
     #
     # `parsimony` scales that penalty. At one this is the criterion as published; above one each
     # added segment must buy more of a fit to be worth its parameters, which is how the choice is
@@ -203,6 +205,22 @@ function _each_breakpoint_set(
 
     recurse(1, 1)
     return nothing
+end
+
+"""
+    InsufficientDataError <: Exception
+
+Thrown by [`fit_segments`](@ref) when the arguments are valid but the data cannot support a fit:
+too few points for a single segment, fewer than three distinct abscissae, or no candidate model
+that satisfies the constraints. `ArgumentError` stays reserved for invalid arguments, so a caller
+can treat an unfittable dataset as an outcome without masking a programming error.
+"""
+struct InsufficientDataError <: Exception
+    msg::String
+end
+
+function Base.showerror(io::IO, exception::InsufficientDataError)
+    return print(io, "InsufficientDataError: ", exception.msg)
 end
 
 """
@@ -246,8 +264,9 @@ breakpoint; the criterion for every order examined is retained in the result.
   than repaired afterwards. The test is exact, because a piecewise-linear function attains its
   extrema at its pivots.
 
-Throws an `ArgumentError` when the inputs have different lengths, when fewer points are available
-than the smallest model requires, or when no candidate model satisfies the constraints.
+Throws a `DimensionMismatch` when the inputs have different lengths, an `ArgumentError` for an
+invalid keyword value or unsorted abscissae, and an [`InsufficientDataError`](@ref) when the data
+cannot support a fit under the constraints.
 
 # Examples
 
@@ -313,7 +332,7 @@ function fit_segments(
     n = length(x)
     pinned = pinned_value !== nothing
     n ≥ min_points_per_segment + (pinned ? 0 : 1) ||
-        throw(ArgumentError("$(n) points are too few for a single segment with \
+        throw(InsufficientDataError("$(n) points are too few for a single segment with \
                              min_points_per_segment = $(min_points_per_segment)"))
 
     xs = collect(Int, x)
@@ -325,8 +344,10 @@ function fit_segments(
     # interior mass numbers.
     distinct = unique(xs)
     length(distinct) ≥ 3 || throw(
-        ArgumentError("at least three distinct abscissae are needed to place a breakpoint, \
-                       got $(length(distinct))"),
+        InsufficientDataError(
+            "at least three distinct abscissae are needed to place a breakpoint, \
+             got $(length(distinct))"
+        ),
     )
     candidates = distinct[2:(end - 1)]
 
@@ -374,10 +395,12 @@ function fit_segments(
     end
 
     best === nothing && throw(
-        ArgumentError("no piecewise-linear model satisfies the constraints: $(n) points, \
-                       max_segments = $(max_segments), \
-                       min_points_per_segment = $(min_points_per_segment), \
-                       required_windows = $(required_windows)")
+        InsufficientDataError(
+            "no piecewise-linear model satisfies the constraints: $(n) points, \
+             max_segments = $(max_segments), \
+             min_points_per_segment = $(min_points_per_segment), \
+             required_windows = $(required_windows)"
+        ),
     )
 
     return SegmentedFit(

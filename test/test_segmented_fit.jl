@@ -44,7 +44,7 @@ using StableRNGs
             @test 0 < first(evaluate(fit, x)) < 1
         end
         # Data that cannot be described within the bounds leaves no admissible model at all.
-        @test_throws ArgumentError fit_segments(
+        @test_throws InsufficientDataError fit_segments(
             A_H, 2.0 .* rising, fill(0.01, length(A_H)); max_segments = 3, bounds = (0.0, 1.0)
         )
     end

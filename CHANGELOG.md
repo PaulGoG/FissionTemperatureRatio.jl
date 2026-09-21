@@ -40,6 +40,16 @@ Notable changes to FissionTemperatureRatio.jl. The format follows
   the tabulated temperature ratio, and leaving the averaging order at the published default when
   the consuming code re-expands with unaveraged level density parameters.
 
+- `scripts/` has its own environment carrying CairoMakie, and `scripts/run.jl` activates it as its
+  first statement: `julia scripts/run.jl config/<system>.toml`. A pipeline run no longer depends
+  on a plotting stack installed in the default environment.
+- `InsufficientDataError`, thrown by `fit_segments` when valid arguments meet data that cannot
+  support a fit. The pipeline treats it as an outcome for that dataset; an `ArgumentError` from
+  the fit now propagates instead of being reported as a missing curve.
+- Run provenance records `versioninfo()`, takes the commit from the package source tree instead
+  of the active project, and copies the resolved manifest of the active environment beside the
+  results as `environment_<run>.toml`.
+
 ### Changed
 
 One name per quantity, from the configuration key to the column header. The package now shares its
@@ -102,6 +112,10 @@ names while refusing old keys is worse to debug than a clean break.
   0.27 % to 1.09 %.
 - The published total averages are now asserted by the test suite, where the input data is
   present, instead of being compared by the documentation script only.
+- The charge distribution tables are cited to *At. Data Nucl. Data Tables* **39**, 1 (1988); the
+  volume was given as 38. The liquid-drop coefficients are attributed to Pearson, *Hyperfine
+  Interact.* **132**, 59 (2001), which is where the 2005 level density paper takes them from, and
+  literature references carry DOIs.
 - Tick labels of adjacent panels ran together in the method-chain figure. The row gaps were being
   set by index before the legend was added, which renumbers them, so the gap that was tightened
   was not the one intended.
