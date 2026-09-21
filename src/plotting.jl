@@ -12,8 +12,9 @@
 """
     publication_theme() -> Theme
 
-The figure style used throughout: Computer Modern faces, boxed axes with inward ticks, no minor
-ticks, faint dashed gridlines, and type sizes that remain legible at a single column width.
+The figure style used throughout, the standard layout: Computer Modern faces, a 900 × 600 canvas
+per panel, 26 pt type, 3 pt data lines, 14 pt markers with a darker edge, boxed axes with inward
+ticks, no minor ticks, faint dashed gridlines.
 
 Requires CairoMakie to be loaded.
 """
@@ -30,7 +31,8 @@ Requires CairoMakie to be loaded.
 function plot_multiplicities end
 
 """
-    plot_ratio(curves, fitted; ylabel, reference, reference_label, annotation) -> Figure
+    plot_ratio(curves, fitted; ylabel, reference, reference_label, annotation, annotation_corner, fit_label,
+               yticks) -> Figure
 
 A ratio against the heavy-fragment mass number: the values extracted from each dataset with
 their uncertainties, and optionally a fitted curve with its uncertainty band.
@@ -39,9 +41,14 @@ their uncertainties, and optionally a fitted curve with its uncertainty band.
 for the multiplicity ratio, unity for the temperature ratio — labelled so that the reader need
 not infer what it marks.
 
-`annotation` puts the quantitative takeaway inside the axes, at the lower right. Give it one
+`annotation` puts the quantitative takeaway inside the axes, at the corner `annotation_corner`
+names: `:rt`, the default, which a temperature ratio leaves free, or `:rb`, which a multiplicity
+ratio does. Give it one
 string per line, or a single string for one line; each line is typeset on its own, so a
 `LaTeXString` line renders as mathematics rather than as its own source.
+
+`fit_label` names a dataset's own fitted curve in the legend; the systematic-trend curve is always
+labelled, and is drawn as a thin dashed guide when it accompanies another fitted curve.
 
 Requires CairoMakie to be loaded.
 """
@@ -61,7 +68,8 @@ function save_figure end
     write_figures(result, directory, identifier) -> Dict{String,String}
 
 Write the figures of a completed run into `directory`, returning the paths written, keyed by
-content.
+content. Besides the three overview figures, every per-dataset segmented curve gets its own
+multiplicity-ratio and temperature-ratio figure, with the systematic trend as a guide.
 
 Requires CairoMakie to be loaded; [`write_results`](@ref) calls this only when it is, and records
 that figures were skipped when it is not.

@@ -14,7 +14,7 @@ using LaTeXStrings: @L_str
 using Statistics: quantile
 
 const ASSETS = joinpath(@__DIR__, "src", "assets")
-const SINGLE_COLUMN = 86 / 25.4 * 72
+const WIDTH = 900
 const DATA_DIRECTORY = joinpath(dirname(@__DIR__), "data")
 "The multiplicity ratio of the dataset with the most points, and the level density ratio."
 function richest_measurement(configuration)
@@ -64,7 +64,7 @@ function animate_selection(panels; path, max_segments = 6, hold = 8)
     # Each panel settles on its own selected order, so the animation ends on four answers.
     frames = vcat(1:max_segments, fill(0, hold))
 
-    figure = Figure(; size = (880, 620), figure_padding = (8, 16, 8, 10))
+    figure = Figure(; size = (1200, 900), figure_padding = (10, 20, 10, 10))
     axes = Axis[]
     for (index, prep) in enumerate(prepared)
         row, column = fldmod1(index, 2)
@@ -99,12 +99,12 @@ function animate_selection(panels; path, max_segments = 6, hold = 8)
                     prep.curve.ratio,
                     prep.curve.σ;
                     color = (:grey30, 0.5),
-                    linewidth = 0.7,
-                    whiskerwidth = 3,
+                    linewidth = 1.5,
+                    whiskerwidth = 0,
                 )
             end
             scatter!(
-                axis, prep.curve.A_H, prep.curve.ratio; color = (:grey30, 0.6), markersize = 5
+                axis, prep.curve.A_H, prep.curve.ratio; color = (:grey30, 0.6), markersize = 14
             )
 
             evaluated = evaluate(fit, first(prep.curve.A_H):last(prep.curve.A_H))
@@ -113,7 +113,7 @@ function animate_selection(panels; path, max_segments = 6, hold = 8)
                 evaluated.A_H,
                 evaluated.ratio;
                 color = selected ? RGBf(0.0, 0.62, 0.451) : RGBf(0.0, 0.447, 0.698),
-                linewidth = 2,
+                linewidth = 3,
             )
             points = pivots(fit)
             scatter!(
@@ -122,7 +122,7 @@ function animate_selection(panels; path, max_segments = 6, hold = 8)
                 [p[2] for p in points];
                 color = :black,
                 marker = :diamond,
-                markersize = 10,
+                markersize = 20,
             )
             text!(
                 axis,
@@ -132,7 +132,7 @@ function animate_selection(panels; path, max_segments = 6, hold = 8)
                        (selected ? "   ← selected" : ""),
                 space = :relative,
                 align = (:left, :top),
-                fontsize = 12,
+                fontsize = 21,
             )
         end
         return nothing
@@ -202,7 +202,7 @@ function figure_published_comparison(results)
         )
     end
 
-    figure = Figure(; size = (SINGLE_COLUMN, 1.05 * SINGLE_COLUMN))
+    figure = Figure(; size = (900, 1000))
     axis = Axis(
         figure[1, 1]; ylabel = L"This work, $\langle R_T \rangle$", xticklabelsvisible = false
     )
@@ -211,14 +211,14 @@ function figure_published_comparison(results)
     )
     linkxaxes!(axis, residual)
     rowsize!(figure.layout, 2, Relative(0.26))
-    rowgap!(figure.layout, 6)
+    rowgap!(figure.layout, 10)
 
     low = minimum(p.published for p in points) - 0.03
     high = maximum(p.published for p in points) + 0.03
     lines!(
-        axis, [low, high], [low, high]; color = :black, linestyle = :dashdot, linewidth = 0.7
+        axis, [low, high], [low, high]; color = :black, linestyle = :dashdot, linewidth = 1.5
     )
-    hlines!(residual, [0.0]; color = :black, linestyle = :dashdot, linewidth = 0.7)
+    hlines!(residual, [0.0]; color = :black, linestyle = :dashdot, linewidth = 1.5)
     # The one-per-cent band the comparison is judged against.
     band!(residual, [low, high], [-1.0, -1.0], [1.0, 1.0]; color = (:grey, 0.18))
 
@@ -233,7 +233,7 @@ function figure_published_comparison(results)
             y,
             [p.extracted_uncertainty for p in selected];
             color = SYSTEM_COLOR[system],
-            linewidth = 0.6,
+            linewidth = 1.5,
         )
         errorbars!(
             axis,
@@ -242,7 +242,7 @@ function figure_published_comparison(results)
             [p.published_uncertainty for p in selected];
             direction = :x,
             color = SYSTEM_COLOR[system],
-            linewidth = 0.6,
+            linewidth = 1.5,
         )
         scatter!(
             axis,
@@ -268,16 +268,16 @@ function figure_published_comparison(results)
         text = "$(length(points)) comparisons\nall within $(ceil(worst; digits = 1)) %",
         space = :relative,
         align = (:left, :top),
-        fontsize = 7,
+        fontsize = 21,
     )
     axislegend(
         axis,
         "Tables 1 and 2";
         position = :rb,
         framevisible = false,
-        labelsize = 6.5,
-        titlesize = 7,
-        patchsize = (8, 6),
+        labelsize = 22,
+        titlesize = 26,
+        patchsize = (30, 22),
     )
     ylims!(residual, -2.0, 2.0)
     # Bounded by the comparisons themselves: Fraser's published uncertainty is a quarter of a
@@ -289,14 +289,14 @@ end
 
 "The temperature ratio of one system: every measurement, and the systematic trend through them."
 function figure_temperature_ratio(result)
-    figure = Figure(; size = (SINGLE_COLUMN, 0.72 * SINGLE_COLUMN))
+    figure = Figure(; size = (900, 650))
     axis = Axis(
         figure[1, 1]; xlabel = L"Heavy fragment mass number $A_H$", ylabel = L"R_T = T_L / T_H"
     )
-    hlines!(axis, [1.0]; color = :black, linestyle = :dashdot, linewidth = 0.7)
+    hlines!(axis, [1.0]; color = :black, linestyle = :dashdot, linewidth = 1.5)
     for curve in result.R_T
         isempty(curve) && continue
-        scatter!(axis, curve.A_H, curve.ratio; color = (:grey45, 0.55), markersize = 5)
+        scatter!(axis, curve.A_H, curve.ratio; color = (:grey45, 0.55), markersize = 14)
     end
     trend = systematic_trend(result).R_T
     band!(
@@ -306,7 +306,7 @@ function figure_temperature_ratio(result)
         trend.ratio .+ trend.σ;
         color = (RGBf(0.835, 0.369, 0.0), 0.25),
     )
-    lines!(axis, trend.A_H, trend.ratio; color = RGBf(0.835, 0.369, 0.0), linewidth = 1.6)
+    lines!(axis, trend.A_H, trend.ratio; color = RGBf(0.835, 0.369, 0.0), linewidth = 3)
     text!(
         axis,
         0.97,
@@ -315,7 +315,7 @@ function figure_temperature_ratio(result)
                 $(length(result.datasets)) measurements\nsystematic trend",
         space = :relative,
         align = (:right, :top),
-        fontsize = 7,
+        fontsize = 21,
     )
     ylims!(axis, 0, 3)
     return figure
@@ -334,7 +334,7 @@ function figure_method_chain(result, count = 5)
     order = sortperm(length.(result.r_ν); rev = true)
     chosen = [i for i in order if !isempty(result.r_ν[i])][1:min(count, length(order))]
 
-    figure = Figure(; size = (1.05 * SINGLE_COLUMN, 1.45 * SINGLE_COLUMN))
+    figure = Figure(; size = (900, 1300))
     axes = [
         Axis(figure[row, 1]; ylabel = ylabel, xticklabelsvisible = row == 3) for
         (row, ylabel) in enumerate((L"\nu", L"r_\nu = \nu_H/(\nu_L + \nu_H)", L"R_T = T_L/T_H"))
@@ -344,15 +344,15 @@ function figure_method_chain(result, count = 5)
     # Wide enough that the lowest tick label of one panel clears the highest of the next: each
     # panel is bounded at a round value, so both labels sit on the frame and a narrower gap runs
     # them together.
-    rowgap!(figure.layout, 16)
+    rowgap!(figure.layout, 28)
 
     # The symmetric split separates the light wing from the heavy one, which is what a label on
     # each wing used to say — and it says it without sitting on top of the data.
     for axis in axes
-        vlines!(axis, [A₀ / 2]; color = (:grey, 0.55), linestyle = :dot, linewidth = 0.8)
+        vlines!(axis, [A₀ / 2]; color = (:grey, 0.55), linestyle = :dot, linewidth = 1.5)
     end
-    hlines!(axes[2], [0.5]; color = :black, linestyle = :dashdot, linewidth = 0.7)
-    hlines!(axes[3], [1.0]; color = :black, linestyle = :dashdot, linewidth = 0.7)
+    hlines!(axes[2], [0.5]; color = :black, linestyle = :dashdot, linewidth = 1.5)
+    hlines!(axes[3], [1.0]; color = :black, linestyle = :dashdot, linewidth = 1.5)
 
     for (position, index) in enumerate(chosen)
         data = result.datasets[index]
@@ -364,12 +364,12 @@ function figure_method_chain(result, count = 5)
             data.ν;
             color = colour,
             marker = marker,
-            markersize = 6,
+            markersize = 14,
             label = data.label,
         )
         for (axis, curve) in ((axes[2], result.r_ν[index]), (axes[3], result.R_T[index]))
             scatter!(
-                axis, curve.A_H, curve.ratio; color = colour, marker = marker, markersize = 6
+                axis, curve.A_H, curve.ratio; color = colour, marker = marker, markersize = 14
             )
         end
     end
@@ -382,11 +382,11 @@ function figure_method_chain(result, count = 5)
         consensus.ratio;
         color = :black,
         linestyle = :dash,
-        linewidth = 1.6,
+        linewidth = 3,
         label = "combined",
     )
     trend = systematic_trend(result).R_T
-    lines!(axes[3], trend.A_H, trend.ratio; color = :black, linestyle = :dash, linewidth = 1.6)
+    lines!(axes[3], trend.A_H, trend.ratio; color = :black, linestyle = :dash, linewidth = 3)
 
     Legend(
         figure[0, 1],
@@ -394,15 +394,15 @@ function figure_method_chain(result, count = 5)
         orientation = :horizontal,
         nbanks = 3,
         framevisible = false,
-        labelsize = 6.5,
-        patchsize = (9, 6),
+        labelsize = 22,
+        patchsize = (30, 22),
         tellheight = true,
         tellwidth = false,
         padding = (0, 0, 0, 0),
     )
     # Set after the legend, because adding a row renumbers the gaps: indexing one of them by hand
     # tightened the wrong one and ran two panels' tick labels together.
-    rowgap!(figure.layout, 16)
+    rowgap!(figure.layout, 28)
     # The far-asymmetric tail of some measurements reaches tens of neutrons per fragment; scaled
     # to those, the sawtooth that carries the physics collapses to a line. Bounded by the bulk, as
     # the package's own multiplicity figure is.
@@ -425,7 +425,7 @@ function figure_method_chain(result, count = 5)
         text = system_notation(result.configuration.system),
         space = :relative,
         align = (:left, :top),
-        fontsize = 7,
+        fontsize = 21,
         color = :grey40,
     )
     return figure
@@ -433,11 +433,11 @@ end
 
 "How much the level density model moves the answer."
 function figure_level_density_models(bsfg, gc)
-    figure = Figure(; size = (SINGLE_COLUMN, 0.72 * SINGLE_COLUMN))
+    figure = Figure(; size = (900, 650))
     axis = Axis(
         figure[1, 1]; xlabel = L"Heavy fragment mass number $A_H$", ylabel = L"R_T = T_L / T_H"
     )
-    hlines!(axis, [1.0]; color = :black, linestyle = :dashdot, linewidth = 0.7)
+    hlines!(axis, [1.0]; color = :black, linestyle = :dashdot, linewidth = 1.5)
     for (result, name, colour, style) in (
         (bsfg, "Back-shifted Fermi gas", RGBf(0.0, 0.447, 0.698), :solid),
         (gc, "Gilbert-Cameron", RGBf(0.835, 0.369, 0.0), :dash),
@@ -448,12 +448,12 @@ function figure_level_density_models(bsfg, gc)
             trend.A_H,
             trend.ratio;
             color = colour,
-            linewidth = 1.6,
+            linewidth = 3,
             linestyle = style,
             label = name,
         )
     end
-    axislegend(axis; position = :rt, framevisible = false, labelsize = 6.5, patchsize = (10, 6))
+    axislegend(axis; position = :rt, framevisible = false, labelsize = 22, patchsize = (30, 22))
     text!(
         axis,
         0.03,
@@ -462,7 +462,7 @@ function figure_level_density_models(bsfg, gc)
                 systematic trend under each level density model",
         space = :relative,
         align = (:left, :bottom),
-        fontsize = 6.5,
+        fontsize = 21,
         color = :grey40,
     )
     return figure
@@ -497,7 +497,7 @@ function main()
         )
     end
 
-    with_theme(publication_theme(); fontsize = 12) do
+    with_theme(publication_theme()) do
         path = animate_selection(
             panels;
             path = joinpath(ASSETS, "segment_selection.gif"),

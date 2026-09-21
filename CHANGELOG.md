@@ -49,8 +49,17 @@ Notable changes to FissionTemperatureRatio.jl. The format follows
 - Run provenance records `versioninfo()`, takes the commit from the package source tree instead
   of the active project, and copies the resolved manifest of the active environment beside the
   results as `environment_<run>.toml`.
+- One multiplicity-ratio and one temperature-ratio figure per dataset, showing its points, its
+  segmented fit with the uncertainty band, and the systematic trend as a guide. The overview
+  figures now carry the data and the trend only; sixteen fits and bands in one axis were not
+  readable.
 
 ### Changed
+
+- Figures use the standard layout — a 900 × 600 canvas per panel, 1200 wide above eight legend
+  entries, 26 pt type, 3 pt data lines, 14 pt markers with a darker edge — in place of the
+  journal-column sizing. Error bars are drawn without caps. `plot_ratio` gains `fit_label`,
+  `yticks` and `annotation_corner`.
 
 One name per quantity, from the configuration key to the column header. The package now shares its
 vocabulary with the retrieval that supplies its input and the emission model that consumes its

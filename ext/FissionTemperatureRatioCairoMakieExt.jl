@@ -1,5 +1,5 @@
-# Publication figures, laid out at the printed width of a single journal column so that they enter
-# a manuscript at native size without rescaling.
+# Figures in the standard layout: a 900 × 600 canvas per panel, widened to 1200 when many datasets
+# share an axis, 26 pt type, 3 pt data lines and 14 pt stroked markers.
 #
 # The implementations live here rather than in the package so that `using FissionTemperatureRatio`
 # does not load a plotting stack. CairoMakie depends on LaTeXStrings and MathTeXEngine, so loading
@@ -17,14 +17,29 @@ using MathTeXEngine: texfont
 using FissionTemperatureRatio:
     FissionTemperatureRatio, ExtractionResult, Multiplicity, RatioCurve, TREND_LABEL
 
-const SINGLE_COLUMN_WIDTH = 86 / 25.4 * 72
+const BASE_WIDTH = 900
+const WIDE_WIDTH = 1200
+const PANEL_HEIGHT = 600
+const LEGEND_ROW_HEIGHT = 38
+# Above this many legend entries the canvas widens, so the legend banks into three columns.
+const WIDE_ABOVE_ENTRIES = 8
+const ANNOTATION_SIZE = 21
 
 function FissionTemperatureRatio.publication_theme()
     return Theme(;
         fonts = (; regular = texfont(:text), bold = texfont(:bold), italic = texfont(:italic)),
-        fontsize = 8,
-        figure_padding = 4,
+        fontsize = 26,
+        figure_padding = 10,
+        linewidth = 3,
+        markersize = 14,
         Axis = (
+            spinewidth = 1.5,
+            xtickwidth = 1.5,
+            ytickwidth = 1.5,
+            xticklabelsize = 22,
+            yticklabelsize = 22,
+            xlabelpadding = 8,
+            ylabelpadding = 8,
             xgridstyle = :dash,
             ygridstyle = :dash,
             xgridcolor = (:grey, 0.12),
@@ -33,21 +48,9 @@ function FissionTemperatureRatio.publication_theme()
             yminorticksvisible = false,
             xtickalign = 1,
             ytickalign = 1,
-            spinewidth = 0.8,
-            xtickwidth = 0.8,
-            ytickwidth = 0.8,
-            xlabelpadding = 2,
-            ylabelpadding = 2,
         ),
-        Legend = (
-            framevisible = false,
-            padding = (2, 2, 2, 2),
-            rowgap = 0,
-            colgap = 6,
-            patchsize = (10, 6),
-        ),
-        Scatter = (markersize = 4, strokewidth = 0),
-        Lines = (linewidth = 1,),
+        Scatter = (strokewidth = 1.5,),
+        Legend = (framevisible = false, orientation = :horizontal, titlefont = :bold),
     )
 end
 
@@ -83,15 +86,21 @@ function _style_index(label::AbstractString, order::Vector{String}, fallback::In
     return index === nothing ? fallback : index
 end
 
-# Two legend entries per row: at a single column width three columns of author-and-year labels
-# overflow the figure and the rightmost is silently clipped.
-const LEGEND_COLUMNS = 2
-legend_rows(entries::Integer) = max(1, cld(entries, LEGEND_COLUMNS))
+figure_width(entries::Integer) = entries > WIDE_ABOVE_ENTRIES ? WIDE_WIDTH : BASE_WIDTH
+# Author-and-year labels at 26 pt: two fit across the base canvas, three across the wide one.
+legend_columns(entries::Integer) = entries > WIDE_ABOVE_ENTRIES ? 3 : 2
+legend_rows(entries::Integer) = max(1, cld(entries, legend_columns(entries)))
 
 # The axes keep a constant height; the figure grows to make room for the legend above them.
 function _figure_size(entries::Integer)
-    return (SINGLE_COLUMN_WIDTH, 0.78 * SINGLE_COLUMN_WIDTH + 7.5 * legend_rows(entries))
+    return (figure_width(entries), PANEL_HEIGHT + LEGEND_ROW_HEIGHT * legend_rows(entries))
 end
+
+# Marker edge: the fill colour darkened, so markers stay separable where they overlap.
+_darker(color::RGBf) = RGBf(0.6f0 * color.r, 0.6f0 * color.g, 0.6f0 * color.b)
+
+# Mass-number ticks at multiples of ten inside the limits.
+_mass_ticks(low::Real, high::Real) = (10 * cld(floor(Int, low), 10)):10:floor(Int, high)
 
 function FissionTemperatureRatio.plot_multiplicities(
     datasets::Vector{Multiplicity}; A_0::Integer, order::Vector{String} = String[]
@@ -108,7 +117,7 @@ function FissionTemperatureRatio.plot_multiplicities(
         color = dataset_color(index)
         if any(>(0), data.σν)
             errorbars!(
-                axis, data.A, data.ν, data.σν; color = color, linewidth = 0.6, whiskerwidth = 3
+                axis, data.A, data.ν, data.σν; color = color, linewidth = 1.5, whiskerwidth = 0
             )
         end
         scatter!(
@@ -116,6 +125,7 @@ function FissionTemperatureRatio.plot_multiplicities(
             data.A,
             data.ν;
             color = color,
+            strokecolor = _darker(color),
             marker = dataset_marker(index),
             label = data.label,
         )
@@ -129,6 +139,12 @@ function FissionTemperatureRatio.plot_multiplicities(
     if !isempty(bulk)
         ylims!(axis, 0, 1.15 * quantile(bulk, 0.99))
     end
+    isempty(datasets) || (
+        axis.xticks = _mass_ticks(
+            minimum(minimum(data.A) for data in datasets),
+            maximum(maximum(data.A) for data in datasets),
+        )
+    )
 
     _legend_above(figure, axis, length(datasets))
     return figure
@@ -143,11 +159,21 @@ function FissionTemperatureRatio.plot_ratio(
     order::Vector{String} = String[],
     limits = nothing,
     annotation::Union{AbstractString,AbstractVector{<:AbstractString}} = "",
+    fit_label::AbstractString = "",
+    yticks = nothing,
+    annotation_corner::Symbol = :rt,
 )
+    # A fitted curve reaches the legend if it is the trend, which is always named, or if the
+    # caller named the dataset's own fit.
+    fitted_labelled =
+        curve -> !isempty(curve) && (curve.label == TREND_LABEL || !isempty(fit_label))
     entries =
         count(!isempty, curves) +
-        (reference === nothing ? 0 : 1) +
-        count(curve -> !isempty(curve) && curve.label == TREND_LABEL, fitted)
+        (reference !== nothing && !isempty(reference_label) ? 1 : 0) +
+        count(fitted_labelled, fitted)
+    # Alone, the trend carries the figure; beside a dataset's own fit it is a guide behind it.
+    trend_width = count(!isempty, fitted) == 1 ? 3 : 1.5
+
     figure = Figure(; size = _figure_size(entries))
     axis = Axis(figure[1, 1]; xlabel = L"Heavy fragment mass number $A_H$", ylabel = ylabel)
     # Linked panels of one run share an abscissa, and a ratio bounded by construction is shown
@@ -159,40 +185,13 @@ function FissionTemperatureRatio.plot_ratio(
             axis,
             [reference];
             color = :black,
-            linestyle = :dashdot,
-            linewidth = 0.7,
+            linestyle = :dash,
+            linewidth = 1.5,
             label = isempty(reference_label) ? nothing : reference_label,
         )
     end
 
-    for (position, curve) in enumerate(curves)
-        isempty(curve) && continue
-        index = _style_index(curve.label, order, position)
-        color = dataset_color(index)
-        if any(>(0), curve.σ)
-            errorbars!(
-                axis,
-                curve.A_H,
-                curve.ratio,
-                curve.σ;
-                color = color,
-                linewidth = 0.6,
-                whiskerwidth = 3,
-            )
-        end
-        scatter!(
-            axis,
-            curve.A_H,
-            curve.ratio;
-            color = color,
-            marker = dataset_marker(index),
-            label = curve.label,
-        )
-    end
-
-    # The segmented curves are alternatives, so each is drawn in the colour of the dataset it came
-    # from, and the systematic-trend curve in black, dashed, to mark that it follows no single
-    # measurement.
+    # The bands go down first, all of them, so that no band hides another curve's markers.
     for (position, curve) in enumerate(fitted)
         isempty(curve) && continue
         trend = curve.label == TREND_LABEL
@@ -207,21 +206,76 @@ function FissionTemperatureRatio.plot_ratio(
             curve.A_H,
             max.(curve.ratio .- curve.σ, 0.0),
             curve.ratio .+ curve.σ;
-            color = (color, 0.15),
+            color = (color, trend ? 0.25 : 0.35),
         )
+    end
+
+    for (position, curve) in enumerate(curves)
+        isempty(curve) && continue
+        index = _style_index(curve.label, order, position)
+        color = dataset_color(index)
+        if any(>(0), curve.σ)
+            errorbars!(
+                axis,
+                curve.A_H,
+                curve.ratio,
+                curve.σ;
+                color = color,
+                linewidth = 1.5,
+                whiskerwidth = 0,
+            )
+        end
+        scatter!(
+            axis,
+            curve.A_H,
+            curve.ratio;
+            color = color,
+            strokecolor = _darker(color),
+            marker = dataset_marker(index),
+            label = curve.label,
+        )
+    end
+
+    # The segmented curves are alternatives, so each is drawn in the colour of the dataset it came
+    # from, and the systematic-trend curve in black, dashed, to mark that it follows no single
+    # measurement.
+    for (position, curve) in enumerate(fitted)
+        isempty(curve) && continue
+        trend = curve.label == TREND_LABEL
+        color =
+            trend ? RGBf(0, 0, 0) : dataset_color(_style_index(curve.label, order, position))
+        label = if trend
+            uppercasefirst(TREND_LABEL)
+        else
+            isempty(fit_label) ? nothing : fit_label
+        end
         lines!(
             axis,
             curve.A_H,
             curve.ratio;
             color = color,
-            linewidth = 1.2,
+            linewidth = trend ? trend_width : 3,
             linestyle = trend ? :dash : :solid,
-            label = trend ? curve.label : nothing,
+            label = label,
         )
     end
 
     # The takeaway belongs where the reader is looking, inside the axes.
-    _annotate!(axis, annotation)
+    _annotate!(axis, annotation; corner = annotation_corner)
+
+    # Mass numbers read best at decades; the bounds are the ones the axis actually shows.
+    bounds = if limits !== nothing && limits[1] isa Real && limits[2] isa Real
+        (limits[1], limits[2])
+    else
+        drawn = filter(!isempty, curves)
+        if isempty(drawn)
+            nothing
+        else
+            (minimum(minimum(c.A_H) for c in drawn), maximum(maximum(c.A_H) for c in drawn))
+        end
+    end
+    bounds === nothing || (axis.xticks = _mass_ticks(bounds...))
+    yticks === nothing || (axis.yticks = yticks)
 
     _legend_above(figure, axis, entries)
     return figure
@@ -235,18 +289,25 @@ end
 # the symmetric split, peaks near the shell closure and falls below unity towards the heavy wing,
 # so the large-mass, large-ratio corner holds no data in any system. The lower right, where this
 # annotation used to sit, is exactly where the heavy wing descends through it.
-function _annotate!(axis::Axis, annotation; fontsize = 7, leading = 1.3)
+function _annotate!(
+    axis::Axis, annotation; corner::Symbol = :rt, fontsize = ANNOTATION_SIZE, leading = 1.3
+)
+    corner in (:rt, :rb) ||
+        throw(ArgumentError("annotation corner must be :rt or :rb, got $(repr(corner))"))
     lines =
         annotation isa AbstractString ? (isempty(annotation) ? () : (annotation,)) : annotation
+    top = corner === :rt
     for (position, line) in enumerate(lines)
+        # Stacked downwards from the top corner, upwards from the bottom one.
+        shift = top ? -(position - 1) : length(lines) - position
         text!(
             axis,
             0.98,
-            0.96;
+            top ? 0.96 : 0.04;
             text = line,
             space = :relative,
-            align = (:right, :top),
-            offset = (0, -(position - 1) * leading * fontsize),
+            align = (:right, top ? :top : :bottom),
+            offset = (0, shift * leading * fontsize),
             fontsize = fontsize,
         )
     end
@@ -256,27 +317,26 @@ end
 # Legends sit above the axes, horizontally, so that they cannot collide with the data however the
 # points and their error bars happen to fall.
 function _legend_above(figure::Figure, axis::Axis, entries::Integer)
-    # Banked so that no row exceeds LEGEND_COLUMNS entries; wider rows overflow the figure and the
-    # rightmost label is clipped without any error.
+    # Banked so that no row exceeds the column count the canvas can hold; wider rows overflow the
+    # figure and the rightmost label is clipped without any error.
     Legend(
         figure[0, 1],
         axis;
         orientation = :horizontal,
         nbanks = legend_rows(entries),
         framevisible = false,
-        labelsize = 6,
         padding = (0, 0, 0, 0),
         tellheight = true,
         tellwidth = false,
     )
-    rowgap!(figure.layout, 2)
+    rowgap!(figure.layout, 10)
     return figure
 end
 
 function FissionTemperatureRatio.save_figure(path::AbstractString, figure::Figure)
     mkpath(dirname(path))
     target = FissionTemperatureRatio._unused_path(path)
-    save(target, figure; pt_per_unit = 1)
+    save(target, figure)
     return target
 end
 
@@ -302,8 +362,23 @@ function _trend_annotation(result::ExtractionResult)
     return [L"Trend range mean $= %$(_measured(value, uncertainty))$"]
 end
 
+# Order and quality of one segmented fit, for the figure of that dataset.
+function _fit_annotation(curve)
+    fit = curve.fit
+    count = FissionTemperatureRatio.segments(fit)
+    reduced = @sprintf("%.2f", fit.wrss / fit.dof)
+    return [
+        LaTeXString(count == 1 ? "1 segment" : "$(count) segments"),
+        L"$\chi^2/\mathrm{dof} = %$(reduced)$",
+    ]
+end
+
 # The run's figures. Held here, rather than in the pipeline, so that the pipeline carries no
 # reference to a plotting type; `write_results` calls it through `Base.get_extension`.
+#
+# Three overview figures, and then one pair per dataset that supports a fit: on a single axis the
+# overview cannot show a dozen fitted curves without burying the measurements under them, so each
+# fit is shown against its own data, with the systematic trend beside it for comparison.
 function FissionTemperatureRatio.write_figures(
     result::ExtractionResult, directory::AbstractString, identifier::AbstractString
 )
@@ -311,6 +386,16 @@ function FissionTemperatureRatio.write_figures(
     configuration = result.configuration
     order = [data.label for data in result.datasets]
     masses = FissionTemperatureRatio.A_H_range(configuration)
+    trend_r_ν = [c.r_ν for c in result.segmented_curves if c.label == TREND_LABEL]
+    trend_R_T = [c.R_T for c in result.segmented_curves if c.label == TREND_LABEL]
+
+    # The temperature ratio is unbounded above and its far-asymmetric tail runs away, so the view
+    # is bounded by the bulk of the measurements, as the multiplicity figure is.
+    R_T_data = filter(!isempty, result.R_T)
+    R_T_values = reduce(vcat, (curve.ratio for curve in R_T_data); init = Float64[])
+    R_T_upper = isempty(R_T_values) ? nothing : 1.15 * quantile(R_T_values, 0.99)
+    R_T_lower = R_T_upper === nothing ? nothing : 0
+
     with_theme(FissionTemperatureRatio.publication_theme()) do
         written["figure/nu_vs_A"] = FissionTemperatureRatio.save_figure(
             joinpath(directory, "nu_vs_A_$(identifier).pdf"),
@@ -322,27 +407,76 @@ function FissionTemperatureRatio.write_figures(
             joinpath(directory, "r_nu_vs_A_H_$(identifier).pdf"),
             FissionTemperatureRatio.plot_ratio(
                 filter(!isempty, result.r_ν),
-                [c.r_ν for c in result.segmented_curves];
+                trend_r_ν;
                 ylabel = L"r_\nu = \nu_H / (\nu_L + \nu_H)",
                 reference = 0.5,
                 reference_label = "Equal sharing",
                 order = order,
                 limits = (first(masses) - 1, last(masses) + 1, 0, 1),
+                yticks = 0:0.25:1,
             ),
         )
-        return written["figure/R_T_vs_A_H"] = FissionTemperatureRatio.save_figure(
+        written["figure/R_T_vs_A_H"] = FissionTemperatureRatio.save_figure(
             joinpath(directory, "R_T_vs_A_H_$(identifier).pdf"),
             FissionTemperatureRatio.plot_ratio(
-                filter(!isempty, result.R_T),
-                [c.R_T for c in result.segmented_curves];
+                R_T_data,
+                trend_R_T;
                 ylabel = L"R_T = T_L / T_H",
                 reference = 1.0,
                 reference_label = "Equal temperatures",
                 order = order,
-                limits = (first(masses) - 1, last(masses) + 1, nothing, nothing),
+                limits = (first(masses) - 1, last(masses) + 1, R_T_lower, R_T_upper),
                 annotation = _trend_annotation(result),
             ),
         )
+
+        for curve in result.segmented_curves
+            curve.label == TREND_LABEL && continue
+            token = FissionTemperatureRatio._file_token(curve.label)
+            annotation = _fit_annotation(curve)
+
+            index = findfirst(c -> c.label == curve.label, result.r_ν)
+            if index !== nothing && !isempty(result.r_ν[index])
+                written["figure/r_nu_vs_A_H/$(curve.label)"] = FissionTemperatureRatio.save_figure(
+                    joinpath(directory, "r_nu_vs_A_H_segmented_$(token)_$(identifier).pdf"),
+                    FissionTemperatureRatio.plot_ratio(
+                        RatioCurve[result.r_ν[index]],
+                        vcat(RatioCurve[curve.r_ν], trend_r_ν);
+                        ylabel = L"r_\nu = \nu_H / (\nu_L + \nu_H)",
+                        reference = 0.5,
+                        reference_label = "Equal sharing",
+                        order = order,
+                        limits = (first(masses) - 1, last(masses) + 1, 0, 1),
+                        annotation = annotation,
+                        # r_ν rises into the upper right; the lower right is the free corner.
+                        annotation_corner = :rb,
+                        fit_label = "Segmented fit",
+                        yticks = 0:0.25:1,
+                    ),
+                )
+            end
+
+            index = findfirst(c -> c.label == curve.label, result.R_T)
+            (index === nothing || isempty(result.R_T[index])) && continue
+            data = result.R_T[index]
+            upper = quantile(data.ratio, 0.99)
+            isempty(curve.R_T) || (upper = max(upper, maximum(curve.R_T.ratio)))
+            written["figure/R_T_vs_A_H/$(curve.label)"] = FissionTemperatureRatio.save_figure(
+                joinpath(directory, "R_T_vs_A_H_segmented_$(token)_$(identifier).pdf"),
+                FissionTemperatureRatio.plot_ratio(
+                    RatioCurve[data],
+                    vcat(RatioCurve[curve.R_T], trend_R_T);
+                    ylabel = L"R_T = T_L / T_H",
+                    reference = 1.0,
+                    reference_label = "Equal temperatures",
+                    order = order,
+                    limits = (first(masses) - 1, last(masses) + 1, 0, 1.15 * upper),
+                    annotation = annotation,
+                    fit_label = "Segmented fit",
+                ),
+            )
+        end
+        return nothing
     end
     return written
 end
