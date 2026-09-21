@@ -265,7 +265,7 @@ function figure_published_comparison(results)
         axis,
         0.04,
         0.92;
-        text = "$(length(points)) comparisons\nall within $(round(worst; digits = 1)) %",
+        text = "$(length(points)) comparisons\nall within $(ceil(worst; digits = 1)) %",
         space = :relative,
         align = (:left, :top),
         fontsize = 7,
@@ -482,8 +482,13 @@ function main()
         configuration = configurations[system]
         curve, _ = richest_measurement(configuration)
         settings = configuration.segments
+        # As the pipeline does: the pin is an identity at the symmetric split and nowhere else.
         pinned =
-            settings.pin_symmetric_split && has_symmetric_split(configuration) ? 0.5 : nothing
+            if settings.pin_symmetric_split && 2 * first(curve.A_H) == configuration.system.A₀
+                0.5
+            else
+                nothing
+            end
         return (;
             curve,
             label = "$(system_notation(configuration.system)) · $(curve.label)",

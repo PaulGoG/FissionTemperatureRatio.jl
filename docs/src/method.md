@@ -57,7 +57,8 @@ information criterion, which prices both the extra slope and the extra breakpoin
 for every order examined is retained, so the choice can be audited.
 
 Two constraints are enforced during the search because they are exact, not preferences: the fit
-is pinned at the symmetric split, and it may not leave the interval ``(0, 1)``, outside which the
+is pinned to one half at the symmetric split — for a dataset whose complete pairs begin above
+it the identity has no abscissa to act on, and that curve is fitted unpinned — and it may not leave the interval ``(0, 1)``, outside which the
 temperature ratio relation is undefined. Since a piecewise-linear function attains its extrema at
 its pivots, the bound is tested exactly rather than sampled.
 

@@ -16,7 +16,7 @@ The method, its conventions and its equation numbering are those of A. Tudora an
 *Eur. Phys. J. A* **60**, 190 (2024),
 [doi:10.1140/epja/s10050-024-01375-7](https://doi.org/10.1140/epja/s10050-024-01375-7), and this
 package reproduces the results published there: the total average temperature ratios of its
-Tables 1 and 2 come back to better than one per cent for ²³³U(nth,f), ²⁵²Cf(sf) and ²³⁵U(nth,f).
+Tables 1 and 2 come back to within 1.1 % for ²³³U(nth,f), ²⁵²Cf(sf) and ²³⁵U(nth,f).
 The [validation status](#validation-status) below states exactly what has been checked against the
 paper and what has not.
 
@@ -351,6 +351,7 @@ label = "K. Nishio 1998"
 kind = "dataset"             # or "systematic_trend"
 pooled = true
 segments = 5
+pinned_at_symmetric_split = true   # false for a dataset whose complete pairs begin above A0/2
 temperature_ratio_file = "R_T_vs_A_H_segmented_....csv"
 multiplicity_ratio_pivots_file = "r_nu_vs_A_H_pivots_....csv"
 ```
@@ -398,7 +399,7 @@ and `R_T` follows by the relation above.
 
 Constraints that are exact are enforced rather than fitted: the charge polarization vanishes at
 the symmetric split, where the two fragments are the same nuclide; `r_ν` is pinned to one half
-there; and the fitted curve may not leave `(0, 1)`, outside which the relation above is
+there, for every curve whose data reach it; and the fitted curve may not leave `(0, 1)`, outside which the relation above is
 undefined. Together these make `R_T(A₀/2) = 1` hold exactly, as an outcome rather than an
 imposition.
 
@@ -437,17 +438,20 @@ Verified:
   again near the most probable fragmentation, and a near-linear rise above it.
 - Sensitivity to the charge polarization. Substituting a tabulated polarization for the average
   values moves `R_T(A_H)` by at most 3.4 %, with a median of 0.27 %, worst at the shell minimum.
-- **The published total averages, to better than one per cent.** The `⟨R_T⟩` of Table 1 of the
+- **The published total averages, to within 1.1 %.** The `⟨R_T⟩` of Table 1 of the
   paper, per `ν(A)` dataset and per `Y(A)` distribution, comes back from independently retrieved
   archive data:
 
   | System | `Y(A)` | Datasets compared | Largest deviation |
   |---|---|---|---|
-  | ²³³U(nth,f) | Surin | 3 of 3 | 0.60 % |
+  | ²³³U(nth,f) | Surin | 3 of 3 | 1.09 % |
   | ²⁵²Cf(sf) | Göök | 4 of 5 | 0.55 % |
-  | ²³⁵U(nth,f) | Al-Adili, Straede | 2 of 3 | 1.05 % |
+  | ²³⁵U(nth,f) | Al-Adili, Straede | 2 of 3 | 1.00 % |
 
   ![Published comparison](docs/src/assets/published_comparison.png)
+
+  The 1.09 % is Fraser's 233-U set, which quotes no uncertainties, has fifteen usable fragment
+  pairs, and carries ±0.25 in the published table; the other two 233-U rows are within 0.60 %.
 
   Table 2 reproduces too: the Gilbert-Cameron variant to 0.21 %, and the one-charge-per-mass
   variant to 0.80 %. The remaining datasets could not be compared because the archive query did
@@ -470,11 +474,11 @@ Verified:
 
 Not verified:
 
-- **²³⁹Pu(nth,f) is not reproduced to the same level**, deviating by 0.7 % to 2.1 %. The published
-  table averages over a yield distribution its caption does not name, and over a second that is
-  calculated rather than measured and so cannot be retrieved; neither distribution used here is
-  demonstrably the one it used. This is an input identification problem rather than a
-  disagreement about the method, but it is unresolved.
+- **²³⁹Pu(nth,f) is reproduced only in part.** The published table averages over a yield
+  distribution its caption does not name, and over a second that is calculated and cannot be
+  retrieved. With the Nishio 1995 `Y(A)`, the Nishio `ν(A)` row comes back to 0.09 % and Fraser to
+  0.7 %, but Apalin and Zamyatnin deviate by 2.0 % and 2.1 %, so the identification of the yield
+  distribution stays open.
 - The effect of using the undeformed Gilbert-Cameron correlation for every fragment. That paper
   fits a second line for deformed nuclei, Eq. (21), with the same slope and an offset some fifteen
   per cent lower. Applying Eq. (20) throughout is deliberate — the data behind the deformed branch

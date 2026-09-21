@@ -209,9 +209,14 @@ function run_pipeline(
         curve = r_ν[index]
         windows =
             settings.windows_apply_to_datasets ? settings.required_windows : UnitRange{Int}[]
-        segmented = _segment(curve, R_a, settings, curve.label, windows)
+        segmented = _segment(curve, R_a, settings, curve.label, windows, A₀)
         segmented === nothing && continue
         push!(segmented_curves, segmented)
+    end
+    unpinned = [c.label for c in segmented_curves if c.fit.pinned_value === nothing]
+    if settings.pin_symmetric_split && !isempty(unpinned)
+        @info "fitted without the pin: no complete pair at the symmetric split" datasets =
+            unpinned
     end
 
     # One curve following the systematic behaviour of the ratio: the minimum at the heavy magic
@@ -233,11 +238,11 @@ function run_pipeline(
         ArgumentError("every usable dataset is excluded from the pooling by configuration")
     )
     pooled = consensus(r_ν[admitted]; label = TREND_LABEL)
-    trend = _segment(pooled, R_a, settings, TREND_LABEL, settings.required_windows)
+    trend = _segment(pooled, R_a, settings, TREND_LABEL, settings.required_windows, A₀)
     if trend === nothing && !isempty(settings.required_windows)
         @warn "no segmented curve satisfies the required windows; the systematic-trend curve \
                was fitted without them" windows = settings.required_windows
-        trend = _segment(pooled, R_a, settings, TREND_LABEL, UnitRange{Int}[])
+        trend = _segment(pooled, R_a, settings, TREND_LABEL, UnitRange{Int}[], A₀)
     end
     trend === nothing || push!(segmented_curves, trend)
 
@@ -250,7 +255,7 @@ function run_pipeline(
             curve.fit.breakpoints reduced_chi_squared = curve.fit.wrss / curve.fit.dof
     end
 
-    diagnostics = _symmetry_diagnostics(configuration, domain, R_a, first(segmented_curves).fit)
+    diagnostics = _symmetry_diagnostics(configuration, domain, R_a, segmented_curves)
     for (key, message) in diagnostics["warnings"]
         @warn message identity = key
     end
@@ -316,13 +321,19 @@ end
 
 # Fit one ratio curve and carry it through to the temperature ratio. Returns nothing when the
 # curve cannot support a fit at all, which happens for datasets covering only a few mass pairs.
+#
+# `fit_segments` pins at the first abscissa it is given. r_ν = 1/2 is an identity at A₀/2 only, so
+# the pin is applied to a curve whose first complete pair is the symmetric split and to no other;
+# a dataset starting above it is fitted unpinned.
 function _segment(
     curve::RatioCurve,
     R_a::AbstractDict{Int,Float64},
     settings::SegmentSettings,
     label::AbstractString,
     windows::Vector{UnitRange{Int}},
+    A₀::Integer,
 )
+    pinned = settings.pin_symmetric_split && !isempty(curve) && 2 * first(curve.A_H) == A₀
     fit = try
         fit_segments(
             curve.A_H,
@@ -330,7 +341,7 @@ function _segment(
             curve.σ;
             max_segments = settings.max_segments,
             min_points_per_segment = settings.min_points_per_segment,
-            pinned_value = settings.pin_symmetric_split ? 0.5 : nothing,
+            pinned_value = pinned ? 0.5 : nothing,
             required_windows = windows,
             parsimony = settings.parsimony,
             bounds = (0.0, 1.0),
@@ -352,7 +363,7 @@ function _symmetry_diagnostics(
     configuration::Configuration,
     domain::FragmentationDomain,
     R_a::AbstractDict{Int,Float64},
-    fit::SegmentedFit,
+    curves::Vector{SegmentedCurve},
 )
     warnings = Pair{String,String}[]
     checks = Dict{String,Any}()
@@ -382,9 +393,18 @@ function _symmetry_diagnostics(
                      must be exactly one",
             )
         end
-        if first((x -> [fit.x₀; x])(fit.breakpoints)) == A_sym && fit.pinned_value !== nothing
-            checks["r_nu_pinned_at_symmetry"] = fit.pinned_value
-        end
+        checks["r_nu_pinned_at_symmetry"] = [
+            c.label for c in curves if c.fit.pinned_value !== nothing && c.fit.x₀ == A_sym
+        ]
+    end
+    # A pin anywhere but the symmetric split asserts r_ν = 1/2 where no identity holds.
+    for c in curves
+        c.fit.pinned_value === nothing && continue
+        2 * c.fit.x₀ == A₀ || push!(
+            warnings,
+            "pin" => "the curve \"$(c.label)\" is pinned at A_H = $(c.fit.x₀), which is not the \
+                 symmetric split of A₀ = $(A₀)",
+        )
     end
 
     checks["warnings"] = warnings
@@ -411,6 +431,7 @@ function _write_manifest(
             "kind" => trend ? "systematic_trend" : "dataset",
             "pooled" => trend || !haskey(result.configuration.excluded_datasets, label),
             "segments" => segments(curve.fit),
+            "pinned_at_symmetric_split" => curve.fit.pinned_value !== nothing,
             "breakpoints" => curve.fit.breakpoints,
             # Parallel arrays rather than pairs: a mixed array of integers and floats is
             # promoted to floats on serialization, and a mass number is not a float.

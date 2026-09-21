@@ -89,6 +89,19 @@ names while refusing old keys is worse to debug than a clean break.
 
 ### Fixed
 
+- **The pin `r_ν = 1/2` was applied at the first abscissa of each dataset, not at the symmetric
+  split.** `r_ν = 1/2` is an identity at `A₀/2` only, but a dataset whose first complete fragment
+  pair lies above it was pinned to one half there: 235-U Nishio 1998 at `A_H = 126`, where the
+  measured ratio is 0.28, 252-Cf Britt 1964 at 136, and eleven others across the four shipped
+  systems. **This moves the numbers** of those thirteen curves — `R_T(A_H)` near the first
+  abscissa by tens of per cent, `⟨R_T⟩` by up to 31 % for the sparsest sets — and leaves every
+  curve that starts at the symmetric split, and every systematic-trend curve, unchanged. Such
+  datasets are now fitted unpinned, the run reports which, and each manifest entry carries
+  `pinned_at_symmetric_split`. Against Table 1 of the paper the 239-Pu Nishio row moves from
+  2.0 % to 0.09 %, 235-U Nishio from 0.78 % and 1.05 % to 0.56 % and 1.00 %, and 233-U Fraser from
+  0.27 % to 1.09 %.
+- The published total averages are now asserted by the test suite, where the input data is
+  present, instead of being compared by the documentation script only.
 - Tick labels of adjacent panels ran together in the method-chain figure. The row gaps were being
   set by index before the legend was added, which renumbers them, so the gap that was tightened
   was not the one intended.
