@@ -140,9 +140,20 @@ reported for every dataset, and exclusions are named explicitly rather than infe
 
 ## References
 
-- Eur. Phys. J. A **60**, 190 (2024) — the method and its conventions.
-- T. von Egidy, D. Bucurescu, Phys. Rev. C **80**, 054310 (2009) — level density systematics.
-- A. C. Wahl, At. Data Nucl. Data Tables **38**, 1 (1988) — charge polarization and dispersion.
-- V. M. R. Muggeo, Stat. Med. **22**, 3055 (2003) — regression with unknown breakpoints.
-- G. Schwarz, Ann. Stat. **6**, 461 (1978) — the information criterion.
-- R. DerSimonian, N. Laird, Control. Clin. Trials **7**, 177 (1986) — the between-set variance.
+- Eur. Phys. J. A **60**, 190 (2024),
+  [doi:10.1140/epja/s10050-024-01375-7](https://doi.org/10.1140/epja/s10050-024-01375-7) — the
+  method and its conventions.
+- T. von Egidy, D. Bucurescu, Phys. Rev. C **80**, 054310 (2009),
+  [doi:10.1103/PhysRevC.80.054310](https://doi.org/10.1103/PhysRevC.80.054310) — level density
+  systematics.
+- A. C. Wahl, At. Data Nucl. Data Tables **39**, 1 (1988),
+  [doi:10.1016/0092-640X(88)90016-2](https://doi.org/10.1016/0092-640X(88)90016-2) — charge
+  polarization and dispersion.
+- V. M. R. Muggeo, Stat. Med. **22**, 3055 (2003),
+  [doi:10.1002/sim.1545](https://doi.org/10.1002/sim.1545) — regression with unknown breakpoints.
+- G. Schwarz, Ann. Stat. **6**, 461 (1978),
+  [doi:10.1214/aos/1176344136](https://doi.org/10.1214/aos/1176344136) — the information
+  criterion.
+- R. DerSimonian, N. Laird, Control. Clin. Trials **7**, 177 (1986),
+  [doi:10.1016/0197-2456(86)90046-2](https://doi.org/10.1016/0197-2456(86)90046-2) — the
+  between-set variance.

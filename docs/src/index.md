@@ -32,7 +32,7 @@ result = run_pipeline(configuration)
 or, from a shell,
 
 ```
-julia --project scripts/run.jl config/U233_nth.toml
+julia scripts/run.jl config/U233_nth.toml
 ```
 
 Results, figures and run metadata are written under `results/` and `plots/`, in a subdirectory

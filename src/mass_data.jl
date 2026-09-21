@@ -84,8 +84,9 @@ end
 Shell corrections `S_N` and `S_Z` tabulated against nucleon number, as used by the
 Gilbert-Cameron level density systematic.
 
-The values are those of Gilbert and Cameron, Can. J. Phys. **43**, 1446 (1965), as distributed in
-the IAEA Reference Input Parameter Library, segment on level densities.
+The values are those of Gilbert and Cameron, Can. J. Phys. **43**, 1446 (1965),
+doi:10.1139/p65-139, as distributed in the IAEA Reference Input Parameter Library, segment on
+level densities.
 
 # Fields
 

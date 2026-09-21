@@ -4,7 +4,8 @@
     ChargeDistribution
 
 Tabulated charge polarization `ΔZ(A)` and Gaussian dispersion `σ_Z(A)` of the isobaric charge
-distribution, after Wahl, At. Data Nucl. Data Tables **38**, 1 (1988).
+distribution, after Wahl, At. Data Nucl. Data Tables **39**, 1 (1988),
+doi:10.1016/0092-640X(88)90016-2.
 
 `fallback_ΔZ` and `fallback_σ_Z` are used for every mass number absent from the table. The
 fallback is the average behaviour quoted in the literature, `|ΔZ| = 0.5` with the sign of the

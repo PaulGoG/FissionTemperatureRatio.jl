@@ -86,8 +86,7 @@ Combine several measurements of the same ratio into one curve, mass number by ma
 
 At each mass number the available values are combined by inverse-variance weighting with an
 additional between-dataset variance `τ²`, estimated from their dispersion after DerSimonian and
-Laird,
-Control. Clin. Trials **7**, 177 (1986):
+Laird, Control. Clin. Trials **7**, 177 (1986), doi:10.1016/0197-2456(86)90046-2:
 
 ```
 w = 1 / (σ² + τ²),    r̄ = Σ w r / Σ w,    σ_r̄ = (Σ w)^(-1/2).

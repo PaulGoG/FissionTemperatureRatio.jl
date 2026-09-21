@@ -12,6 +12,111 @@ Extraction of the temperature ratio `R_T = T_L/T_H` of complementary fully accel
 fragments from experimental prompt neutron multiplicity data, described by joined straight
 segments.
 
+```
+FissionTemperatureRatio/
+├── config/          pipeline configurations, one TOML file per fissioning system
+├── data/            input data, held locally; README.md records sources and terms
+├── scripts/run.jl   pipeline entry point, own environment with the plotting stack
+├── src/             configuration, physics, segmented fit, pipeline, provenance
+├── ext/             CairoMakie extension: figures
+├── test/            test suite, own environment
+├── bench/           benchmarks, own environment
+├── docs/            Documenter site, own environment; assets.jl regenerates the figures below
+├── formatter/       JuliaFormatter environment used by check.jl
+├── check.jl         format, then test
+├── activate.jl      activate and instantiate the root environment
+└── Project.toml     dependencies and compatibility bounds
+```
+
+The full tree is at the [end of this file](#full-file-tree). Generated output is written to
+`results/` and `plots/`, neither of which is version-controlled.
+
+## Environments
+
+Each environment carries an activation script that activates and instantiates it silently. The
+first instantiation resolves and precompiles, and is slow.
+
+```
+julia activate.jl
+julia scripts/activate.jl
+julia test/activate.jl
+julia docs/activate.jl
+julia bench/activate.jl
+```
+
+Every runnable script activates its own environment as its first statement, so every command
+below runs as written, with no project flag. For an interactive session on the package,
+`julia -i activate.jl`.
+
+Resolved manifests are not version-controlled: the package supports a range of Julia versions and
+a manifest is resolved against one of them, so committing one would break instantiation on the
+others. Each run copies the resolved manifest of the environment it ran in beside its results,
+as `environment_<run>.toml`, so a result stays attributable to the exact dependency versions
+that produced it.
+
+The formatting environment under `formatter/` is instantiated by `check.jl` and by CI; it is not
+one you normally activate by hand.
+
+Each auxiliary environment takes the package through a relative `[sources]` entry, so it runs
+against the local source and not a registered snapshot. That key is honoured from Pkg 1.11,
+which is the declared floor. The activation scripts resolve before instantiating, because a
+dependency added to the package otherwise leaves their manifests stale.
+
+## Entry points
+
+Run the pipeline for one fissioning nucleus:
+
+```
+julia scripts/run.jl config/U233_nth.toml
+```
+
+Run the test suite:
+
+```
+julia -e 'include("activate.jl"); using Pkg; Pkg.test()'
+```
+
+Apply the formatting gate and then the tests, as CI does:
+
+```
+julia check.jl
+```
+
+Run the benchmarks:
+
+```
+julia bench/benchmarks.jl
+```
+
+Build the documentation:
+
+```
+julia docs/make.jl
+```
+
+Regenerate the figures shown above, from the configuration and the input data:
+
+```
+julia docs/assets.jl
+```
+
+## Status
+
+| Component | State |
+|---|---|
+| Mass excess and charge distribution input | complete |
+| Level density parameter, back-shifted Fermi gas | complete |
+| Level density parameter, Gilbert-Cameron | complete |
+| Fragmentation range and isobaric charge distribution | complete |
+| Multiplicity ratio and temperature ratio | complete |
+| Segmented description with order selection | complete |
+| Pipeline, tabulated output, figures, provenance | complete |
+| Per-dataset and systematic-trend curves | complete |
+| Averaging over a fragment mass yield distribution | complete |
+| Reproduction of published total averages | complete for 233-U, 252-Cf and 235-U; see the validation status |
+
+## Results at a glance
+
 The method, its conventions and its equation numbering are those of A. Tudora and P. Gogita,
 *Eur. Phys. J. A* **60**, 190 (2024),
 [doi:10.1140/epja/s10050-024-01375-7](https://doi.org/10.1140/epja/s10050-024-01375-7), and this
@@ -42,143 +147,18 @@ information criterion, which prices every added segment and every added breakpoi
 systems do not stop at the same order — five, six, four and five — which is why they are shown
 together.
 
-```
-FissionTemperatureRatio/
-├── .github/                        continuous integration and dependency updates
-│   ├── dependabot.yml
-│   └── workflows/                  CI.yml (tests, docs) and format.yml (formatting gate)
-├── .JuliaFormatter.toml            formatting rules, enforced by check.jl and CI
-├── activate.jl                     activate and instantiate the root environment
-├── CHANGELOG.md                    notable changes, and what was corrected in the rewrite
-├── CITATION.cff                    how to cite this package and the method
-├── check.jl                        pre-commit: format, then test
-├── LICENSE                         MIT, covering the source code only
-├── Project.toml                    dependencies and compatibility bounds
-├── bench/                          benchmark suite, own environment
-│   ├── activate.jl
-│   ├── benchmarks.jl
-│   └── Project.toml
-├── config/                         pipeline configurations, one per fissioning system
-│   ├── Cf252_sf.toml
-│   ├── Pu239_nth.toml
-│   ├── U233_nth.toml
-│   └── U235_nth.toml
-├── data/                           input data, held locally and not version-controlled
-│   └── README.md                   what each input file is, where it comes from, its terms
-├── docs/                           Documenter site, own environment
-│   ├── activate.jl
-│   ├── assets.jl                   regenerates the figures the README shows
-│   ├── make.jl
-│   ├── Project.toml
-│   └── src/                        index, method, naming, reference; src/assets/ for figures
-├── ext/                            weak-dependency extensions
-│   └── FissionTemperatureRatioCairoMakieExt.jl   publication figures, loaded with CairoMakie
-├── formatter/                      JuliaFormatter environment, version-bounded
-│   ├── activate.jl
-│   └── Project.toml
-├── scripts/
-│   └── run.jl                      pipeline entry point
-├── src/
-│   ├── configuration.jl            TOML configuration, parsed and validated
-│   ├── consensus.jl                combining datasets, and the diagnostics describing them
-│   ├── FissionTemperatureRatio.jl  module definition and public interface
-│   ├── fragmentation.jl            fragmentation range and isobaric charge distribution
-│   ├── level_density.jl            level density parameter models
-│   ├── mass_data.jl                mass excess and shell correction input
-│   ├── multiplicity_ratio.jl       ν(A) input and the multiplicity ratio
-│   ├── pipeline.jl                 the run, from input to tabulated output
-│   ├── plotting.jl                 figure interface; the implementation is in ext/
-│   ├── provenance.jl               run identification and metadata
-│   ├── segmented_fit.jl            continuous piecewise-linear regression
-│   ├── temperature_ratio.jl        level density parameter ratio and R_T
-│   └── yields.jl                   Y(A) input and the total average of a ratio curve
-└── test/                           test suite, own environment
-```
-
-Generated output is written to `results/` and `plots/`, neither of which is version-controlled.
-
 ## Figures
 
 The plotting stack is a weak dependency, so `using FissionTemperatureRatio` loads in about a
-second and pulls in no graphics. Figures come from an extension that appears as soon as CairoMakie
-is loaded alongside the package:
+second and pulls in no graphics. Figures come from an extension that loads with CairoMakie:
 
 ```julia
 using FissionTemperatureRatio, CairoMakie
 ```
 
-`scripts/run.jl` loads it when the environment provides it and says so when it does not; the run
-writes every table and its metadata either way. Because CairoMakie is not a dependency of this
-project, install it into your default environment, which stays on the load path alongside the
-active project:
-
-```
-julia -e 'using Pkg; Pkg.add("CairoMakie")'
-```
-
-## Environments
-
-Each environment carries an activation script that activates and instantiates it silently. The
-first instantiation resolves and precompiles, and is slow.
-
-Resolved manifests are not version-controlled: the package supports a range of Julia versions and
-a manifest is resolved against one of them, so committing one would break instantiation on the
-others. The dependency versions a run actually used are recorded in its metadata, so a result
-stays attributable to the code that produced it.
-
-```
-julia --project -e 'include("activate.jl")'
-julia --project=test -e 'include("test/activate.jl")'
-julia --project=docs -e 'include("docs/activate.jl")'
-julia --project=bench -e 'include("bench/activate.jl")'
-```
-
-The formatting environment under `formatter/` is instantiated by `check.jl` and by CI; it is not
-one you normally activate by hand.
-
-Each auxiliary environment points at the package with a relative `[sources]` entry, so they run
-against the local source rather than a registered snapshot. That key is honoured from Pkg 1.11,
-which is the declared floor: below it `Pkg.test` refuses to merge a test project carrying the key,
-and the alternative — developing the package by path — writes a machine-specific absolute path
-into a version-controlled file.
-
-## Entry points
-
-Run the pipeline for one fissioning nucleus:
-
-```
-julia --project scripts/run.jl config/U233_nth.toml
-```
-
-Run the test suite:
-
-```
-julia --project -e 'using Pkg; Pkg.test()'
-```
-
-Apply the formatting gate and then the tests, as CI does:
-
-```
-julia check.jl
-```
-
-Run the benchmarks:
-
-```
-julia --project=bench bench/benchmarks.jl
-```
-
-Build the documentation:
-
-```
-julia --project=docs docs/make.jl
-```
-
-Regenerate the figures shown above, from the configuration and the input data:
-
-```
-julia --project=docs docs/assets.jl
-```
+`scripts/run.jl` runs in the environment under `scripts/`, which carries CairoMakie, so a
+pipeline run always writes its figures. A caller using the package as a library gets tables and
+metadata without it, and figures with it.
 
 ## Input data
 
@@ -301,8 +281,7 @@ selection criterion charges per parameter: at one it is the criterion as publish
 added segment must buy more of a fit to be worth its parameters. `required_windows` places a
 breakpoint where physics says there is one — the minimum at the heavy magic fragment, `A_H` near
 130, fixed by the `Z = 50`, `N = 82` shell closure — and `windows_apply_to_datasets` extends that
-from the trend curve to every dataset. The first refuses structure the data does not earn; the
-second insists on structure the data ought to show.
+from the trend curve to every dataset.
 
 The `[yield]` section is optional. Given a directory of pre-neutron mass yield distributions, the
 run also reports the total average `⟨R_T⟩ = Σ Y(A_H) R_T(A_H) / Σ Y(A_H)` for every combination of
@@ -492,20 +471,30 @@ Not verified:
 - The path for a fissioning nucleus of odd mass number is covered only by unit tests; no such case
   exists in the data.
 
-## Status
+## How to cite
 
-| Component | State |
-|---|---|
-| Mass excess and charge distribution input | complete |
-| Level density parameter, back-shifted Fermi gas | complete |
-| Level density parameter, Gilbert-Cameron | complete |
-| Fragmentation range and isobaric charge distribution | complete |
-| Multiplicity ratio and temperature ratio | complete |
-| Segmented description with order selection | complete |
-| Pipeline, tabulated output, figures, provenance | complete |
-| Per-dataset and systematic-trend curves | complete |
-| Averaging over a fragment mass yield distribution | complete |
-| Reproduction of published total averages | complete for 233-U, 252-Cf and 235-U; see the validation status |
+Cite the method paper, and the software when a result depends on this implementation.
+`CITATION.cff` carries the same records.
+
+```bibtex
+@article{Tudora2024,
+  author  = {Tudora, Anabella and Gogita, Paul},
+  title   = {Temperature ratio {$R_T = T_L/T_H$} of fully accelerated complementary fragments (used for {TXE} partition) obtained independently of prompt emission model calculations},
+  journal = {The European Physical Journal A},
+  volume  = {60},
+  pages   = {190},
+  year    = {2024},
+  doi     = {10.1140/epja/s10050-024-01375-7}
+}
+
+@software{FissionTemperatureRatio,
+  author  = {Gog{\^i}{\c{t}}{\u{a}}, Paul-Adrian},
+  title   = {FissionTemperatureRatio.jl},
+  version = {0.1.0},
+  year    = {2026},
+  url     = {https://github.com/PaulGoG/FissionTemperatureRatio.jl}
+}
+```
 
 ## Licensing
 
@@ -517,3 +506,65 @@ and every prompt neutron multiplicity and fragment mass yield measurement are th
 scientific data, held locally and not redistributed here — `data/` carries only its own README.
 That file records what each input is, where it came from and how it should be cited; any result
 derived from a measurement should cite that measurement.
+
+## Full file tree
+
+<details>
+<summary>Every tracked directory and entry file</summary>
+
+```
+FissionTemperatureRatio/
+├── .github/                        continuous integration and dependency updates
+│   ├── dependabot.yml
+│   └── workflows/                  CI.yml (tests, docs) and format.yml (formatting gate)
+├── .JuliaFormatter.toml            formatting rules, enforced by check.jl and CI
+├── activate.jl                     activate and instantiate the root environment
+├── CHANGELOG.md                    notable changes, and what was corrected in the rewrite
+├── CITATION.cff                    how to cite this package and the method
+├── check.jl                        pre-commit: format, then test
+├── LICENSE                         MIT, covering the source code only
+├── Project.toml                    dependencies and compatibility bounds
+├── bench/                          benchmark suite, own environment
+│   ├── activate.jl
+│   ├── benchmarks.jl
+│   └── Project.toml
+├── config/                         pipeline configurations, one per fissioning system
+│   ├── Cf252_sf.toml
+│   ├── Pu239_nth.toml
+│   ├── U233_nth.toml
+│   └── U235_nth.toml
+├── data/                           input data, held locally and not version-controlled
+│   └── README.md                   what each input file is, where it comes from, its terms
+├── docs/                           Documenter site, own environment
+│   ├── activate.jl
+│   ├── assets.jl                   regenerates the figures the README shows
+│   ├── make.jl
+│   ├── Project.toml
+│   └── src/                        index, method, naming, reference; src/assets/ for figures
+├── ext/                            weak-dependency extensions
+│   └── FissionTemperatureRatioCairoMakieExt.jl   publication figures, loaded with CairoMakie
+├── formatter/                      JuliaFormatter environment, version-bounded
+│   ├── activate.jl
+│   └── Project.toml
+├── scripts/                        pipeline entry point, own environment
+│   ├── activate.jl
+│   ├── Project.toml
+│   └── run.jl                      pipeline entry point
+├── src/
+│   ├── configuration.jl            TOML configuration, parsed and validated
+│   ├── consensus.jl                combining datasets, and the diagnostics describing them
+│   ├── FissionTemperatureRatio.jl  module definition and public interface
+│   ├── fragmentation.jl            fragmentation range and isobaric charge distribution
+│   ├── level_density.jl            level density parameter models
+│   ├── mass_data.jl                mass excess and shell correction input
+│   ├── multiplicity_ratio.jl       ν(A) input and the multiplicity ratio
+│   ├── pipeline.jl                 the run, from input to tabulated output
+│   ├── plotting.jl                 figure interface; the implementation is in ext/
+│   ├── provenance.jl               run identification and metadata
+│   ├── segmented_fit.jl            continuous piecewise-linear regression
+│   ├── temperature_ratio.jl        level density parameter ratio and R_T
+│   └── yields.jl                   Y(A) input and the total average of a ratio curve
+└── test/                           test suite, own environment
+```
+
+</details>

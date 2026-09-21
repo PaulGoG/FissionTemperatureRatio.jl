@@ -19,7 +19,9 @@ abstract type LevelDensityModel end
     BackShiftedFermiGas <: LevelDensityModel
 
 Back-shifted Fermi gas systematic of von Egidy and Bucurescu, Phys. Rev. C **72**, 044311 (2005),
-erratum Phys. Rev. C **73**, 049901 (2006), and Phys. Rev. C **80**, 054310 (2009),
+doi:10.1103/PhysRevC.72.044311, erratum Phys. Rev. C **73**, 049901 (2006),
+doi:10.1103/PhysRevC.73.049901, and Phys. Rev. C **80**, 054310 (2009),
+doi:10.1103/PhysRevC.80.054310,
 
 ```
 a = (p₁ + p₂ δW) A^p₃,   δW = δW₀ + P_d,
@@ -42,9 +44,9 @@ The shift does not cancel in the ratio, since `E1` depends on the fragment throu
 `E1_L ≠ E1_H`. It is of order ±1 MeV against fragment excitations of 10-20 MeV, and its effect on
 `R_T` has not been quantified.
 
-For the majority of nuclei occurring as fission
-fragments this systematic reproduces the superfluid-model level density parameter at the
-excitation energies fragments actually attain, which is why it is the default here.
+For the majority of nuclei occurring as fission fragments this systematic reproduces the
+superfluid-model level density parameter at the excitation energies fragments actually attain,
+which is why it is the default here.
 """
 struct BackShiftedFermiGas <: LevelDensityModel
     masses::MassExcessTable
@@ -55,8 +57,9 @@ end
 
 Coefficients of the liquid-drop binding energy entering the shell correction of
 [`BackShiftedFermiGas`](@ref): volume, surface, Coulomb, and the two coefficients of the
-mass-dependent symmetry term `a_sym = A (c₁ - c₂ A^(-1/3))`. Values in MeV, after Myers and
-Swiatecki.
+mass-dependent symmetry term `a_sym = A (c₁ - c₂ A^(-1/3))`. Values in MeV, from the liquid-drop
+mass formula of J. M. Pearson, Hyperfine Interact. **132**, 59 (2001),
+doi:10.1023/A:1011973100463, as adopted in Phys. Rev. C **72**, 044311 (2005).
 """
 struct LiquidDropCoefficients
     volume::Float64
@@ -142,7 +145,8 @@ end
 """
     GilbertCameron <: LevelDensityModel
 
-Level density systematic of Gilbert and Cameron, Can. J. Phys. **43**, 1446 (1965), Eq. (20),
+Level density systematic of Gilbert and Cameron, Can. J. Phys. **43**, 1446 (1965),
+doi:10.1139/p65-139, Eq. (20),
 
 ```
 a = A [c₁ (S_Z + S_N) + c₂],

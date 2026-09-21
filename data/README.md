@@ -54,7 +54,8 @@ Distributed by the Atomic Mass Data Center.
 **`<system>/charge_distribution_vs_A.dat`** — charge polarization `ΔZ(A)` and the Gaussian
 dispersion `σ_Z(A)` of the isobaric charge distribution, held for `U235_nth`, `Pu239_nth` and
 `Cf252_sf`.
-A. C. Wahl, *Atomic Data and Nuclear Data Tables* **38**, 1–156 (1988).
+A. C. Wahl, *Atomic Data and Nuclear Data Tables* **39**, 1–156 (1988),
+[doi:10.1016/0092-640X(88)90016-2](https://doi.org/10.1016/0092-640X(88)90016-2).
 These are the per-reaction least-squares fits, not the CYF systematics.
 
 **`U233_nth/charge_distribution_vs_A_wahl_systematics.dat`** — a *generated* table, not an
