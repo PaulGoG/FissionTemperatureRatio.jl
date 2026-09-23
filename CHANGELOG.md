@@ -8,11 +8,42 @@ Notable changes to FissionTemperatureRatio.jl. The format follows
 
 ### Added
 
-- `parsimony`, multiplying the penalty the selection criterion charges per parameter, as the knob
-  for biasing the number of segments downwards. One is the criterion as published. A flat offset
-  was tried first and rejected: it scales neither with sample size nor with how many parameters a
-  segment costs, and on this data the criterion prefers five segments to four by a margin already
-  counted as very strong evidence, so no conventional offset moves it.
+- A run is one directory. `scripts/run.jl` writes the tables, the manifest and the provenance
+  record to `data/sims/<system>/<run identifier>/` and the figures to
+  `plots/<system>/<run identifier>/`. An existing run of the same identifier is moved aside as
+  `<run identifier>#1`, `#2`, …, so no run is overwritten. The provenance record `metadata.toml`
+  holds `run_metadata(result)`, the identifier, the configuration and script paths, a timestamp,
+  the git commit through DrWatson's `tag!`, and the platform: Julia version, hostname, kernel,
+  machine, CPU model and threads, Julia and BLAS threads, memory, and `versioninfo()`. A copy of the
+  configuration sits beside it as `configuration.toml`.
+- `segments.min_segment_span`, the smallest extent of a segment in mass units from its first pivot
+  to its last, 1 to 50, default 3. It acts where abscissae repeat or the point count is set below
+  four; otherwise it coincides with the point guard.
+- `segments.min_dataset_coverage`, the fraction of the mass numbers of the fragmentation range at
+  which a dataset must provide a complete pair to be offered as a segmented curve, 0 to 1, default
+  0.3. A dataset below it is read, diagnosed and pooled into the trend, but no curve is fitted to
+  it alone: the breakpoint search cannot place the minimum where the data do not reach, and the
+  curve it returns would assert structure between the measurements. All four shipped
+  configurations set both keys explicitly.
+- `covariance(fit, xs)`, the covariance `J Σ Jᵀ` of the fitted values at the abscissae `xs`.
+- `SegmentedCurve(label, fit, R_a)` builds a curve and carries `R_T_covariance`, the covariance of
+  the tabulated temperature ratio, whose diagonal is the square of the tabulated
+  `R_T_uncertainty`. `total_average(curve::SegmentedCurve, yields)` and `range_mean(curve)`
+  propagate it; `TotalAverage` holds `value`, `uncertainty` and `uncertainty_independent_points`,
+  and `ExtractionResult.total_average_R_T` maps curve label and yield label to one.
+- `R_T_uncertainty_independent_points`, a column of `total_average_R_T.csv` beside the
+  covariance-propagated `R_T_uncertainty`: the independent-points form of the published tables,
+  `total_average(curve.R_T, yields)`, kept for comparison with them.
+- `SymmetryDiagnostics`, with fields `charge_set_invariant`, `R_a_at_symmetric_split`,
+  `pinned_curves` and `warnings`, and `ExtractionResult.dataset_outcomes`, stating for every
+  dataset whether it offers a segmented curve and, if not, why. `DatasetDiagnostics` gains
+  `coverage`, and `diagnose` takes the fragmentation range: `diagnose(data, ratio, A₀, A_H_range)`.
+- Manifest fields. Each `[[segmented_curve]]` entry carries `breakpoints`, `pivot_A_H`,
+  `pivot_r_nu`, `reduced_chi_squared`, `first_A_H`, `last_A_H`, `pairs`, `coverage`,
+  `range_mean_R_T` and `total_average_R_T`; `[run]` carries `identifier`, `package_version` and
+  `total_average_R_T_columns`.
+- A DOI-keyed bibliography for the documentation through DocumenterCitations, cited inline on the
+  method page and listed on a references page.
 - `windows_apply_to_datasets`, extending the physics windows that place a breakpoint at the heavy
   magic fragment from the systematic-trend curve to every dataset.
 - `heavy_mass_min`, the smallest heavy-fragment mass number of the fragmentation range. It
@@ -22,14 +53,16 @@ Notable changes to FissionTemperatureRatio.jl. The format follows
 - `system_notation`, the typeset form of a fissioning system — `²⁵²Cf(sf)`, `²³³U(nth,f)` — for a
   figure label or a caption, kept separate from the path token `system_label` so that one name
   does not mean both.
-- `RUN_IDENTIFIER_ABBREVIATIONS`, the one table a run-identifier token is abbreviated through.
-  `run_identifier` refuses a key with no entry rather than inventing a token, and the test suite
-  asserts that every key it uses has one. `parsimony` now appears in the identifier, which it did
-  not, although it changes the result.
+- `RUN_IDENTIFIER_ABBREVIATIONS`, the one table a run-identifier token is abbreviated through,
+  keyed by the key's dotted path in the configuration file: `level_density.ratio_averaging => avg`,
+  `segments.min_dataset_coverage => mincov`. `run_identifier` refuses a key with no entry rather
+  than inventing a token, and the test suite asserts that every key it uses has one.
 - `docs/src/naming.md`, the vocabulary this package applies: quantities, identifier rules,
   configuration rules, file layout and column headers.
-- The output root of a run is configurable, so a caller using the package as a library chooses
-  where results go rather than inheriting the active project.
+- `write_results(result, directory)`, which writes the tables and the manifest of a result into a
+  directory of the caller's choosing and refuses one that already holds files, so a caller using
+  the package as a library chooses where results go rather than inheriting the active project.
+  `run_pipeline` writes nothing.
 - A test that consumes a run the way a downstream code would — reading the manifest and the files
   it names, using no internal function and taking columns by position — and checks the contract
   the README documents: the system is identifiable without parsing a label, every segmented curve
@@ -46,9 +79,9 @@ Notable changes to FissionTemperatureRatio.jl. The format follows
 - `InsufficientDataError`, thrown by `fit_segments` when valid arguments meet data that cannot
   support a fit. The pipeline treats it as an outcome for that dataset; an `ArgumentError` from
   the fit now propagates instead of being reported as a missing curve.
-- Run provenance records `versioninfo()`, takes the commit from the package source tree instead
-  of the active project, and copies the resolved manifest of the active environment beside the
-  results as `environment_<run>.toml`.
+- Run provenance records `versioninfo()` and takes the commit from the package source tree instead
+  of the active project, and `scripts/run.jl` copies the resolved `Manifest.toml` of the scripts
+  environment into the run directory.
 - One multiplicity-ratio and one temperature-ratio figure per dataset, showing its points, its
   segmented fit with the uncertainty band, and the systematic trend as a guide. The overview
   figures now carry the data and the trend only; sixteen fits and bands in one axis were not
@@ -56,6 +89,35 @@ Notable changes to FissionTemperatureRatio.jl. The format follows
 
 ### Changed
 
+- The run identifier is DrWatson's `savename` over every configuration key that changes the
+  result, tokens sorted and joined by `_`. The system is not a token, since it names the directory
+  the identifier sits in, and `significant_digits` is not, since it changes rendering and not the
+  number. A list or a path — the required windows, the exclusion list, the charge distribution
+  file, the yield directory — enters as the first eight hexadecimal digits of the SHA-1 of its
+  canonical spelling, paths relative to the data directory so that the same inputs staged on
+  another machine give the same identifier, and is written in full into `metadata.toml` under
+  `[identifier.hashed]`.
+- The run identifier names the run directory and the manifest, `manifest_<run identifier>.toml`,
+  and no other file: a table is named by its quantity, its abscissa and its label, and the
+  summaries are `total_average_R_T.csv` and `dataset_diagnostics.csv`. A consuming code stages the
+  whole run directory and selects the manifest by its prefix.
+- The configuration loader refuses unknown sections and keys, naming them.
+- An unquoted uncertainty is `missing` in `Multiplicity.σν`, `MassYield.σY` and `RatioCurve.σ`;
+  zero denotes an exact value and occurs only at a pinned abscissa of a fitted curve. Readers store
+  an absent, non-numeric or non-positive uncertainty as `missing`, and a multiplicity file may be
+  `A nu` with no third column. `fit_weights` throws on a quoted zero. Where one fragment of a pair
+  quotes no uncertainty its term is dropped and the propagated value, a lower bound, is carried as
+  quoted, which reproduces the published values for such datasets; where neither does, the ratio's
+  uncertainty is `missing` and the point takes the median weight of the quoted ones. Point-by-point
+  tables write an unquoted uncertainty as an empty field, and the per-dataset figure prints "no
+  quoted uncertainties" in place of a reduced chi-squared for a dataset quoting none.
+- The uncertainty of the total average of a segmented curve propagates the fit covariance: the
+  ratio term is `wᵀ C w`, with `w` the normalized yield weights, in place of a sum of squares over
+  tabulated points that are not independent. The value is unchanged. **This moves the
+  uncertainties**, by a factor of two to five for the shipped systems: ²³³U Nishio 1998 over Surin
+  1972 is `1.1822 ± 0.0050`, against `± 0.0020` in the independent-points form and a published
+  `1.1861 ± 0.0021`; Fraser 1966 is `1.396 ± 0.23`, against `± 0.17` and a published
+  `1.381 ± 0.25`. The range mean is propagated the same way.
 - Figures use the standard layout — a 900 × 600 canvas per panel, 1200 wide above eight legend
   entries, 26 pt type, 3 pt data lines, 14 pt markers with a darker edge — in place of the
   journal-column sizing. Error bars are drawn without caps. `plot_ratio` gains `fit_label`,
@@ -100,7 +162,7 @@ names while refusing old keys is worse to debug than a clean break.
   now says so.
 - Result files state the quantity and the abscissa: `R_T_parameterized_…` →
   `R_T_vs_A_H_segmented_…`, `segments_…` → `r_nu_vs_A_H_pivots_…`, `diagnostics_…` →
-  `dataset_diagnostics_…`. The manifest lists `[[segmented_curve]]` entries and declares the
+  `dataset_diagnostics.csv`. The manifest lists `[[segmented_curve]]` entries and declares the
   ordinate, the abscissa and the column names.
 - Caught exceptions are bound to `exception` rather than `err`, which the naming convention
   forbids as an abbreviation and which the two companion packages do not use either.
@@ -108,6 +170,14 @@ names while refusing old keys is worse to debug than a clean break.
 
 ### Fixed
 
+- The covariance was scaled by χ²/dof even below one, shrinking the band below what the quoted
+  uncertainties support. The coefficient covariance `(XᵀWX)⁻¹` is now scaled by `max(1, χ²/dof)`
+  where the data quote uncertainties, and by `χ²/dof` alone where no point quotes one, since
+  uniform weights carry no scale.
+- Two datasets of one author and year — two subentries of one measurement — shared a label, and a
+  label selects a curve downstream. Each now carries its archive identifier in parentheses. An
+  identifier of nine digits, a pointer within a subentry, is stripped from the label like one of
+  eight.
 - **The pin `r_ν = 1/2` was applied at the first abscissa of each dataset, not at the symmetric
   split.** `r_ν = 1/2` is an identity at `A₀/2` only, but a dataset whose first complete fragment
   pair lies above it was pinned to one half there: 235-U Nishio 1998 at `A_H = 126`, where the
@@ -137,6 +207,14 @@ names while refusing old keys is worse to debug than a clean break.
   corner the quantity leaves empty in every system.
 - The annotation printed a value and its uncertainty at different precisions — `1.18 ± 0.006` —
   because rounding drops a trailing zero. Both are written to the same three decimal places.
+
+### Removed
+
+- `weighted_mean`. The summaries of a segmented curve, `range_mean` and `total_average`,
+  propagate its covariance instead; an inverse-variance mean over correlated points had no
+  meaning.
+- `CITATION.cff`. The README names the author and cites the method paper by its DOI, and the
+  repository by its URL.
 
 ## [0.1.0] - 2026-09-13
 

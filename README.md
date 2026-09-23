@@ -15,13 +15,13 @@ segments.
 ```
 FissionTemperatureRatio/
 ├── config/          pipeline configurations, one TOML file per fissioning system
-├── data/            input data, held locally; README.md records sources and terms
+├── data/            input data, held locally, README.md on sources and terms; sims/ for run output
 ├── scripts/run.jl   pipeline entry point, own environment with the plotting stack
-├── src/             configuration, physics, segmented fit, pipeline, provenance
+├── src/             configuration, physics, segmented fit and curve, pipeline, provenance
 ├── ext/             CairoMakie extension: figures
 ├── test/            test suite, own environment
 ├── bench/           benchmarks, own environment
-├── docs/            Documenter site, own environment; assets.jl regenerates the figures below
+├── docs/            Documenter site, own environment, references.bib; assets.jl renders figures
 ├── formatter/       JuliaFormatter environment used by check.jl
 ├── check.jl         format, then test
 ├── activate.jl      activate and instantiate the root environment
@@ -29,7 +29,7 @@ FissionTemperatureRatio/
 ```
 
 The full tree is at the [end of this file](#full-file-tree). Generated output is written to
-`results/` and `plots/`, neither of which is version-controlled.
+`data/sims/` and `plots/`, neither of which is version-controlled.
 
 ## Environments
 
@@ -50,9 +50,9 @@ below runs as written, with no project flag. For an interactive session on the p
 
 Resolved manifests are not version-controlled: the package supports a range of Julia versions and
 a manifest is resolved against one of them, so committing one would break instantiation on the
-others. Each run copies the resolved manifest of the environment it ran in beside its results,
-as `environment_<run>.toml`, so a result stays attributable to the exact dependency versions
-that produced it.
+others. `scripts/run.jl` copies the resolved manifest of the scripts environment into the run
+directory as `Manifest.toml`, so a result stays attributable to the exact dependency versions that
+produced it.
 
 The formatting environment under `formatter/` is instantiated by `check.jl` and by CI; it is not
 one you normally activate by hand.
@@ -69,6 +69,9 @@ Run the pipeline for one fissioning nucleus:
 ```
 julia scripts/run.jl config/U233_nth.toml
 ```
+
+The tables, the manifest and the provenance record go to `data/sims/<system>/<run identifier>/`
+and the figures to `plots/<system>/<run identifier>/`; see [the run directory](#the-run-directory).
 
 Run the test suite:
 
@@ -117,17 +120,16 @@ julia docs/assets.jl
 
 ## Results at a glance
 
-The method, its conventions and its equation numbering are those of A. Tudora and P. Gogita,
-*Eur. Phys. J. A* **60**, 190 (2024),
-[doi:10.1140/epja/s10050-024-01375-7](https://doi.org/10.1140/epja/s10050-024-01375-7), and this
-package reproduces the results published there: the total average temperature ratios of its
-Tables 1 and 2 come back to within 1.1 % for ²³³U(nth,f), ²⁵²Cf(sf) and ²³⁵U(nth,f).
+The method, its conventions and its equation numbering are those of *Eur. Phys. J. A* **60**, 190
+(2024), [doi:10.1140/epja/s10050-024-01375-7](https://doi.org/10.1140/epja/s10050-024-01375-7),
+and this package reproduces the results published there: the total average temperature ratios of
+its Tables 1 and 2 come back to within 1.1 % for ²³³U(nth,f), ²⁵²Cf(sf) and ²³⁵U(nth,f).
 The [validation status](#validation-status) below states exactly what has been checked against the
 paper and what has not.
 
-Experimental input — prompt neutron multiplicity `ν(A)` and fragment mass yields `Y(A)` — is
-sourced from the IAEA EXFOR archive with
-[ExforFissionData.jl](https://github.com/PaulGoG/ExforFissionData.jl), a companion package that
+Experimental input — prompt neutron multiplicity `ν(A)` and fragment mass yields `Y(A)` — comes
+from the IAEA EXFOR archive through
+[ExforFissionData.jl](https://github.com/PaulGoG/ExforFissionData.jl), the supported route, which
 retrieves fission observables and writes them as tabulated files with a record of every dataset it
 kept or excluded. This package reads those files; it does not query the archive itself.
 
@@ -157,8 +159,8 @@ using FissionTemperatureRatio, CairoMakie
 ```
 
 `scripts/run.jl` runs in the environment under `scripts/`, which carries CairoMakie, so a
-pipeline run always writes its figures. A caller using the package as a library gets tables and
-metadata without it, and figures with it.
+pipeline run always writes its figures. A caller using the package as a library gets the tables,
+the manifest and `run_metadata` without it, and figures through `write_figures` with it.
 
 ## Input data
 
@@ -176,7 +178,7 @@ data/
 │   └── shell_corrections_….dat         n S_N S_Z
 └── <system>/                           Cf252_sf, U233_nth, U235_nth, Pu239_nth
     ├── charge_distribution_vs_A.dat    A dZ sigma_Z
-    ├── nu_vs_A/                        A nu nu_uncertainty
+    ├── nu_vs_A/                        A nu nu_uncertainty, or A nu
     └── Y_vs_A/                         A Y Y_uncertainty        (optional)
 ```
 
@@ -184,12 +186,25 @@ One directory per system, one subdirectory per measured quantity, one file per m
 directory carries the quantity and the file carries the provenance. A file is named
 `<quantity>_vs_<abscissa>`, and an extension states a format and never a nuclide.
 
-The experimental measurements — everything under `nu_vs_A/` and `Y_vs_A/` — are retrieved with
-[ExforFissionData.jl](https://github.com/PaulGoG/ExforFissionData.jl), which writes exactly this
-layout. Each directory also holds the `retrieval.toml` run record naming every dataset the query
-kept or excluded, and every file name carries its EXFOR DatasetID, so a result traces back to an
-archive entry. Files other than `.dat` in those directories are ignored by the readers, so the run
-record sits beside the data it describes.
+The experimental measurements — everything under `nu_vs_A/` and `Y_vs_A/` — come from
+[ExforFissionData.jl](https://github.com/PaulGoG/ExforFissionData.jl), the supported source of
+`ν(A)` and `Y(A)`, which writes exactly this layout. Run its retrieval from its own checkout, with
+the root of this repository as the second argument, the output root:
+
+```
+julia scripts/retrieve.jl config/U233_nth_nu_vs_A.toml /path/to/FissionTemperatureRatio
+```
+
+Each directory also holds the `retrieval.toml` run record naming every dataset the query kept or
+excluded, and every file name carries its EXFOR DatasetID, so a result traces back to an archive
+entry. A DatasetID has eight digits, or nine where it points within a subentry; the dataset label
+drops the leading digits either way, and two files of one author and year keep their DatasetID in
+parentheses so that labels stay unique. Files other than `.dat` in those directories are ignored
+by the readers, so the run record sits beside the data it describes.
+
+A multiplicity file is `A nu nu_uncertainty`, or `A nu` where the measurement quotes no
+uncertainty. An absent, non-numeric or non-positive uncertainty is read as `missing`, never as
+zero, which would denote an exact value.
 
 Readers take columns **by position**, not by header text, so a header rename upstream is a no-op
 here. `docs/src/naming.md` sets out the vocabulary — quantities, identifiers, configuration keys,
@@ -202,9 +217,10 @@ regardless.
 ## Configuration
 
 Every run is driven by a TOML file under `config/`, which fixes the fissioning nucleus, the
-fragmentation range, the level density model, the segment search and the output layout.
-The parser enforces the types, enumerated choices and bounds its comments document, and fails
-naming the offending key, so a run cannot start from a configuration it cannot honour.
+fragmentation range, the level density model, the segment search and the precision of the
+tabulated output. The parser enforces the types, enumerated choices and bounds its comments
+document, refuses unknown sections and keys, and fails naming the offending key, so a run cannot
+start from a configuration it cannot honour.
 
 A system is declared by what was irradiated, not by what fissions: the target, the entrance
 channel and the incident energy. The reaction code, the fissioning nucleus and the system label
@@ -215,8 +231,8 @@ separates a thermal run from a resonance run of the same target, which the react
 alone cannot.
 
 To add a fissioning system, place its ν(A) datasets in `data/<system>/nu_vs_A/` as
-whitespace-separated `A nu nu_uncertainty` tables with one header line, and copy a configuration
-to `config/<system>.toml`.
+whitespace-separated `A nu nu_uncertainty` or `A nu` tables with one header line, and copy a
+configuration to `config/<system>.toml`.
 
 ### Several measurements of one system
 
@@ -231,8 +247,9 @@ consequences shape what the package does.
 
 **How several measurements become one result — and where they do not.** Each dataset is carried
 through the whole chain on its own: its own `r_ν`, its own segmented fit, its own `R_T`, its own
-total average. Those are never merged. What a run offers is one curve per measurement plus one
-more, the systematic trend, and a consuming code takes exactly one of them.
+total average. Those are never merged. What a run offers is one curve per measurement that reaches
+the coverage floor plus one more, the systematic trend, and a consuming code takes exactly one of
+them.
 
 The trend is the only place the measurements are combined, and the combination happens at the
 level of `r_ν`, before any fitting: at each mass number the values from every admitted dataset are
@@ -251,8 +268,9 @@ in units of its own uncertainty: none is consistent with any other, and a reduce
 ranks how generously an author quoted errors rather than how good the measurement is. Every
 dataset is therefore described by structural diagnostics instead — usable fragment pairs and the
 span they cover, points outside the physical range, the departure from one half at the symmetric
-split, and `ν(A) + ν(A₀-A)` against the total multiplicity — written to
-`dataset_diagnostics_<run>.csv` for every dataset whether or not it was used.
+split, and `ν(A) + ν(A₀-A)` against the total multiplicity — written to `dataset_diagnostics.csv`
+for every dataset whether or not it was used, with a last column stating whether it offers a
+segmented curve and, if not, why.
 
 The archive itself is the first filter: the retrieval rejects datasets whose reaction code or
 units say they are not the quantity asked for, and records why. The diagnostics here are the
@@ -273,22 +291,35 @@ exclude = [
 ]
 ```
 
-An excluded dataset is still read, still fitted, still written and still diagnosed. It is excluded
-from the combination, not from the record.
+An excluded dataset is still read, still fitted where its coverage allows, still written and still
+diagnosed. It is excluded from the combination, not from the record.
 
-Two controls bias the choice of how many segments to fit. `parsimony` multiplies the penalty the
-selection criterion charges per parameter: at one it is the criterion as published, above one each
-added segment must buy more of a fit to be worth its parameters. `required_windows` places a
-breakpoint where physics says there is one — the minimum at the heavy magic fragment, `A_H` near
-130, fixed by the `Z = 50`, `N = 82` shell closure — and `windows_apply_to_datasets` extends that
-from the trend curve to every dataset.
+Two guards bound what a segmented curve may assert. `min_segment_span` (an integer from 1 to 50,
+default 3) is the smallest extent of a segment in mass units from its first pivot to its last; at
+four points per segment on consecutive mass numbers it coincides with the point guard
+`min_points_per_segment`, so it acts where abscissae repeat or the point count is set lower.
+`min_dataset_coverage` (a real from 0 to 1, default 0.3) is the fraction of the mass numbers of the
+fragmentation range at which a dataset must provide a complete pair to be offered as a segmented
+curve of its own. Below it the dataset is read, diagnosed and pooled into the trend, but no curve
+is fitted to it alone: with pairs at few mass numbers the breakpoint search cannot place the
+minimum where the data do not reach, and the curve it returns asserts structure between the
+measurements that a consuming code could not tell from a measured feature. All four shipped
+configurations set both explicitly. The number of segments itself is chosen by the Bayesian
+information criterion as published. `required_windows` places a breakpoint where physics says
+there is one — the minimum at the heavy magic fragment, `A_H` near 130, fixed by the `Z = 50`,
+`N = 82` shell closure — and `windows_apply_to_datasets` extends that from the trend curve to every
+dataset.
 
 The `[yield]` section is optional. Given a directory of pre-neutron mass yield distributions, the
 run also reports the total average `⟨R_T⟩ = Σ Y(A_H) R_T(A_H) / Σ Y(A_H)` for every combination of
 segmented curve and distribution — the quantity the literature tabulates, and the one a prompt
-emission code takes when it uses a single temperature ratio for all fragmentations. Without it the
-run reports only the mean over the fragment mass range, which weights every mass number equally
-and is therefore dominated by the far-asymmetric tail. The normalization of `Y` cancels.
+emission code takes when it uses a single temperature ratio for all fragmentations. Each carries
+two uncertainties: the fit covariance propagated through the average, and beside it the
+independent-points form of the published tables, which treats the tabulated points as uncorrelated
+and understates the uncertainty by a factor of two to five. Without yields the run reports only the
+mean over the fragment mass range, with the covariance propagated likewise; it weights every mass
+number equally and is therefore dominated by the far-asymmetric tail. The normalization of `Y`
+cancels.
 
 Two level density models are available. The back-shifted Fermi gas is the default; setting
 `model = "GC"` selects Gilbert-Cameron, which for fission fragments returns markedly larger
@@ -302,10 +333,64 @@ to one whatever the model, and part by about 0.1 across the shell region. Gilber
 superseded by the back-shifted Fermi gas, so the spread between them is an upper bound on the
 systematic rather than a symmetric error bar.
 
+## The run directory
+
+`run_pipeline(configuration)` returns an `ExtractionResult` and writes nothing.
+`write_results(result, directory)` writes the tables and the manifest into `directory` and refuses
+one that already holds files. `scripts/run.jl` names that directory
+`data/sims/<system>/<run identifier>/`; an existing directory of the same name is moved aside as
+`<run identifier>#1`, `#2`, …, so the earlier run takes the suffix and none is overwritten. The
+script then writes the figures to `plots/<system>/<run identifier>/` through
+`write_figures(result, directory)`, and the provenance record `metadata.toml`: the library's
+`run_metadata(result)`, the identifier, the configuration and script paths, a timestamp, the git
+commit through DrWatson's `tag!`, and the platform — Julia version, hostname, kernel, machine, CPU
+model and threads, Julia and BLAS threads, memory, and `versioninfo()`. Beside it go copies of the
+configuration, as `configuration.toml`, and of the resolved manifest of the scripts environment, as
+`Manifest.toml`.
+
+| File | Content |
+|---|---|
+| `manifest_<run identifier>.toml` | what the run produced, for a consuming code; exactly one per directory |
+| `r_nu_vs_A_H_<dataset>.csv`, `R_T_vs_A_H_<dataset>.csv` | the ratios extracted point by point from one measurement |
+| `r_nu_vs_A_H_consensus_systematic_trend.csv` | the combined ratio the trend curve was fitted to |
+| `r_nu_vs_A_H_segmented_<label>.csv`, `R_T_vs_A_H_segmented_<label>.csv` | the fitted ratio at every mass number and the temperature ratio from it |
+| `r_nu_vs_A_H_pivots_<label>.csv` | the fit as its joined points |
+| `total_average_R_T.csv` | `⟨R_T⟩` of every segmented curve over every yield distribution |
+| `dataset_diagnostics.csv` | one row per dataset read |
+| `metadata.toml`, `configuration.toml`, `Manifest.toml` | the provenance record, written by the script |
+
+The manifest is the only file whose name carries the run identifier; every table is named by its
+quantity, its abscissa and its label. The ratio tables have the headers `A_H,r_nu,r_nu_uncertainty`
+and `A_H,R_T,R_T_uncertainty`, the pivot table included; in the point-by-point tables an
+uncertainty the measurement does not quote is an empty field, never zero. `total_average_R_T.csv`
+has the columns `segmented_curve, mass_yield, R_T, R_T_uncertainty,
+R_T_uncertainty_independent_points`, and
+`dataset_diagnostics.csv` the columns `dataset, points, pairs, first_pair, last_pair, coverage,
+outside_physical_range, symmetry_departure, complement_sum, complement_spread,
+without_uncertainties, pooled, exclusion_reason, segmented_curve`, the last reading "segmented
+curve" or stating why there is none: no complete pair, coverage below the floor, or no fit and the
+reason. The figures are `nu_vs_A.pdf`, `r_nu_vs_A_H.pdf` and `R_T_vs_A_H.pdf`, and
+`r_nu_vs_A_H_segmented_<label>.pdf` and `R_T_vs_A_H_segmented_<label>.pdf` for every dataset curve.
+
+The run identifier is DrWatson's `savename` over every configuration key that changes the result,
+tokens sorted and joined by `_`, each key abbreviated through `RUN_IDENTIFIER_ABBREVIATIONS`, which
+is keyed by the key's dotted path in the configuration file. The system is not a token, since it
+names the directory the identifier sits in, and neither is `significant_digits`, which changes
+rendering and not the number. A list or a path — the required windows, the exclusion list, the
+charge distribution file, the yield directory — enters as the first eight hexadecimal digits of
+the SHA-1 of its canonical spelling, paths relative to the data directory, and is written in full
+into `metadata.toml` under `[identifier.hashed]`. For 233-U:
+
+```
+AHmax=159_AHmin=117_E=2.53e-8_Y=ab535eba_avg=ratio_of_means_dZ=-0.5_dZfile=none_excl=da39a3ee_ldm=BSFG_maxseg=6_mincov=0.3_minpts=4_minspan=3_nZ=5_pin=true_sZ=0.6_win=b552f081_windat=false
+```
+
 ## Consuming the output
 
-A run writes `manifest_<run>.toml` beside its results. It is the entry point for a code that takes
-these curves as input, and it is meant to be read rather than parsed out of file names:
+The manifest is the entry point for a code that takes these curves as input, and it is meant to
+be read rather than parsed out of file names. To stage a run, copy the whole run directory from
+`data/sims/<system>/<run identifier>/`; it holds exactly one `manifest_*.toml`, selected by that
+prefix. An abridged 233-U manifest:
 
 ```toml
 [system]
@@ -320,20 +405,34 @@ compound_A = 234
 compound_Z = 92
 
 [run]
+identifier = "AHmax=159_AHmin=117_E=2.53e-8_Y=ab535eba_avg=ratio_of_means_…_windat=false"
+package_version = "0.1.0"
+quantity = "R_T = T_L/T_H of complementary fully accelerated fragments"
 ordinate = "R_T"
 abscissa = ["A_H"]
 columns = ["A_H", "R_T", "R_T_uncertainty"]
-quantity = "R_T = T_L/T_H of complementary fully accelerated fragments"
+total_average_R_T_columns = ["R_T", "R_T_uncertainty", "R_T_uncertainty_independent_points"]
 
 [[segmented_curve]]
 label = "K. Nishio 1998"
-kind = "dataset"             # or "systematic_trend"
+kind = "dataset"                   # or "systematic_trend"
 pooled = true
 segments = 5
 pinned_at_symmetric_split = true   # false for a dataset whose complete pairs begin above A0/2
-temperature_ratio_file = "R_T_vs_A_H_segmented_....csv"
-multiplicity_ratio_pivots_file = "r_nu_vs_A_H_pivots_....csv"
+breakpoints = [127, 131, 139, 145]
+first_A_H = 117
+last_A_H = 159
+pairs = 43                         # the data pairs the fit rests on
+coverage = 1.0
+range_mean_R_T = [1.1495, 0.0085]  # [value, uncertainty]
+temperature_ratio_file = "R_T_vs_A_H_segmented_K._Nishio_1998.csv"
+multiplicity_ratio_pivots_file = "r_nu_vs_A_H_pivots_K._Nishio_1998.csv"
+
+    [segmented_curve.total_average_R_T]
+    "V.M. Surin 1972" = [1.1822, 0.0050, 0.0020]   # [value, uncertainty, independent points]
 ```
+
+Each entry also carries `pivot_A_H`, `pivot_r_nu` and `reduced_chi_squared`.
 
 Four things worth knowing before writing against it.
 
@@ -345,7 +444,12 @@ takes columns positionally, which is what makes a header rename a no-op on both 
 the multiplicity ratio is, because the level density parameter ratio carries the shell structure
 into it. The pivot file states the multiplicity ratio as its joined points; interpolating between
 them to get `R_T` cuts straight across that structure. The temperature ratio is tabulated at every
-mass number, so whatever interpolation a consumer applies reproduces the tabulated value.
+mass number, so whatever interpolation a consumer applies reproduces the tabulated value. The
+tabulated `R_T_uncertainty` is the square root of the diagonal of the propagated covariance of the
+curve; the tabulated points are not independent, so summing their uncertainties in quadrature
+understates the uncertainty of any average over them. `total_average_R_T.csv` and the manifest
+carry the covariance-propagated uncertainty of each total average first and the independent-points
+one beside it.
 
 **The curves are alternatives, not an ensemble.** Take one. Which one describes reality is settled
 by running your code with each and comparing what it produces against experiment; that is what
@@ -356,7 +460,8 @@ scattered to resolve the shape.
 `a_L/a_H` per `(A_H, Z_H)` and reduces over charge afterwards — then run with
 `ratio_averaging = "mean_of_ratios"`. The shipped default is the order the published method uses,
 which does not close that round trip. The difference is small, below a tenth of a per cent on the
-total average, and the setting appears in every output file name either way.
+total average, and the setting appears either way as the `avg=` token of the run identifier, in
+the name of the run directory and of the manifest.
 
 `test/test_manifest.jl` is a consumer: it reads a run using nothing but the manifest and the
 column positions, and checks the contract this section describes.
@@ -435,9 +540,12 @@ Verified:
   Table 2 reproduces too: the Gilbert-Cameron variant to 0.21 %, and the one-charge-per-mass
   variant to 0.80 %. The remaining datasets could not be compared because the archive query did
   not return the `ν(A)` measurement the table names.
-- The uncertainty of the total average. Both the ratio and the yield propagate, which is what
-  gives a dataset quoting no `ν(A)` uncertainties a finite one; the paper's Table 1 shows the
-  same structure, and the magnitudes agree — ±0.0020 against a published ±0.0021.
+- The uncertainty of the total average. The independent-points uncertainty reproduces the
+  published one, ±0.0020 against ±0.0021 for ²³³U Nishio over Surin, and the
+  covariance-propagated uncertainty is ±0.0050, two and a half times larger, because the tabulated
+  points of a fitted curve are not independent. For the sparse Fraser ²³³U set the
+  covariance-propagated ±0.23 matches the published ±0.25, where the independent-points ±0.17 does
+  not.
 - The suite passes on the declared Julia floor and on the current release.
 - The back-shifted Fermi gas model, against the published text. The three coefficients, the
   shell correction, the deuteron pairing term and all five liquid-drop coefficients reproduce
@@ -473,28 +581,11 @@ Not verified:
 
 ## How to cite
 
-Cite the method paper, and the software when a result depends on this implementation.
-`CITATION.cff` carries the same records.
-
-```bibtex
-@article{Tudora2024,
-  author  = {Tudora, Anabella and Gogita, Paul},
-  title   = {Temperature ratio {$R_T = T_L/T_H$} of fully accelerated complementary fragments (used for {TXE} partition) obtained independently of prompt emission model calculations},
-  journal = {The European Physical Journal A},
-  volume  = {60},
-  pages   = {190},
-  year    = {2024},
-  doi     = {10.1140/epja/s10050-024-01375-7}
-}
-
-@software{FissionTemperatureRatio,
-  author  = {Gog{\^i}{\c{t}}{\u{a}}, Paul-Adrian},
-  title   = {FissionTemperatureRatio.jl},
-  version = {0.1.0},
-  year    = {2026},
-  url     = {https://github.com/PaulGoG/FissionTemperatureRatio.jl}
-}
-```
+FissionTemperatureRatio.jl is written by Paul-Adrian Gogîță. For the method, cite
+*Eur. Phys. J. A* **60**, 190 (2024),
+[https://doi.org/10.1140/epja/s10050-024-01375-7](https://doi.org/10.1140/epja/s10050-024-01375-7);
+for the implementation, cite this repository by its URL,
+<https://github.com/PaulGoG/FissionTemperatureRatio.jl>.
 
 ## Licensing
 
@@ -520,7 +611,6 @@ FissionTemperatureRatio/
 ├── .JuliaFormatter.toml            formatting rules, enforced by check.jl and CI
 ├── activate.jl                     activate and instantiate the root environment
 ├── CHANGELOG.md                    notable changes, and what was corrected in the rewrite
-├── CITATION.cff                    how to cite this package and the method
 ├── check.jl                        pre-commit: format, then test
 ├── LICENSE                         MIT, covering the source code only
 ├── Project.toml                    dependencies and compatibility bounds
@@ -534,13 +624,15 @@ FissionTemperatureRatio/
 │   ├── U233_nth.toml
 │   └── U235_nth.toml
 ├── data/                           input data, held locally and not version-controlled
-│   └── README.md                   what each input file is, where it comes from, its terms
+│   ├── README.md                   what each input file is, where it comes from, its terms
+│   └── sims/                       run output, data/sims/<system>/<run identifier>/
 ├── docs/                           Documenter site, own environment
 │   ├── activate.jl
 │   ├── assets.jl                   regenerates the figures the README shows
 │   ├── make.jl
 │   ├── Project.toml
-│   └── src/                        index, method, naming, reference; src/assets/ for figures
+│   └── src/                        index, method, naming, reference, references; assets/ for figures
+│       └── references.bib          DOI-keyed bibliography of the method page
 ├── ext/                            weak-dependency extensions
 │   └── FissionTemperatureRatioCairoMakieExt.jl   publication figures, loaded with CairoMakie
 ├── formatter/                      JuliaFormatter environment, version-bounded
@@ -561,9 +653,10 @@ FissionTemperatureRatio/
 │   ├── pipeline.jl                 the run, from input to tabulated output
 │   ├── plotting.jl                 figure interface; the implementation is in ext/
 │   ├── provenance.jl               run identification and metadata
+│   ├── segmented_curve.jl          segmented curve, its covariance and averages
 │   ├── segmented_fit.jl            continuous piecewise-linear regression
 │   ├── temperature_ratio.jl        level density parameter ratio and R_T
-│   └── yields.jl                   Y(A) input and the total average of a ratio curve
+│   └── yields.jl                   Y(A) input and the independent-points total average
 └── test/                           test suite, own environment
 ```
 

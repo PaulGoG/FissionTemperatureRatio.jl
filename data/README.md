@@ -3,7 +3,8 @@
 This directory describes the input data; the data itself is held locally and is not part of what
 the repository ships. None of it originates with this package, and the MIT licence covering the
 source code does not extend to it: each collection carries the terms and the attribution of its
-own source, recorded below.
+own source, recorded below. Pipeline runs write their output under `data/sims/`, which is not
+version-controlled either and is not input.
 
 ## Layout
 
@@ -32,7 +33,7 @@ extension states a format and never a nuclide.
 | `reference/mass_excess_ame2020.dat` | `Z A symbol mass_excess mass_excess_uncertainty`, the last two in keV |
 | `reference/shell_corrections_gilbert_cameron.dat` | `n S_N S_Z` in MeV |
 | `<system>/charge_distribution_vs_A.dat` | `A dZ sigma_Z` |
-| `<system>/nu_vs_A/*.dat` | `A nu nu_uncertainty` |
+| `<system>/nu_vs_A/*.dat` | `A nu nu_uncertainty`, or `A nu` where no uncertainty is quoted |
 | `<system>/Y_vs_A/*.dat` | `A Y Y_uncertainty` |
 
 All files are whitespace-separated with a single header line, except the mass excess table, which
@@ -58,13 +59,6 @@ A. C. Wahl, *Atomic Data and Nuclear Data Tables* **39**, 1–156 (1988),
 [doi:10.1016/0092-640X(88)90016-2](https://doi.org/10.1016/0092-640X(88)90016-2).
 These are the per-reaction least-squares fits, not the CYF systematics.
 
-**`U233_nth/charge_distribution_vs_A_wahl_systematics.dat`** — a *generated* table, not an
-evaluation and not a measurement: `ΔZ(A)` and `σ_Z(A)` computed from the Wahl `Z_p` systematics of
-A. C. Wahl, *Systematics of Fission-Product Yields*, LA-13928 (2002), for `Z_F = 92`, `A_F = 234`,
-`PE = 6.8455 MeV`. Marked as generated in its name and in its header row so it cannot be mistaken
-for either. **Nothing reads it**: the 233-U configuration names no charge distribution file and
-takes the fallback values instead; see the known defects below.
-
 **`reference/shell_corrections_gilbert_cameron.dat`** — shell corrections `S_N` and `S_Z`,
 tabulated against nucleon number from 11 to 150.
 A. Gilbert, A. G. W. Cameron, *Canadian Journal of Physics* **43**, 1446 (1965), as distributed in
@@ -78,13 +72,17 @@ Experimental Nuclear Data Library of the IAEA Nuclear Data Services,
 cited as such in any result derived from it; the EXFOR DatasetID that opens each file name
 identifies the entry, and the `retrieval.toml` beside it records the reaction code and units.
 
-Retrieved with [ExforFissionData.jl](https://github.com/PaulGoG/ExforFissionData.jl), which writes
-this layout directly. To reproduce a directory, clone that package and run its retrieval — from
-*its* checkout, not this one — naming this package as the output root:
+[ExforFissionData.jl](https://github.com/PaulGoG/ExforFissionData.jl) is the supported source of
+these files and writes this layout directly. To reproduce a directory, clone that package and run
+its retrieval from its own checkout, giving the root of this repository as the output root:
 
 ```
-julia --project scripts/retrieve.jl config/U233_nth_Y_vs_A.toml /path/to/FissionTemperatureRatio.jl
+julia scripts/retrieve.jl config/U233_nth_nu_vs_A.toml /path/to/FissionTemperatureRatio
 ```
+
+A DatasetID has eight digits, or nine where it points within a subentry; the dataset label drops
+the leading digits either way. Two files of one author and year keep their DatasetID in
+parentheses after the label, so that every label is unique.
 
 EXFOR entries are immutable once published, so a configuration and that package reproduce a
 retrieval exactly.
@@ -120,19 +118,20 @@ it.
 
 ## Known defects
 
-**No measured charge distribution table exists for 233-U.** Runs for that nucleus fall back to the
-average values `ΔZ = -0.5`, `σ_Z = 0.6`, which the pipeline reports at every run. These are not
-EXFOR observables — they are fit parameters of a `Z_p` model — so the retrieval cannot supply them;
-the table would have to be transcribed from Wahl. The effect is bounded: at most 3.4 % on
-`R_T(A_H)` at the shell minimum with a median of 0.27 %, and far less on the total average, where
-the charge treatment largely cancels. The generated systematics table described above has been
-measured against the fallback and moves `R_T` by 0.29 % at the median; adoption is deferred, so it
-is held and labelled but not wired in.
+**No evaluated charge distribution table is held for 233-U.** An evaluated
+`charge_distribution_vs_A.dat` of the same construction as the other three can be staged under
+`data/U233_nth/`. Until it is, runs for that nucleus fall back to `ΔZ = -0.5`, `σ_Z = 0.6`, the
+yield-weighted means of the evaluated tables themselves, and the pipeline reports the fallback at
+every run. These are not EXFOR observables — they are fit parameters of a `Z_p` model — so the
+retrieval cannot supply them. The effect is bounded at 3.4 % on `R_T(A_H)` at the shell minimum,
+with a median of 0.27 %.
 
 **The charge distribution tables carry no edition record.** The `charge_distribution_vs_A.dat`
 tables were assembled by hand from two single-column tables and do not say which edition or fit of
 Wahl they came from.
 
-**Uncertainties are absent from several multiplicity datasets**, which is reflected in the
-`weights_imputed` field of every fit that used them. Such a dataset still receives an uncertainty
-on its total average, propagated from the yield distribution.
+**Uncertainties are absent from several multiplicity datasets.** An unquoted uncertainty is read
+as `missing`, never as zero; such points take the median weight of the quoted ones and are counted
+in the `weights_imputed` field of every fit that used them and in the `without_uncertainties`
+column of the dataset diagnostics. Such a dataset still receives an uncertainty on its total
+average, propagated from the fit covariance and the yield distribution.

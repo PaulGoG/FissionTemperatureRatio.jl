@@ -27,6 +27,7 @@ using FissionTemperatureRatio
 
 configuration = load_configuration("config/U233_nth.toml")
 result = run_pipeline(configuration)
+write_results(result, joinpath("data", "sims", "U233_nth", run_identifier(configuration)))
 ```
 
 or, from a shell,
@@ -35,8 +36,17 @@ or, from a shell,
 julia scripts/run.jl config/U233_nth.toml
 ```
 
-Results, figures and run metadata are written under `results/` and `plots/`, in a subdirectory
-named by the configuration.
+[`run_pipeline`](@ref) returns an [`ExtractionResult`](@ref) and writes nothing.
+[`write_results`](@ref) writes the tables and the manifest into the directory it is given and
+refuses one that already holds files. The script names that directory
+`data/sims/<system>/<run identifier>/`, moves an existing run of the same identifier aside as
+`<run identifier>#1`, `#2`, …, and adds the provenance record `metadata.toml` beside copies of the
+configuration, as `configuration.toml`, and of the resolved manifest of its environment, as
+`Manifest.toml`. The figures go to `plots/<system>/<run identifier>/`. The run identifier covers
+every configuration key that changes the result, so the directory name alone identifies the run;
+inside it, only `manifest_<run identifier>.toml` carries the identifier again, and a consuming code
+stages the whole directory and selects the manifest by its prefix. The file layout is set out
+under [Naming](naming.md).
 
 The vocabulary the package uses for identifiers, configuration keys, files and column headers is
 set out under [Naming](naming.md); it is the same vocabulary the retrieval that supplies the

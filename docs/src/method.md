@@ -2,9 +2,10 @@
 
 ## Temperature ratio from multiplicity data
 
-Two premises carry the extraction. The prompt neutron multiplicity ratio of complementary
-fragments follows their excitation energy ratio, and the fragments are excited highly enough for
-their level densities to be of Fermi-gas form, ``E^* = a T^2``. Together,
+The method and its conventions are those of [Tudora2024](@cite). Two premises carry the
+extraction. The prompt neutron multiplicity ratio of complementary fragments follows their
+excitation energy ratio, and the fragments are excited highly enough for their level densities to
+be of Fermi-gas form, ``E^* = a T^2``. Together,
 
 ```math
 \frac{E_L^*}{E_H^*} = \frac{a_L T_L^2}{a_H T_H^2} \approx \frac{\nu_L}{\nu_H},
@@ -18,7 +19,10 @@ R_T = \left[\frac{1 - r_\nu}{R_a\, r_\nu}\right]^{1/2}.
 
 No fit and no prompt emission calculation enters. What remains to be chosen is the fragmentation
 range, the level density model, and the order in which the parameter ratio is averaged over the
-isobaric charge distribution.
+isobaric charge distribution. The level density parameter is taken from the back-shifted Fermi-gas
+systematics of [vonEgidy2005, vonEgidy2009](@cite) by default, or from the composite formula of
+[GilbertCameron1965](@cite); the charge polarization and dispersion of the isobaric charge
+distribution are the evaluated values of [Wahl1988](@cite).
 
 ## Exact behaviour at the symmetric split
 
@@ -50,11 +54,30 @@ f(x) = \beta_0 + \beta_1 (x - x_0) + \sum_k \gamma_k (x - \psi_k)_+,
 ```
 
 in which continuity at every breakpoint holds identically and the fit at fixed breakpoints is one
-weighted linear least-squares solve, yielding the parameter covariance. Breakpoints are restricted
-to abscissae present in the data and searched exhaustively, which is tractable over a fragment
-mass range and returns the global optimum. The number of segments is chosen by the Bayesian
-information criterion, which prices both the extra slope and the extra breakpoint; the criterion
-for every order examined is retained, so the choice can be audited.
+weighted linear least-squares solve, yielding the parameter covariance [Muggeo2003](@cite).
+Breakpoints are restricted to abscissae present in the data and searched exhaustively, which is
+tractable over a fragment mass range and returns the global optimum. The number of segments is
+chosen by the Bayesian information criterion [Schwarz1978](@cite), which prices both the extra
+slope and the extra breakpoint; the criterion for every order examined is retained, so the choice
+can be audited.
+
+The coefficient covariance ``(X^\mathsf{T} W X)^{-1}`` is scaled by
+``\max(1, \chi^2/\mathrm{dof})`` where the data quote uncertainties: it is inflated where the
+residuals exceed what the quoted uncertainties predict, and never shrunk below the quoted scale.
+Where no point quotes an uncertainty the weights are uniform and carry no scale, so the fit is
+ordinary least squares and the covariance is scaled by ``\chi^2/\mathrm{dof}`` alone.
+
+Each segment must hold `min_points_per_segment` data points and extend over at least
+`min_segment_span` mass units from its first pivot to its last. At four points per segment on
+consecutive mass numbers the two guards coincide; the span guard acts where abscissae repeat, as
+in a combined curve, or where the point count is set lower.
+
+A dataset is offered as a segmented curve of its own only if it provides a complete fragment pair
+at a fraction `min_dataset_coverage` of the mass numbers of the fragmentation range. Below that
+floor it is still read, diagnosed and pooled into the systematic trend, but no curve is fitted to
+it alone: with pairs at few mass numbers the breakpoint search cannot place the minimum where the
+data do not reach, and the curve it returns asserts structure between the measurements that a
+consuming code could not tell from a measured feature.
 
 Two constraints are enforced during the search because they are exact, not preferences: the fit
 is pinned to one half at the symmetric split — for a dataset whose complete pairs begin above
@@ -66,7 +89,8 @@ its pivots, the bound is tested exactly rather than sampled.
 
 The datasets of a fissioning nucleus can differ well beyond their quoted uncertainties, and where
 they do, the temperature ratio can only be determined separately for each of them. A run therefore
-produces one segmented curve per dataset, fitted to that dataset alone.
+produces one segmented curve per dataset that reaches the coverage floor, fitted to that dataset
+alone.
 
 Alongside them it produces a systematic-trend curve, fitted through the whole body of data with
 the minimum at the heavy magic fragment *placed* rather than fitted — `required_windows` in the
@@ -99,16 +123,24 @@ range. That mean weights every mass number equally, so the far-asymmetric tail, 
 smaller by orders of magnitude, counts as much as the peak. Both are reported, under names that
 distinguish them.
 
-Uncertainties propagate from the ratio and from the yield,
+The value is unchanged by how the uncertainty is formed. The uncertainty propagates the fit
+covariance,
 
 ```math
-\sigma^2 = \sum_{A_H} \left[ \left(\frac{Y}{\sum Y}\right)^2 \sigma_{R_T}^2
-         + \left(\frac{R_T - \langle R_T \rangle}{\sum Y}\right)^2 \sigma_Y^2 \right],
+\sigma^2 = w^\mathsf{T} C\, w
+         + \sum_{A_H} \left(\frac{R_T - \langle R_T \rangle}{\sum Y}\right)^2 \sigma_Y^2,
+\qquad w = \frac{Y}{\sum Y}, \qquad C = D\, J \Sigma J^\mathsf{T} D,
 ```
 
-which is why a multiplicity dataset quoting no uncertainties still yields an uncertain average:
-the yield distribution supplies it. Correlations between mass numbers are neglected in both
-inputs, the sources not reporting them.
+with ``J \Sigma J^\mathsf{T}`` the covariance of the fitted ``r_\nu`` at the tabulated mass numbers
+and ``D`` the diagonal matrix of ``\partial R_T/\partial r_\nu = -1/(2 R_T R_a r_\nu^2)``. The
+tabulated points of a fitted curve are functions of a few coefficients and are not independent.
+The independent-points form, which replaces ``w^\mathsf{T} C w`` by
+``\sum (Y/\sum Y)^2 \sigma_{R_T}^2``, is the approximation of the published tables; it is written
+beside the propagated uncertainty and understates it by a factor of two to five for the curves of
+the four shipped systems. The yield term is common to both, which is why a multiplicity dataset
+quoting no uncertainties still yields an uncertain average. Correlations between the yields at
+different mass numbers are neglected, the sources not reporting them.
 
 ## Combining datasets
 
@@ -117,7 +149,7 @@ and a further curve is fitted to their combination.
 
 That combination is not a concatenation. At each mass number the available values are combined
 with inverse-variance weights carrying an additional between-dataset variance ``\tau^2``,
-estimated from their dispersion after DerSimonian and Laird,
+estimated from their dispersion [DerSimonian1986](@cite),
 
 ```math
 w = \frac{1}{\sigma^2 + \tau^2}, \qquad
@@ -137,23 +169,3 @@ it is tuned to reject. What can be said about a dataset without reference to the
 usable fragment pairs it has, whether its ratio stays inside ``(0,1)``, whether it satisfies the
 identity at the symmetric split, whether complementary multiplicities sum to the total — is
 reported for every dataset, and exclusions are named explicitly rather than inferred.
-
-## References
-
-- Eur. Phys. J. A **60**, 190 (2024),
-  [doi:10.1140/epja/s10050-024-01375-7](https://doi.org/10.1140/epja/s10050-024-01375-7) — the
-  method and its conventions.
-- T. von Egidy, D. Bucurescu, Phys. Rev. C **80**, 054310 (2009),
-  [doi:10.1103/PhysRevC.80.054310](https://doi.org/10.1103/PhysRevC.80.054310) — level density
-  systematics.
-- A. C. Wahl, At. Data Nucl. Data Tables **39**, 1 (1988),
-  [doi:10.1016/0092-640X(88)90016-2](https://doi.org/10.1016/0092-640X(88)90016-2) — charge
-  polarization and dispersion.
-- V. M. R. Muggeo, Stat. Med. **22**, 3055 (2003),
-  [doi:10.1002/sim.1545](https://doi.org/10.1002/sim.1545) — regression with unknown breakpoints.
-- G. Schwarz, Ann. Stat. **6**, 461 (1978),
-  [doi:10.1214/aos/1176344136](https://doi.org/10.1214/aos/1176344136) — the information
-  criterion.
-- R. DerSimonian, N. Laird, Control. Clin. Trials **7**, 177 (1986),
-  [doi:10.1016/0197-2456(86)90046-2](https://doi.org/10.1016/0197-2456(86)90046-2) — the
-  between-set variance.

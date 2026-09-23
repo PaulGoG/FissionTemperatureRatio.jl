@@ -172,10 +172,6 @@ statement rather than a list of symbols. Extensions state a format and nothing e
 whitespace-separated, `.csv` comma-separated, `.toml` metadata. **A file extension never carries a
 nuclide**, because the nuclide is already in the path.
 
-A generated table is marked as generated, in the name and in the header row —
-`charge_distribution_vs_A_wahl_systematics.dat` — so it can never be mistaken for an evaluation or
-for a measured table.
-
 One header line, ASCII, abscissae first, then the ordinate, then its uncertainty:
 
 ```
@@ -197,24 +193,65 @@ same rule seen from the other side.
 
 ## Output files and run identifiers
 
+A run is one directory, and the directory carries the run identifier. Tables go under the system
+in `data/sims/`, figures under the system in `plots/`:
+
+```
+data/sims/<system>/<run>/
+├── manifest_<run>.toml                        what the run produced, for a consuming code
+├── r_nu_vs_A_H_<dataset>.csv
+├── R_T_vs_A_H_<dataset>.csv
+├── r_nu_vs_A_H_consensus_systematic_trend.csv
+├── r_nu_vs_A_H_segmented_<label>.csv
+├── R_T_vs_A_H_segmented_<label>.csv
+├── r_nu_vs_A_H_pivots_<label>.csv
+├── total_average_R_T.csv
+├── dataset_diagnostics.csv
+├── metadata.toml                              how it was produced: configuration, commit, machine
+├── configuration.toml
+└── Manifest.toml
+plots/<system>/<run>/
+├── nu_vs_A.pdf
+├── r_nu_vs_A_H.pdf
+├── R_T_vs_A_H.pdf
+├── r_nu_vs_A_H_segmented_<label>.pdf
+└── R_T_vs_A_H_segmented_<label>.pdf
+```
+
 An output follows the same `<quantity>_vs_<abscissa>` rule as an input, so it can be fed back in
-without translation:
+without translation, and a table name carries the quantity, the abscissa and the label of the
+curve or dataset, nothing more:
 
 | File | Content |
 | :--- | :--- |
 | `r_nu_vs_A_H_<dataset>.csv` | the ratio extracted point by point from one measurement |
 | `R_T_vs_A_H_<dataset>.csv` | the temperature ratio from it |
 | `r_nu_vs_A_H_consensus_systematic_trend.csv` | the combined ratio the trend curve was fitted to |
-| `r_nu_vs_A_H_segmented_<label>_<run>.csv` | the fitted ratio, tabulated |
-| `R_T_vs_A_H_segmented_<label>_<run>.csv` | the temperature ratio from the fitted ratio |
-| `r_nu_vs_A_H_pivots_<label>_<run>.csv` | the fit as its joined points |
-| `total_average_R_T_<run>.csv` | ⟨R_T⟩ over each yield distribution |
-| `dataset_diagnostics_<run>.csv` | one row per dataset read |
+| `r_nu_vs_A_H_segmented_<label>.csv` | the fitted ratio, tabulated |
+| `R_T_vs_A_H_segmented_<label>.csv` | the temperature ratio from the fitted ratio |
+| `r_nu_vs_A_H_pivots_<label>.csv` | the fit as its joined points |
+| `total_average_R_T.csv` | ⟨R_T⟩ over each yield distribution |
+| `dataset_diagnostics.csv` | one row per dataset read |
 | `manifest_<run>.toml` | what the run produced, for a consuming code |
-| `metadata_<run>.toml` | how it was produced: configuration, commit, machine |
+| `metadata.toml` | how it was produced: configuration, commit, machine |
+
+The manifest is the one file inside the directory whose name repeats the identifier. A consuming
+code stages the whole run directory and selects the manifest by its `manifest_` prefix, and the
+token keeps a staged copy attributable after it has left `data/sims/`. A run directory holds
+exactly one.
 
 **A run-identifier token is the configuration key it came from.** Spelling every key out in full
-would put some hundred and eighty characters into every file name, so the keys are abbreviated —
+would put some two hundred characters into every directory name, so the keys are abbreviated —
 and abbreviated in one place, [`RUN_IDENTIFIER_ABBREVIATIONS`](@ref), rather than at the point of
-use. [`run_identifier`](@ref) refuses a key with no entry rather than inventing a token, and the
-test suite asserts that every key it uses has one.
+use. That table is keyed by the key's dotted path in the configuration file,
+`segments.min_segment_span => minspan`, so an entry names exactly one key.
+[`run_identifier`](@ref) refuses a key with no entry rather than inventing a token, and the test
+suite asserts that every key it uses has one.
+
+Every key that changes the result is a token. The system is not: it names the directory the
+identifier sits in. `significant_digits` is not either, since it changes how a number is rendered
+and not the number. A value that is a list or a path — the required windows, the exclusion list,
+the charge distribution file, the yield directory — does not reduce to a token and enters as the
+first eight hexadecimal digits of the SHA-1 of its canonical spelling, paths taken relative to the
+data directory so that the same inputs staged on another machine give the same identifier. The
+value itself is written in full into `metadata.toml` under `[identifier.hashed]`.

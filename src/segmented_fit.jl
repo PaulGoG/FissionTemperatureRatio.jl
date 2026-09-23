@@ -502,8 +502,14 @@ them, such as a yield-weighted average, propagates this matrix rather than the d
 
 The diagonal is the square of the uncertainty [`evaluate`](@ref) reports:
 
-```jldoctest fit
-julia> Σ = covariance(fit, 120:139);
+```jldoctest
+julia> A_H = collect(120:139);
+
+julia> r = [a ≤ 130 ? 0.50 - 0.020 * (a - 120) : 0.30 + 0.008 * (a - 130) for a in A_H];
+
+julia> fit = fit_segments(A_H, r .+ 0.002 .* iseven.(A_H), fill(0.004, 20); max_segments = 3);
+
+julia> Σ = covariance(fit, A_H);
 
 julia> sqrt(Σ[11, 11]) ≈ last(evaluate(fit, 130))
 true
