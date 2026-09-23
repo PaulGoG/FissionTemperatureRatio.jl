@@ -1,9 +1,21 @@
 [deps]
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
+Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
+DrWatson = "634d3b9d-ee7a-5ddf-bec9-22491ea816e1"
 FissionTemperatureRatio = "59d20cd3-813a-4745-b3df-4e6739f766a3"
+InteractiveUtils = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 
 [compat]
 CairoMakie = "0.15.14"
+Dates = "1"
+DrWatson = "2.19.1"
+InteractiveUtils = "1"
+LinearAlgebra = "1"
+Printf = "1"
+TOML = "1"
 julia = "1.11"
 
 [sources]

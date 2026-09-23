@@ -1,7 +1,7 @@
 # Benchmarks for the parts whose cost scales: the exhaustive breakpoint search, and the level
 # density parameter ratio over a full fragmentation range.
 #
-#     julia --project=bench bench/benchmarks.jl
+#     julia bench/benchmarks.jl
 
 include(joinpath(@__DIR__, "activate.jl"))
 

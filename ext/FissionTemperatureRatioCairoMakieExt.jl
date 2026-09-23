@@ -99,6 +99,26 @@ end
 # Marker edge: the fill colour darkened, so markers stay separable where they overlap.
 _darker(color::RGBf) = RGBf(0.6f0 * color.r, 0.6f0 * color.g, 0.6f0 * color.b)
 
+# Error bars on the points that quote an uncertainty; a point quoting none is drawn bare.
+function _errorbars!(axis::Axis, x, y, σ, color)
+    quoted = findall(!ismissing, σ)
+    isempty(quoted) && return nothing
+    errorbars!(
+        axis,
+        x[quoted],
+        y[quoted],
+        Float64[σ[i] for i in quoted];
+        color = color,
+        linewidth = 1.5,
+        whiskerwidth = 0,
+    )
+    return nothing
+end
+
+# The band of a fitted curve, whose uncertainties are all quoted: zero at a pin, positive
+# elsewhere.
+_band_width(curve::RatioCurve) = Float64[coalesce(σ, 0.0) for σ in curve.σ]
+
 # Mass-number ticks at multiples of ten inside the limits.
 _mass_ticks(low::Real, high::Real) = (10 * cld(floor(Int, low), 10)):10:floor(Int, high)
 
@@ -115,11 +135,7 @@ function FissionTemperatureRatio.plot_multiplicities(
     for (position, data) in enumerate(datasets)
         index = _style_index(data.label, order, position)
         color = dataset_color(index)
-        if any(>(0), data.σν)
-            errorbars!(
-                axis, data.A, data.ν, data.σν; color = color, linewidth = 1.5, whiskerwidth = 0
-            )
-        end
+        _errorbars!(axis, data.A, data.ν, data.σν, color)
         scatter!(
             axis,
             data.A,
@@ -201,11 +217,12 @@ function FissionTemperatureRatio.plot_ratio(
         # rather than drawn into a region the quantity cannot occupy. The symmetric interval is a
         # Gaussian approximation; where it reaches below zero it is the approximation failing, not
         # the quantity.
+        width = _band_width(curve)
         band!(
             axis,
             curve.A_H,
-            max.(curve.ratio .- curve.σ, 0.0),
-            curve.ratio .+ curve.σ;
+            max.(curve.ratio .- width, 0.0),
+            curve.ratio .+ width;
             color = (color, trend ? 0.25 : 0.35),
         )
     end
@@ -214,17 +231,7 @@ function FissionTemperatureRatio.plot_ratio(
         isempty(curve) && continue
         index = _style_index(curve.label, order, position)
         color = dataset_color(index)
-        if any(>(0), curve.σ)
-            errorbars!(
-                axis,
-                curve.A_H,
-                curve.ratio,
-                curve.σ;
-                color = color,
-                linewidth = 1.5,
-                whiskerwidth = 0,
-            )
-        end
+        _errorbars!(axis, curve.A_H, curve.ratio, curve.σ, color)
         scatter!(
             axis,
             curve.A_H,
@@ -352,7 +359,7 @@ function _trend_annotation(result::ExtractionResult)
     averages = get(result.total_average_R_T, TREND_LABEL, nothing)
     if averages !== nothing && !isempty(averages)
         name = first(sort!(collect(keys(averages))))
-        value, uncertainty = averages[name]
+        value, uncertainty = averages[name].value, averages[name].uncertainty
         return [
             L"Trend $\langle R_T \rangle = %$(_measured(value, uncertainty))$",
             L"over $Y(A)$ of %$(name)",
@@ -362,15 +369,20 @@ function _trend_annotation(result::ExtractionResult)
     return [L"Trend range mean $= %$(_measured(value, uncertainty))$"]
 end
 
-# Order and quality of one segmented fit, for the figure of that dataset.
+# Order and quality of one segmented fit, for the figure of that dataset. A dataset quoting no
+# uncertainties has uniform weights, and its residual sum is not a chi-squared; the figure says so
+# rather than printing a number that means nothing.
 function _fit_annotation(curve)
     fit = curve.fit
     count = FissionTemperatureRatio.segments(fit)
-    reduced = @sprintf("%.2f", fit.wrss / fit.dof)
-    return [
-        LaTeXString(count == 1 ? "1 segment" : "$(count) segments"),
-        L"$\chi^2/\mathrm{dof} = %$(reduced)$",
-    ]
+    points = fit.dof + length(fit.coefficients) + length(fit.breakpoints)
+    quality = if fit.weights_imputed == points
+        LaTeXString("no quoted uncertainties")
+    else
+        reduced = @sprintf("%.2f", fit.wrss / fit.dof)
+        L"$\chi^2/\mathrm{dof} = %$(reduced)$"
+    end
+    return [LaTeXString(count == 1 ? "1 segment" : "$(count) segments"), quality]
 end
 
 # The run's figures. Held here, rather than in the pipeline, so that the pipeline carries no
@@ -380,7 +392,7 @@ end
 # overview cannot show a dozen fitted curves without burying the measurements under them, so each
 # fit is shown against its own data, with the systematic trend beside it for comparison.
 function FissionTemperatureRatio.write_figures(
-    result::ExtractionResult, directory::AbstractString, identifier::AbstractString
+    result::ExtractionResult, directory::AbstractString
 )
     written = Dict{String,String}()
     configuration = result.configuration
@@ -398,13 +410,13 @@ function FissionTemperatureRatio.write_figures(
 
     with_theme(FissionTemperatureRatio.publication_theme()) do
         written["figure/nu_vs_A"] = FissionTemperatureRatio.save_figure(
-            joinpath(directory, "nu_vs_A_$(identifier).pdf"),
+            joinpath(directory, "nu_vs_A.pdf"),
             FissionTemperatureRatio.plot_multiplicities(
                 result.datasets; A_0 = configuration.system.A₀, order = order
             ),
         )
         written["figure/r_nu_vs_A_H"] = FissionTemperatureRatio.save_figure(
-            joinpath(directory, "r_nu_vs_A_H_$(identifier).pdf"),
+            joinpath(directory, "r_nu_vs_A_H.pdf"),
             FissionTemperatureRatio.plot_ratio(
                 filter(!isempty, result.r_ν),
                 trend_r_ν;
@@ -417,7 +429,7 @@ function FissionTemperatureRatio.write_figures(
             ),
         )
         written["figure/R_T_vs_A_H"] = FissionTemperatureRatio.save_figure(
-            joinpath(directory, "R_T_vs_A_H_$(identifier).pdf"),
+            joinpath(directory, "R_T_vs_A_H.pdf"),
             FissionTemperatureRatio.plot_ratio(
                 R_T_data,
                 trend_R_T;
@@ -438,7 +450,7 @@ function FissionTemperatureRatio.write_figures(
             index = findfirst(c -> c.label == curve.label, result.r_ν)
             if index !== nothing && !isempty(result.r_ν[index])
                 written["figure/r_nu_vs_A_H/$(curve.label)"] = FissionTemperatureRatio.save_figure(
-                    joinpath(directory, "r_nu_vs_A_H_segmented_$(token)_$(identifier).pdf"),
+                    joinpath(directory, "r_nu_vs_A_H_segmented_$(token).pdf"),
                     FissionTemperatureRatio.plot_ratio(
                         RatioCurve[result.r_ν[index]],
                         vcat(RatioCurve[curve.r_ν], trend_r_ν);
@@ -462,7 +474,7 @@ function FissionTemperatureRatio.write_figures(
             upper = quantile(data.ratio, 0.99)
             isempty(curve.R_T) || (upper = max(upper, maximum(curve.R_T.ratio)))
             written["figure/R_T_vs_A_H/$(curve.label)"] = FissionTemperatureRatio.save_figure(
-                joinpath(directory, "R_T_vs_A_H_segmented_$(token)_$(identifier).pdf"),
+                joinpath(directory, "R_T_vs_A_H_segmented_$(token).pdf"),
                 FissionTemperatureRatio.plot_ratio(
                     RatioCurve[data],
                     vcat(RatioCurve[curve.R_T], trend_R_T);

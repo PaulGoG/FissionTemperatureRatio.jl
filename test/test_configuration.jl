@@ -49,8 +49,10 @@ end
             @test configuration.level_density.ratio_averaging isa RatioOfMeans
             @test configuration.fragmentation.fallback_charge_dispersion == 0.6
             @test configuration.segments.pin_symmetric_split
+            @test configuration.segments.min_segment_span == 3
+            @test configuration.segments.min_dataset_coverage == 0.3
             @test configuration.output.significant_digits == 6
-            @test configuration.output.subdirectory == "Cf252_sf"
+            @test configuration.data_directory == directory
         end
     end
 
@@ -169,6 +171,37 @@ end
                     "max_segments = 3" => "max_segments = 3\nrequired_windows = [[130]]",
                 ),
             ),
+            (
+                "segment span out of range",
+                replace(
+                    MINIMAL_CONFIGURATION,
+                    "max_segments = 3" => "max_segments = 3\nmin_segment_span = 0",
+                ),
+            ),
+            (
+                "coverage floor out of range",
+                replace(
+                    MINIMAL_CONFIGURATION,
+                    "max_segments = 3" => "max_segments = 3\nmin_dataset_coverage = 1.5",
+                ),
+            ),
+            # A key the loader does not read is refused, not ignored: a retired or misspelt key
+            # would otherwise leave the run silently on the default.
+            (
+                "retired key",
+                replace(
+                    MINIMAL_CONFIGURATION,
+                    "max_segments = 3" => "max_segments = 3\nparsimony = 1.0",
+                ),
+            ),
+            (
+                "unknown key",
+                replace(
+                    MINIMAL_CONFIGURATION,
+                    "significant_digits = 6" => "significant_digits = 6\nsubdirectory = \"x\"",
+                ),
+            ),
+            ("unknown section", MINIMAL_CONFIGURATION * "\n[extra]\nkey = 1\n"),
         ]
         for (name, body) in cases
             @testset "$(name)" begin
@@ -252,19 +285,43 @@ end
         @test_throws ArgumentError system_notation(252, 98, "0,f")
     end
 
-    @testset "every run-identifier key has an abbreviation" begin
+    @testset "every result-changing key enters the run identifier" begin
         # The identifier is built from configuration keys through one exported table. A key
-        # without an entry is an error rather than a silently invented token.
+        # without an entry is an error rather than a silently invented token, and every entry is
+        # used, so the table cannot carry a token for a key the identifier leaves out.
         with_configuration(MINIMAL_CONFIGURATION) do path, directory
             configuration = load_configuration(path; data_directory = directory)
-            keys_used = keys(FissionTemperatureRatio._run_parameters(configuration))
-            @test all(in(keys(RUN_IDENTIFIER_ABBREVIATIONS)), keys_used)
-            identifier = run_identifier(configuration)
-            for key in keys_used
-                @test occursin("$(RUN_IDENTIFIER_ABBREVIATIONS[key])=", identifier)
-            end
-            # Distinct keys must not collapse onto one token.
+            tokens = run_parameters(configuration)
+            @test Set(keys(tokens)) == Set(values(RUN_IDENTIFIER_ABBREVIATIONS))
             @test allunique(values(RUN_IDENTIFIER_ABBREVIATIONS))
+            identifier = run_identifier(configuration)
+            for token in keys(tokens)
+                @test occursin("$(token)=", identifier)
+            end
+            # The system names the directory the identifier sits in, and is not a token.
+            @test !occursin("Cf252", identifier)
+
+            # A list enters as a content hash, so two window sets are two runs.
+            other = joinpath(directory, "windows.toml")
+            write(
+                other,
+                replace(
+                    MINIMAL_CONFIGURATION,
+                    "max_segments = 3" => "max_segments = 3\nrequired_windows = [[130, 134]]",
+                ),
+            )
+            @test run_identifier(load_configuration(other; data_directory = directory)) !=
+                identifier
+
+            # A path enters relative to the data directory, so the same inputs staged elsewhere
+            # give the same identifier: a run made on another machine names the same inputs.
+            elsewhere = joinpath(directory, "elsewhere")
+            mkpath(joinpath(elsewhere, "datasets"))
+            cp(joinpath(directory, "mass_excess.dat"), joinpath(elsewhere, "mass_excess.dat"))
+            copy = joinpath(elsewhere, "configuration.toml")
+            write(copy, MINIMAL_CONFIGURATION)
+            @test run_identifier(load_configuration(copy; data_directory = elsewhere)) ==
+                identifier
         end
     end
 

@@ -23,6 +23,10 @@ structural: coverage, and departures from identities the ratio satisfies by cons
   the temperature ratio is undefined.
 - `symmetry_departure`: `|r_ν(A₀/2) - 1/2|`, exactly zero for a faithful measurement, or `missing`
   where the set has no symmetric split.
+- `coverage`: the fraction of the mass numbers of the fragmentation range at which the dataset
+  provides a complete pair. A dataset below the configured floor is diagnosed but offers no
+  segmented curve: with pairs at few mass numbers the breakpoint search cannot place the minimum
+  where the data do not reach, and the curve it returns asserts structure between measurements.
 - `complement_sum`, `complement_spread`: mean and standard deviation of `ν(A) + ν(A₀-A)` over the
   pairs. A per-fragment dataset sums to about the total multiplicity with small spread; a large
   spread indicates a normalization or a quantity problem.
@@ -34,6 +38,7 @@ struct DatasetDiagnostics
     pairs::Int
     first_pair::Union{Int,Missing}
     last_pair::Union{Int,Missing}
+    coverage::Float64
     outside_physical_range::Int
     symmetry_departure::Union{Float64,Missing}
     complement_sum::Union{Float64,Missing}
@@ -42,14 +47,15 @@ struct DatasetDiagnostics
 end
 
 """
-    diagnose(data, ratio, A₀) -> DatasetDiagnostics
+    diagnose(data, ratio, A₀, A_H_range) -> DatasetDiagnostics
 
-Describe one multiplicity dataset and the ratio extracted from it.
+Describe one multiplicity dataset and the ratio extracted from it over the fragmentation range
+`A_H_range`.
 
 Computes only what can be judged without reference to the other datasets; see
 [`DatasetDiagnostics`](@ref) for why that restriction is deliberate.
 """
-function diagnose(data::Multiplicity, ratio::RatioCurve, A₀::Integer)
+function diagnose(data::Multiplicity, ratio::RatioCurve, A₀::Integer, A_H_range::UnitRange{Int})
     sums = Float64[]
     for (index, A) in enumerate(data.A)
         2 * A ≤ A₀ && continue
@@ -71,11 +77,12 @@ function diagnose(data::Multiplicity, ratio::RatioCurve, A₀::Integer)
         length(ratio),
         isempty(ratio) ? missing : first(ratio.A_H),
         isempty(ratio) ? missing : last(ratio.A_H),
+        count(in(A_H_range), ratio.A_H) / length(A_H_range),
         count(v -> v ≤ 0 || v ≥ 1, ratio.ratio),
         symmetric,
         isempty(sums) ? missing : mean(sums),
         length(sums) < 2 ? missing : std(sums),
-        count(≤(0), data.σν),
+        count(ismissing, data.σν),
     )
 end
 
@@ -100,20 +107,20 @@ times their quoted uncertainties, `τ²` dominates, the weights become nearly eq
 uncertainty of the combination reflects the disagreement instead of hiding it.
 
 Where a mass number has one measurement only, that value and its uncertainty pass through: there
-is no dispersion to estimate. Where none of the values at a mass number carries an uncertainty,
-the unweighted mean is taken and the standard error of the values supplies the uncertainty.
-Points quoting no uncertainty alongside points that do are given the median of the latter, as
-[`fit_weights`](@ref) does.
+is no dispersion to estimate. Where none of the values at a mass number carries a quoted
+uncertainty, the unweighted mean is taken and the standard error of the values supplies the
+uncertainty. Points quoting no uncertainty alongside points that do are given the median of the
+latter, as [`fit_weights`](@ref) does.
 """
 function consensus(curves::Vector{RatioCurve}; label::AbstractString = TREND_LABEL)
     masses = sort!(unique!(reduce(vcat, (curve.A_H for curve in curves); init = Int[])))
     A_H = Int[]
     ratio = Float64[]
-    σ = Float64[]
+    σ = Union{Missing,Float64}[]
 
     for mass in masses
         values = Float64[]
-        uncertainties = Float64[]
+        uncertainties = Union{Missing,Float64}[]
         for curve in curves
             index = findfirst(==(mass), curve.A_H)
             index === nothing && continue
@@ -131,18 +138,18 @@ function consensus(curves::Vector{RatioCurve}; label::AbstractString = TREND_LAB
     return RatioCurve(A_H, ratio, σ, String(label))
 end
 
-function _combine(values::Vector{Float64}, uncertainties::Vector{Float64})
+function _combine(values::Vector{Float64}, uncertainties::Vector{Union{Missing,Float64}})
     k = length(values)
     k == 1 && return (values[1], uncertainties[1])
 
-    positive = uncertainties .> 0
-    if !any(positive)
+    quoted = .!ismissing.(uncertainties)
+    if !any(quoted)
         μ = mean(values)
         return (μ, std(values) / sqrt(k))
     end
 
-    σ = copy(uncertainties)
-    σ[.!positive] .= median(view(uncertainties, positive))
+    σ = Float64[coalesce(u, NaN) for u in uncertainties]
+    σ[.!quoted] .= median(view(σ, quoted))
 
     # Fixed-effect combination first, since the between-dataset variance is estimated from its
     # residuals.

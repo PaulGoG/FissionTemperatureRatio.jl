@@ -57,11 +57,15 @@ end
         mkpath(joinpath(directory, "datasets"))
         write_multiplicity(joinpath(directory, "datasets", "full.dat"), 126:140)
         write_multiplicity(joinpath(directory, "datasets", "partial.dat"), 131:140)
+        # Four pairs over fifteen mass numbers: below the coverage floor of 0.3.
+        write_multiplicity(joinpath(directory, "datasets", "sparse.dat"), 126:4:138)
         path = joinpath(directory, "configuration.toml")
         write(path, PIPELINE_CONFIGURATION)
 
         configuration = load_configuration(path; data_directory = directory)
-        result = run_pipeline(configuration; output_root = joinpath(directory, "output"))
+        result = run_pipeline(configuration)
+        run_directory = joinpath(directory, "output", "run")
+        written = write_results(result, run_directory)
         curve(label) = only(filter(c -> c.label == label, result.segmented_curves))
 
         @testset "the pin is applied at the symmetric split and nowhere else" begin
@@ -82,22 +86,50 @@ end
         end
 
         @testset "the diagnostics and the manifest state which curves carry the pin" begin
-            @test sort(result.diagnostics["r_nu_pinned_at_symmetry"]) ==
-                sort(["full", TREND_LABEL])
-            @test !any(first(w) == "pin" for w in result.diagnostics["warnings"])
+            @test sort(result.symmetry.pinned_curves) == sort(["full", TREND_LABEL])
+            @test isempty(result.symmetry.warnings)
+            @test result.symmetry.charge_set_invariant === true
+            @test result.symmetry.R_a_at_symmetric_split ≈ 1
 
-            results_directory = joinpath(directory, "output", "results", "Cf252_sf")
-            manifest = TOML.parsefile(
-                joinpath(
-                    results_directory,
-                    only(filter(startswith("manifest_"), readdir(results_directory))),
-                ),
-            )
+            manifest = TOML.parsefile(written["manifest"])
+            @test basename(written["manifest"]) ==
+                "manifest_$(run_identifier(configuration)).toml"
             flags = Dict(
                 entry["label"] => entry["pinned_at_symmetric_split"] for
                 entry in manifest["segmented_curve"]
             )
             @test flags == Dict("full" => true, "partial" => false, TREND_LABEL => true)
+        end
+
+        @testset "a dataset below the coverage floor is pooled but offers no curve" begin
+            @test !any(c -> c.label == "sparse", result.segmented_curves)
+            @test startswith(result.dataset_outcomes["sparse"], "coverage")
+            @test result.dataset_outcomes["full"] == "segmented curve"
+            @test only(filter(d -> d.label == "sparse", result.dataset_diagnostics)).coverage ≈
+                4 / 15
+            # Pooled: its mass numbers reach the combined curve.
+            @test 126 in result.consensus_r_ν.A_H
+            # Diagnosed: the outcome is written, so the absence of a curve is explained.
+            table = CSV.read(written["dataset_diagnostics"], DataFrame)
+            @test nrow(table) == 3
+            row = only(filter(r -> r.dataset == "sparse", eachrow(table)))
+            @test startswith(row.segmented_curve, "coverage")
+            @test row.coverage ≈ 4 / 15 atol = 1e-5
+        end
+
+        @testset "the run directory is written once and never into" begin
+            @test isfile(joinpath(run_directory, "dataset_diagnostics.csv"))
+            @test isfile(joinpath(run_directory, "r_nu_vs_A_H_pivots_full.csv"))
+            @test !any(contains("Cf252"), readdir(run_directory))
+            @test_throws ArgumentError write_results(result, run_directory)
+            # A run without yields reports the range mean and no total average.
+            @test isempty(result.total_average_R_T)
+            @test !haskey(written, "total_average_R_T")
+            metadata = run_metadata(result)
+            @test metadata["result"]["dataset_outcomes"]["sparse"] ==
+                result.dataset_outcomes["sparse"]
+            @test metadata["identifier"]["tokens"]["mincov"] == 0.3
+            @test metadata["inputs"]["multiplicity_directory"] == "datasets"
         end
 
         @testset "R_T follows the closed form of the synthetic level density ratio" begin

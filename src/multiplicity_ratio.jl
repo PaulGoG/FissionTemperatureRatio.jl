@@ -9,14 +9,14 @@ An experimental prompt neutron multiplicity distribution `ν(A)` with its uncert
 
 - `A`: fragment mass numbers, ascending.
 - `ν`: prompt neutron multiplicity.
-- `σν`: uncertainty of `ν`; zero where the source quotes none.
+- `σν`: uncertainty of `ν`; `missing` where the source quotes none.
 - `label`: identifier of the dataset, used in figure legends and output file names.
 - `source`: path of the file the data was read from, recorded for provenance.
 """
 struct Multiplicity
     A::Vector{Int}
     ν::Vector{Float64}
-    σν::Vector{Float64}
+    σν::Vector{Union{Missing,Float64}}
     label::String
     source::String
 end
@@ -55,9 +55,9 @@ Read a whitespace-separated `ν(A)` dataset with the column layout
 A  nu  nu_uncertainty
 ```
 
-and a single header line. A missing or non-numeric third column is taken as an absent
-uncertainty and stored as zero, which excludes the point from the weighting of a fit without
-discarding it from the plot.
+and a single header line, or `A nu` where the source quotes no uncertainty. An absent,
+non-numeric or non-positive third column is stored as `missing`: an unquoted uncertainty is not
+a datum, and it is never written as zero, which would denote an exact value.
 
 The columns are taken **by position**, not by header text: the header line is skipped, so the
 upstream retrieval may rename it without touching anything here, and nothing in this reader may
@@ -90,7 +90,7 @@ function read_multiplicity(path::AbstractString; label::AbstractString = "")
 
     A = Int[]
     ν = Float64[]
-    σν = Float64[]
+    σν = Union{Missing,Float64}[]
     for row in eachrow(table)
         (ismissing(row.A) || ismissing(row.ν)) && continue
         mass = round(Int, row.A)
@@ -100,14 +100,9 @@ function read_multiplicity(path::AbstractString; label::AbstractString = "")
                 "multiplicity file $(path) has a negative multiplicity at A = $(mass)"
             ),
         )
-        uncertainty = if hasproperty(table, :σν) && !ismissing(row.σν) && row.σν isa Real
-            Float64(row.σν)
-        else
-            0.0
-        end
         push!(A, mass)
         push!(ν, value)
-        push!(σν, abs(uncertainty))
+        push!(σν, _quoted_uncertainty(table, row, :σν))
     end
 
     allunique(A) || throw(ArgumentError("multiplicity file $(path) has repeated mass numbers"))
@@ -116,6 +111,16 @@ function read_multiplicity(path::AbstractString; label::AbstractString = "")
     order = sortperm(A)
     name = isempty(label) ? splitext(basename(path))[1] : String(label)
     return Multiplicity(A[order], ν[order], σν[order], name, String(path))
+end
+
+# The uncertainty column of a data row, by position. Absent, non-numeric and non-positive values
+# are all "not quoted": a source that writes zero where it has no uncertainty has not quoted one,
+# and no experimental value is exact.
+function _quoted_uncertainty(table::DataFrame, row, column::Symbol)
+    hasproperty(table, column) || return missing
+    value = row[column]
+    (ismissing(value) || !(value isa Real)) && return missing
+    return value > 0 ? Float64(value) : missing
 end
 
 """
@@ -131,13 +136,14 @@ Used both for the prompt neutron multiplicity ratio `r_ν(A_H)` and for the temp
 - `A_H`: heavy-fragment mass numbers, ascending.
 - `ratio`: the ratio itself. Named for the quantity rather than for its role, which is what lets
   the tables written from it carry a column named `r_nu` or `R_T` instead of `value`.
-- `σ`: uncertainty of the ratio.
+- `σ`: uncertainty of the ratio; `missing` where the data it came from quote none, and zero
+  only where the value is exact, at a pinned abscissa.
 - `label`: identifier inherited from the underlying dataset.
 """
 struct RatioCurve
     A_H::Vector{Int}
     ratio::Vector{Float64}
-    σ::Vector{Float64}
+    σ::Vector{Union{Missing,Float64}}
     label::String
 end
 
@@ -171,6 +177,10 @@ Uncertainties are propagated from those of `ν`,
 σ_r² = [ν_L² σ_H² + ν_H² σ_L²] / (ν_L + ν_H)⁴.
 ```
 
+Where one fragment of the pair quotes no uncertainty its term is dropped and the result is a lower
+bound carried as quoted, which is how the published values were obtained from such datasets;
+where neither quotes one the result is `missing`.
+
 Pairs whose ratio falls outside the open interval `(0, 1)` are omitted rather than clipped: the
 endpoints are the singular points of the temperature ratio relation, so a clipped value would
 enter the extraction as a spurious datum.
@@ -178,7 +188,7 @@ enter the extraction as a spurious datum.
 function multiplicity_ratio(data::Multiplicity, A₀::Integer, A_H_range::UnitRange{Int})
     A_H = Int[]
     ratio = Float64[]
-    σ = Float64[]
+    σ = Union{Missing,Float64}[]
 
     for mass in A_H_range
         heavy = multiplicity(data, mass)
@@ -191,7 +201,11 @@ function multiplicity_ratio(data::Multiplicity, A₀::Integer, A_H_range::UnitRa
 
         r = ν_H / total
         (r > 0 && r < 1) || continue
-        σ_r = sqrt((ν_L * σ_H)^2 + (ν_H * σ_L)^2) / total^2
+        σ_r = if ismissing(σ_H) && ismissing(σ_L)
+            missing
+        else
+            sqrt((ν_L * coalesce(σ_H, 0.0))^2 + (ν_H * coalesce(σ_L, 0.0))^2) / total^2
+        end
 
         push!(A_H, mass)
         push!(ratio, r)

@@ -38,16 +38,19 @@ for identifiers, configuration keys, files and column headers is set out in `doc
 ```julia
 configuration = load_configuration("config/U233_nth.toml")
 result = run_pipeline(configuration)
+write_results(result, "data/sims/U233_nth/" * run_identifier(configuration))
 ```
+
+`scripts/run.jl` does this and writes the provenance record and the figures beside the tables.
 """
 module FissionTemperatureRatio
 
 using CSV: CSV
 using DataFrames: DataFrame, eachrow
 using Dates: Dates
-using DrWatson: datadir, gitdescribe, projectdir, savename
-using InteractiveUtils: versioninfo
-using LinearAlgebra: LinearAlgebra, Symmetric, cond, dot
+using DrWatson: datadir, savename
+using LinearAlgebra: Symmetric, cond, dot
+using SHA: sha1
 using Statistics: mean, median, std
 using TOML: TOML
 
@@ -58,10 +61,6 @@ const PACKAGE_VERSION = VersionNumber(
     TOML.parsefile(joinpath(dirname(@__DIR__), "Project.toml"))["version"]
 )
 
-# The root of this package's source tree. Provenance describes the code that ran, so the commit is
-# read here and not from whatever project happens to be active.
-const PACKAGE_ROOT = dirname(@__DIR__)
-
 include("mass_data.jl")
 include("level_density.jl")
 include("fragmentation.jl")
@@ -70,10 +69,11 @@ include("yields.jl")
 include("consensus.jl")
 include("temperature_ratio.jl")
 include("segmented_fit.jl")
+include("segmented_curve.jl")
 include("configuration.jl")
-include("provenance.jl")
 include("plotting.jl")
 include("pipeline.jl")
+include("provenance.jl")
 
 # Configuration
 export Configuration, load_configuration, build_level_density_model
@@ -93,18 +93,19 @@ export level_density_parameter, shell_correction
 export FragmentationDomain, fragmentation_domain, charges, charge_probability
 export most_probable_charge, average_over_charge, symmetric_charge_set_is_invariant
 export RatioAveraging, RatioOfMeans, MeanOfRatios
-export RatioCurve,
-    TREND_LABEL, multiplicity_ratio, level_density_ratio, temperature_ratio, weighted_mean
+export RatioCurve, TREND_LABEL, multiplicity_ratio, level_density_ratio, temperature_ratio
 export total_average
 export DatasetDiagnostics, diagnose, consensus
 
 # Segmented description of the ratio
 export SegmentedFit,
-    fit_segments, fit_weights, evaluate, pivots, segments, InsufficientDataError
+    fit_segments, fit_weights, evaluate, covariance, pivots, segments, InsufficientDataError
+export SegmentedCurve, TotalAverage, range_mean
 
 # Pipeline
-export ExtractionResult, SegmentedCurve, run_pipeline, write_results, pool, systematic_trend
-export run_identifier, run_metadata, RUN_IDENTIFIER_ABBREVIATIONS
+export ExtractionResult,
+    SymmetryDiagnostics, run_pipeline, write_results, pool, systematic_trend
+export run_identifier, run_parameters, run_metadata, RUN_IDENTIFIER_ABBREVIATIONS
 
 # Figures
 export publication_theme, plot_multiplicities, plot_ratio, save_figure, write_figures

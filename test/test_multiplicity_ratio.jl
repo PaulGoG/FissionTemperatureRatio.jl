@@ -21,22 +21,22 @@
     end
 
     @testset "unpaired and unphysical points are omitted, never clipped" begin
-        unpaired = Multiplicity([132], [3.0], [0.0], "unpaired", "-")
+        unpaired = Multiplicity([132], [3.0], [missing], "unpaired", "-")
         @test isempty(multiplicity_ratio(unpaired, A₀, 126:140))
         # A vanishing light multiplicity puts the ratio at the singular endpoint of the
         # temperature ratio relation; the point must be dropped rather than pushed to 1.
-        degenerate = Multiplicity([120, 132], [0.0, 3.0], [0.0, 0.0], "degenerate", "-")
+        degenerate = Multiplicity([120, 132], [0.0, 3.0], [missing, missing], "degenerate", "-")
         ratio = multiplicity_ratio(degenerate, A₀, 132:132)
         @test isempty(ratio)
     end
 
-    @testset "reader treats an absent uncertainty as zero, keeping the point" begin
+    @testset "reader stores an absent uncertainty as missing, keeping the point" begin
         mktempdir() do directory
             path = joinpath(directory, "set.dat")
             write(path, "A nu nu_uncertainty\n126 2.0 0.1\n132 3.0\n")
             data = read_multiplicity(path; label = "set")
             @test length(data) == 2
-            @test data.σν[2] == 0.0
+            @test ismissing(data.σν[2])
         end
     end
 end

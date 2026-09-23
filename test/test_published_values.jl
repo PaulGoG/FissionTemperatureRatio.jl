@@ -35,13 +35,13 @@ DATA_AVAILABLE && @testset "published total averages" begin
             joinpath(pkgdir(FissionTemperatureRatio), "config", "$(system).toml");
             data_directory = DATA_DIRECTORY,
         )
-        results[system] = run_pipeline(configuration; write_output = false)
+        results[system] = run_pipeline(configuration)
     end
 
     for (system, dataset, distribution, published, tolerance) in PUBLISHED_TOTAL_AVERAGES
         averages = haskey(results, system) ? results[system].total_average_R_T : Dict()
         if haskey(averages, dataset) && haskey(averages[dataset], distribution)
-            @test averages[dataset][distribution][1] ≈ published rtol = tolerance
+            @test averages[dataset][distribution].value ≈ published rtol = tolerance
         else
             @test_skip false
         end

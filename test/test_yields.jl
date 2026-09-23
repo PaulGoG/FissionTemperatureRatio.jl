@@ -15,7 +15,7 @@
             # A distribution quoting no uncertainties is carried, not discarded.
             two_column = joinpath(directory, "two_column.dat")
             write(two_column, "A Y\n130 0.058\n132 0.061\n")
-            @test read_mass_yield(two_column).σY == [0.0, 0.0]
+            @test all(ismissing, read_mass_yield(two_column).σY)
 
             # Directory reading takes the label from the file name and ignores the run record.
             write(joinpath(directory, "retrieval.toml"), "[query]\nordinate = \"yield\"\n")
@@ -42,8 +42,8 @@
     end
 
     @testset "total average" begin
-        curve = RatioCurve([130, 132], [1.2, 1.0], [0.0, 0.0], "example")
-        exact = MassYield([130, 132], [1.0, 3.0], [0.0, 0.0], "exact", "")
+        curve = RatioCurve([130, 132], [1.2, 1.0], [missing, missing], "example")
+        exact = MassYield([130, 132], [1.0, 3.0], [missing, missing], "exact", "")
 
         # ⟨R_T⟩ = (1·1.2 + 3·1.0)/4. With neither input carrying uncertainties the result is exact.
         mean, σ = total_average(curve, exact)
@@ -73,20 +73,20 @@
         @test from_yield[2] > 0
 
         # A yield distribution contributes nothing where the ratio sits at its own average.
-        flat = RatioCurve([130, 132], [1.05, 1.05], [0.0, 0.0], "flat")
+        flat = RatioCurve([130, 132], [1.05, 1.05], [missing, missing], "flat")
         @test last(
             total_average(flat, MassYield([130, 132], [1.0, 3.0], [0.5, 0.5], "y", ""))
         ) ≈ 0.0
 
         # Only the mass numbers the two share enter.
-        partial = MassYield([132], [1.0], [0.0], "partial", "")
+        partial = MassYield([132], [1.0], [missing], "partial", "")
         @test first(total_average(curve, partial)) ≈ 1.0
 
         @test_throws ArgumentError total_average(
-            curve, MassYield([150], [1.0], [0.0], "disjoint", "")
+            curve, MassYield([150], [1.0], [missing], "disjoint", "")
         )
         @test_throws ArgumentError total_average(
-            curve, MassYield([130, 132], [0.0, 0.0], [0.0, 0.0], "empty", "")
+            curve, MassYield([130, 132], [0.0, 0.0], [missing, missing], "empty", "")
         )
     end
 
@@ -99,7 +99,7 @@
         peaked = MassYield(
             A_H, [a ≤ 140 ? 1.0 : 1.0e-4 for a in A_H], zeros(length(A_H)), "y", ""
         )
-        @test first(total_average(curve, peaked)) > first(weighted_mean(curve))
+        @test first(total_average(curve, peaked)) > sum(curve.ratio) / length(curve)
         @test first(total_average(curve, peaked)) ≈ 1.2 atol = 0.01
     end
 end

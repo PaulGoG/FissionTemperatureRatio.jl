@@ -1,7 +1,7 @@
 # Figures and animations that document the method, written into `docs/src/assets/` and shown in
 # the README. Regenerate with
 #
-#     julia --project=docs docs/assets.jl
+#     julia docs/assets.jl
 #
 # Deterministic: the same configuration and input data give the same output, so a regenerated
 # asset differs only when the method or the data does.
@@ -92,19 +92,25 @@ function animate_selection(panels; path, max_segments = 6, hold = 8)
             selected = order == prep.chosen
             empty!(axis)
 
-            if any(>(0), prep.curve.σ)
+            quoted = findall(!ismissing, prep.curve.σ)
+            if !isempty(quoted)
                 errorbars!(
                     axis,
-                    prep.curve.A_H,
-                    prep.curve.ratio,
-                    prep.curve.σ;
+                    prep.curve.A_H[quoted],
+                    prep.curve.ratio[quoted],
+                    Float64[prep.curve.σ[i] for i in quoted];
                     color = (:grey30, 0.5),
                     linewidth = 1.5,
                     whiskerwidth = 0,
                 )
             end
             scatter!(
-                axis, prep.curve.A_H, prep.curve.ratio; color = (:grey30, 0.6), markersize = 14
+                axis,
+                prep.curve.A_H,
+                prep.curve.ratio;
+                color = (:grey30, 0.6),
+                strokecolor = (:grey10, 0.6),
+                markersize = 14,
             )
 
             evaluated = evaluate(fit, first(prep.curve.A_H):last(prep.curve.A_H))
@@ -184,6 +190,8 @@ const SERIES_COLOURS = [
 ]
 const SERIES_MARKERS = [:circle, :rect, :utriangle, :diamond, :dtriangle, :xcross, :star5]
 dataset_colour(i::Integer) = SERIES_COLOURS[mod1(i, length(SERIES_COLOURS))]
+# Marker edge: the fill darkened, as the package's own figures do.
+darker(colour::RGBf) = RGBf(0.6f0 * colour.r, 0.6f0 * colour.g, 0.6f0 * colour.b)
 dataset_marker_symbol(i::Integer) = SERIES_MARKERS[mod1(i, length(SERIES_MARKERS))]
 
 "Published total averages against the ones this package produces, with the residuals beneath."
@@ -195,7 +203,8 @@ function figure_published_comparison(results)
         averages = get(result.total_average_R_T, dataset, nothing)
         averages === nothing && continue
         haskey(averages, yield) || continue
-        extracted, extracted_uncertainty = averages[yield]
+        extracted = averages[yield].value
+        extracted_uncertainty = averages[yield].uncertainty
         push!(
             points,
             (; system, published, published_uncertainty, extracted, extracted_uncertainty),
@@ -249,6 +258,7 @@ function figure_published_comparison(results)
             x,
             y;
             color = SYSTEM_COLOR[system],
+            strokecolor = darker(SYSTEM_COLOR[system]),
             marker = SYSTEM_MARKER[system],
             label = SYSTEM_NOTATION[system],
         )
@@ -257,6 +267,7 @@ function figure_published_comparison(results)
             x,
             100 .* (y .- x) ./ x;
             color = SYSTEM_COLOR[system],
+            strokecolor = darker(SYSTEM_COLOR[system]),
             marker = SYSTEM_MARKER[system],
         )
     end
@@ -265,7 +276,7 @@ function figure_published_comparison(results)
         axis,
         0.04,
         0.92;
-        text = "$(length(points)) comparisons\nall within $(ceil(worst; digits = 1)) %",
+        text = "$(length(points)) comparisons\nlargest deviation $(round(worst; digits = 2)) %",
         space = :relative,
         align = (:left, :top),
         fontsize = 21,
@@ -296,7 +307,14 @@ function figure_temperature_ratio(result)
     hlines!(axis, [1.0]; color = :black, linestyle = :dashdot, linewidth = 1.5)
     for curve in result.R_T
         isempty(curve) && continue
-        scatter!(axis, curve.A_H, curve.ratio; color = (:grey45, 0.55), markersize = 14)
+        scatter!(
+            axis,
+            curve.A_H,
+            curve.ratio;
+            color = (:grey45, 0.55),
+            strokecolor = (:grey25, 0.55),
+            markersize = 14,
+        )
     end
     trend = systematic_trend(result).R_T
     band!(
@@ -363,13 +381,20 @@ function figure_method_chain(result, count = 5)
             data.A,
             data.ν;
             color = colour,
+            strokecolor = darker(colour),
             marker = marker,
             markersize = 14,
             label = data.label,
         )
         for (axis, curve) in ((axes[2], result.r_ν[index]), (axes[3], result.R_T[index]))
             scatter!(
-                axis, curve.A_H, curve.ratio; color = colour, marker = marker, markersize = 14
+                axis,
+                curve.A_H,
+                curve.ratio;
+                color = colour,
+                strokecolor = darker(colour),
+                marker = marker,
+                markersize = 14,
             )
         end
     end
@@ -510,16 +535,14 @@ function main()
     # again here; these read the results in memory.
     results = Dict{String,ExtractionResult}()
     for system in ("U233_nth", "U235_nth", "Cf252_sf")
-        results[system] = run_pipeline(configurations[system]; write_output = false)
+        results[system] = run_pipeline(configurations[system])
     end
     # The same system under the other level density model, for the comparison of the two.
     source = joinpath(dirname(@__DIR__), "config", "U233_nth.toml")
     gilbert_cameron = mktempdir() do directory
         path = joinpath(directory, "gilbert_cameron.toml")
         write(path, replace(read(source, String), "model = \"BSFG\"" => "model = \"GC\""))
-        return run_pipeline(
-            load_configuration(path; data_directory = DATA_DIRECTORY); write_output = false
-        )
+        return run_pipeline(load_configuration(path; data_directory = DATA_DIRECTORY))
     end
 
     with_theme(publication_theme()) do

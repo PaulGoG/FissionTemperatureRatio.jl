@@ -6,8 +6,8 @@
 #
 #     using FissionTemperatureRatio, CairoMakie
 #
-# Without it these functions exist but have no methods, and `run_pipeline` writes its tables and
-# metadata while reporting that figures were skipped.
+# Without it these functions exist but have no methods; the tables and the manifest a run writes
+# do not need them.
 
 """
     publication_theme() -> Theme
@@ -65,19 +65,14 @@ Requires CairoMakie to be loaded.
 function save_figure end
 
 """
-    write_figures(result, directory, identifier) -> Dict{String,String}
+    write_figures(result, directory) -> Dict{String,String}
 
 Write the figures of a completed run into `directory`, returning the paths written, keyed by
 content. Besides the three overview figures, every per-dataset segmented curve gets its own
-multiplicity-ratio and temperature-ratio figure, with the systematic trend as a guide.
+multiplicity-ratio and temperature-ratio figure, with the systematic trend as a guide. The
+directory names the run; the file names name the quantity and the abscissa.
 
-Requires CairoMakie to be loaded; [`write_results`](@ref) calls this only when it is, and records
-that figures were skipped when it is not.
+Requires CairoMakie to be loaded. `scripts/run.jl` calls it after [`write_results`](@ref), into
+`plots/<system>/<run>/`.
 """
 function write_figures end
-
-# Whether the plotting extension is available. `write_results` consults this rather than calling
-# into the extension blindly, so that a run without CairoMakie still produces its tables.
-function _plotting_extension()
-    return Base.get_extension(@__MODULE__, :FissionTemperatureRatioCairoMakieExt)
-end

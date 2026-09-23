@@ -213,8 +213,9 @@ end
     SegmentSettings
 
 Controls of the piecewise-linear parameterization: the largest number of segments examined, the
-smallest number of data points a segment may contain, whether the ratio is pinned to one half at
-the symmetric split, and mass-number windows that must each contain a breakpoint.
+smallest number of data points and the smallest extent in mass units a segment may have, whether
+the ratio is pinned to one half at the symmetric split, mass-number windows that must each
+contain a breakpoint, and the coverage a dataset needs to be offered as a curve at all.
 
 `required_windows` places a breakpoint where physics says there is one — the minimum at the heavy
 magic fragment, `A_H` near 130, where the `Z = 50`, `N = 82` shell closure fixes the sharing. It
@@ -222,23 +223,27 @@ constrains the systematic-trend curve by default and the per-dataset parameteriz
 `windows_apply_to_datasets` is set, since a dataset that resolves the feature on its own should be
 left to do so.
 
-`parsimony` biases the choice of order towards fewer segments by multiplying the penalty the
-selection criterion charges per parameter. One is the criterion as published.
+`min_dataset_coverage` is the smallest fraction of the mass numbers of the fragmentation range
+at which a dataset must provide a complete pair. Below it the dataset is read, diagnosed and
+pooled, but no segmented curve is fitted to it alone: with pairs at few mass numbers the
+breakpoint search cannot place the minimum where the data do not reach, and the curve it returns
+asserts structure between the measurements that a consuming code could not tell from a measured
+feature.
 """
 struct SegmentSettings
     max_segments::Int
     min_points_per_segment::Int
+    min_segment_span::Int
     pin_symmetric_split::Bool
     required_windows::Vector{UnitRange{Int}}
     windows_apply_to_datasets::Bool
-    parsimony::Float64
+    min_dataset_coverage::Float64
 end
 
 """
     OutputSettings
 
-Rounding of tabulated output and the subdirectory, under the results and plots directories, that
-a run writes into.
+Rounding of tabulated output.
 
 `significant_digits` is significant figures, not decimal places: an uncertainty of `1.2e-5` and a
 ratio of `1.1` are both written to the same number of meaningful digits, which a fixed number of
@@ -246,7 +251,6 @@ decimals cannot do for two quantities of such different magnitude.
 """
 struct OutputSettings
     significant_digits::Int
-    subdirectory::String
 end
 
 """
@@ -254,6 +258,10 @@ end
 
 A complete, validated pipeline configuration. Construct with [`load_configuration`](@ref) rather
 than directly, so that the constraints documented in the TOML file are enforced.
+
+`data_directory` is the root every input path was resolved against; the run identifier and the
+metadata spell input paths relative to it, so that a run made on another machine names the same
+inputs.
 """
 struct Configuration
     system::SystemSpecification
@@ -265,6 +273,7 @@ struct Configuration
     segments::SegmentSettings
     output::OutputSettings
     source::String
+    data_directory::String
 end
 
 """
@@ -298,6 +307,44 @@ function _section(document::AbstractDict, name::String, source::String)
         throw(ArgumentError("configuration $(source): [$(name)] must be a table"))
     return section
 end
+
+# A key the loader does not read is refused rather than ignored: a misspelt or retired key would
+# otherwise leave a run silently on the default, and the file would claim a setting the run did
+# not honour.
+function _refuse_unknown(table::AbstractDict, allowed, path::String)
+    unknown = sort!(collect(setdiff(keys(table), allowed)))
+    isempty(unknown) ||
+        throw(ArgumentError("$(path) has no key $(join(map(repr, unknown), ", "))"))
+    return nothing
+end
+
+const SECTIONS = (
+    "system", "fragmentation", "level_density", "multiplicity", "yield", "segments", "output"
+)
+const SYSTEM_KEYS = ("target_A", "target_Z", "channel", "incident_energy")
+const FRAGMENTATION_KEYS = (
+    "charges_per_mass",
+    "heavy_mass_min",
+    "heavy_mass_max",
+    "charge_distribution_file",
+    "fallback_charge_polarization",
+    "fallback_charge_dispersion",
+)
+const LEVEL_DENSITY_KEYS = (
+    "model", "mass_excess_file", "shell_correction_file", "ratio_averaging"
+)
+const MULTIPLICITY_KEYS = ("subdirectory", "exclude")
+const YIELD_KEYS = ("subdirectory",)
+const SEGMENT_KEYS = (
+    "max_segments",
+    "min_points_per_segment",
+    "min_segment_span",
+    "pin_symmetric_split",
+    "required_windows",
+    "windows_apply_to_datasets",
+    "min_dataset_coverage",
+)
+const OUTPUT_KEYS = ("significant_digits",)
 
 function _value(section::AbstractDict, key::String, ::Type{T}, path::String) where {T}
     haskey(section, key) ||
@@ -414,10 +461,10 @@ end
 
 Read and validate a pipeline configuration.
 
-Every key is checked for presence, type, enumerated choice and numerical range, and every input
-file named by the configuration is checked for existence, before the pipeline is allowed to
-start. Failures throw an `ArgumentError` naming the offending key, so that a configuration the
-pipeline cannot honour never begins a run.
+Every key is checked for presence, type, enumerated choice and numerical range, every input
+file named by the configuration is checked for existence, and a section or key the loader does
+not know is refused, before the pipeline is allowed to start. Failures throw an `ArgumentError`
+naming the offending key, so that a configuration the pipeline cannot honour never begins a run.
 
 `data_directory` is the root the `subdirectory` and file keys are resolved against; it exists so
 that tests can point at a fixture directory.
@@ -436,8 +483,10 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
         throw(ArgumentError("configuration $(path) is not valid TOML: $(exception)"))
     end
     source = String(path)
+    _refuse_unknown(document, SECTIONS, "configuration $(source)")
 
     system_section = _section(document, "system", source)
+    _refuse_unknown(system_section, SYSTEM_KEYS, "[system]")
     target_A = Int(
         _in_bounds(
             _value(system_section, "target_A", Integer, "system.target_A"),
@@ -479,6 +528,7 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
     symmetric_split = cld(A₀, 2)
 
     fragmentation_section = _section(document, "fragmentation", source)
+    _refuse_unknown(fragmentation_section, FRAGMENTATION_KEYS, "[fragmentation]")
     charges_per_mass = Int(
         _in_bounds(
             _value(
@@ -559,6 +609,7 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
     )
 
     level_density_section = _section(document, "level_density", source)
+    _refuse_unknown(level_density_section, LEVEL_DENSITY_KEYS, "[level_density]")
     model = _one_of(
         _value(level_density_section, "model", String, "level_density.model"),
         LEVEL_DENSITY_MODELS,
@@ -594,6 +645,7 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
     )
 
     multiplicity_section = _section(document, "multiplicity", source)
+    _refuse_unknown(multiplicity_section, MULTIPLICITY_KEYS, "[multiplicity]")
     multiplicity_directory = _subdirectory(
         multiplicity_section, "multiplicity.subdirectory", data_directory
     )
@@ -602,12 +654,14 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
     # Optional. Without it the run reports the mean over the fragment mass range only; with it,
     # the total average over each yield distribution, which is the quantity the literature quotes.
     yield_directory = if haskey(document, "yield")
+        _refuse_unknown(_section(document, "yield", source), YIELD_KEYS, "[yield]")
         _subdirectory(document["yield"], "yield.subdirectory", data_directory)
     else
         nothing
     end
 
     segments_section = _section(document, "segments", source)
+    _refuse_unknown(segments_section, SEGMENT_KEYS, "[segments]")
     max_segments = Int(
         _in_bounds(
             _value(segments_section, "max_segments", Integer, "segments.max_segments", 6),
@@ -627,6 +681,16 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
             ),
             "segments.min_points_per_segment";
             min = 2,
+            max = 50,
+        ),
+    )
+    min_span = Int(
+        _in_bounds(
+            _value(
+                segments_section, "min_segment_span", Integer, "segments.min_segment_span", 3
+            ),
+            "segments.min_segment_span";
+            min = 1,
             max = 50,
         ),
     )
@@ -659,13 +723,18 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
         "segments.windows_apply_to_datasets",
         false,
     )
-    parsimony = Float64(
+    min_coverage = Float64(
         _in_bounds(
-            _value(segments_section, "parsimony", Real, "segments.parsimony", 1.0),
-            "segments.parsimony";
+            _value(
+                segments_section,
+                "min_dataset_coverage",
+                Real,
+                "segments.min_dataset_coverage",
+                0.3,
+            ),
+            "segments.min_dataset_coverage";
             min = 0,
-            max = 10,
-            exclusive_min = true,
+            max = 1,
         ),
     )
     for (index, window) in enumerate(windows)
@@ -676,6 +745,7 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
     end
 
     output_section = _section(document, "output", source)
+    _refuse_unknown(output_section, OUTPUT_KEYS, "[output]")
     significant_digits = Int(
         _in_bounds(
             _value(
@@ -686,9 +756,6 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
             max = 15,
         ),
     )
-    subdirectory = _value(output_section, "subdirectory", String, "output.subdirectory", label)
-    isempty(subdirectory) && throw(ArgumentError("output.subdirectory must not be empty"))
-
     return Configuration(
         SystemSpecification(
             target_A, target_Z, channel, reaction, incident_energy, A₀, Z₀, label
@@ -705,8 +772,11 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
         multiplicity_directory,
         excluded_datasets,
         yield_directory,
-        SegmentSettings(max_segments, min_points, pin, windows, windows_apply, parsimony),
-        OutputSettings(significant_digits, subdirectory),
+        SegmentSettings(
+            max_segments, min_points, min_span, pin, windows, windows_apply, min_coverage
+        ),
+        OutputSettings(significant_digits),
         source,
+        String(data_directory),
     )
 end

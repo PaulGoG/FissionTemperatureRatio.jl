@@ -147,10 +147,10 @@ Uncertainties are propagated from those of `r_ν` alone,
 σ_RT = σ_r / (2 R_T R_a r_ν²),
 ```
 
-since the level density parameter systematic supplies no uncertainty. The uncertainty of `R_T` is
-therefore a lower bound: the spread between level density models is the larger effect, and is
-assessed by repeating the extraction with [`GilbertCameron`](@ref) in place of
-[`BackShiftedFermiGas`](@ref).
+since the level density parameter systematic supplies no uncertainty; where `r_ν` quotes none the
+result quotes none. The uncertainty of `R_T` is therefore a lower bound: the spread between level
+density models is the larger effect, and is assessed by repeating the extraction with
+[`GilbertCameron`](@ref) in place of [`BackShiftedFermiGas`](@ref).
 
 Mass numbers absent from `R_a` are omitted.
 
@@ -180,7 +180,7 @@ julia> temperature_ratio(r_ν, Dict(132 => 1.05)).A_H
 function temperature_ratio(r_ν::RatioCurve, R_a::AbstractDict{Int,Float64})
     A_H = Int[]
     R_T = Float64[]
-    σ = Float64[]
+    σ = Union{Missing,Float64}[]
 
     for (index, mass) in enumerate(r_ν.A_H)
         haskey(R_a, mass) || continue
@@ -191,51 +191,16 @@ function temperature_ratio(r_ν::RatioCurve, R_a::AbstractDict{Int,Float64})
         value = sqrt((1 - r) / (a_ratio * r))
         push!(A_H, mass)
         push!(R_T, value)
-        push!(σ, r_ν.σ[index] / (2 * value * a_ratio * r^2))
+        push!(σ, _propagate(r_ν.σ[index], value, a_ratio, r))
     end
 
     return RatioCurve(A_H, R_T, σ, r_ν.label)
 end
 
-"""
-    weighted_mean(curve) -> Tuple{Float64,Float64}
+# ∂R_T/∂r_ν, the factor the transformation applies to an uncertainty or a covariance of r_ν.
+_temperature_ratio_slope(R_T::Real, R_a::Real, r::Real) = -1 / (2 * R_T * R_a * r^2)
 
-Inverse-variance weighted mean of a ratio curve and the uncertainty of that mean.
-
-Points without an uncertainty carry no information about the weighting, so the mean falls back to
-the unweighted one when no point in the curve has a positive uncertainty. The uncertainty of the
-mean is `(Σ w)^(-1/2)` for the weighted case and the standard error of the mean otherwise; it is
-not the quadrature sum of the input uncertainties, which would grow with the number of points.
-
-# Examples
-
-```jldoctest
-julia> curve = RatioCurve([130, 132], [1.20, 1.10], [0.02, 0.01], "example");
-
-julia> round.(weighted_mean(curve); digits = 4)
-(1.12, 0.0089)
-```
-
-With no uncertainties quoted the weighting is uniform and the spread of the points is reported
-instead:
-
-```jldoctest
-julia> round.(weighted_mean(RatioCurve([130, 132], [1.20, 1.10], [0.0, 0.0], "example")); digits = 4)
-(1.15, 0.05)
-```
-"""
-function weighted_mean(curve::RatioCurve)
-    isempty(curve) && throw(ArgumentError("cannot average an empty ratio curve"))
-
-    usable = curve.σ .> 0
-    if !any(usable)
-        n = length(curve)
-        μ = sum(curve.ratio) / n
-        n == 1 && return (μ, 0.0)
-        return (μ, sqrt(sum(abs2, curve.ratio .- μ) / (n * (n - 1))))
-    end
-
-    w = 1 ./ curve.σ[usable] .^ 2
-    μ = sum(w .* curve.ratio[usable]) / sum(w)
-    return (μ, 1 / sqrt(sum(w)))
+_propagate(::Missing, R_T::Real, R_a::Real, r::Real) = missing
+function _propagate(σ_r::Real, R_T::Real, R_a::Real, r::Real)
+    return abs(_temperature_ratio_slope(R_T, R_a, r)) * σ_r
 end

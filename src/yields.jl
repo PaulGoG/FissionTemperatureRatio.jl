@@ -17,14 +17,14 @@ cent gives the same answer.
 
 - `A`: fragment mass numbers, ascending.
 - `Y`: mass yield.
-- `σY`: uncertainty of `Y`; zero where the source quotes none.
+- `σY`: uncertainty of `Y`; `missing` where the source quotes none.
 - `label`: identifier of the distribution, used in output tables and figure legends.
 - `source`: path of the file the data was read from, recorded for provenance.
 """
 struct MassYield
     A::Vector{Int}
     Y::Vector{Float64}
-    σY::Vector{Float64}
+    σY::Vector{Union{Missing,Float64}}
     label::String
     source::String
 end
@@ -40,7 +40,7 @@ Yield and its uncertainty at mass number `A`, or `missing` if the distribution h
 # Examples
 
 ```jldoctest
-julia> data = MassYield([132, 140], [0.061, 0.048], [0.002, 0.0], "example", "");
+julia> data = MassYield([132, 140], [0.061, 0.048], [0.002, missing], "example", "");
 
 julia> mass_yield(data, 132)
 (0.061, 0.002)
@@ -63,8 +63,8 @@ Read a whitespace-separated `Y(A)` dataset with the column layout
 A  Y  Y_uncertainty
 ```
 
-and a single header line. A missing or non-numeric third column is taken as an absent uncertainty
-and stored as zero, which is how a distribution quoting none is carried without being discarded.
+and a single header line, or `A Y` where the source quotes no uncertainty. An absent,
+non-numeric or non-positive third column is stored as `missing`, never as zero.
 
 The columns are taken **by position**, not by header text: the header line is skipped, so the
 upstream retrieval may rename it without touching anything here, and nothing in this reader may
@@ -96,21 +96,16 @@ function read_mass_yield(path::AbstractString; label::AbstractString = "")
 
     A = Int[]
     Y = Float64[]
-    σY = Float64[]
+    σY = Union{Missing,Float64}[]
     for row in eachrow(table)
         (ismissing(row.A) || ismissing(row.Y)) && continue
         mass = round(Int, row.A)
         value = Float64(row.Y)
         value ≥ 0 ||
             throw(ArgumentError("yield file $(path) has a negative yield at A = $(mass)"))
-        uncertainty = if hasproperty(table, :σY) && !ismissing(row.σY) && row.σY isa Real
-            Float64(row.σY)
-        else
-            0.0
-        end
         push!(A, mass)
         push!(Y, value)
-        push!(σY, abs(uncertainty))
+        push!(σY, _quoted_uncertainty(table, row, :σY))
     end
 
     allunique(A) || throw(ArgumentError("yield file $(path) has repeated mass numbers"))
@@ -166,13 +161,16 @@ Both inputs carry uncertainties and both propagate:
 ```
 
 The second term is what makes the average of a multiplicity dataset quoting no uncertainties
-still carry one, from the yield distribution alone; where neither input quotes uncertainties the
-result is exact and the uncertainty is zero. The yield term is a difference from the mean, so a
-distribution contributes nothing to the uncertainty at mass numbers where the ratio sits at its
-own average.
+still carry one, from the yield distribution alone. An unquoted uncertainty, `missing` in either
+input, contributes nothing; where neither input quotes any the uncertainty is zero. The yield
+term is a difference from the mean, so a distribution contributes nothing to the uncertainty at
+mass numbers where the ratio sits at its own average.
 
-Correlations between mass numbers are neglected, in both inputs, as the sources do not report
-them.
+Correlations between mass numbers are neglected in both inputs. For the ratio that is the
+independent-points approximation of the published tables, and it is exact only for a curve whose
+points are measured independently; the tabulated values of a segmented curve are functions of a
+few fitted coefficients, and the method for a [`SegmentedCurve`](@ref) propagates their
+covariance instead.
 
 Throws an `ArgumentError` when the curve and the distribution share no mass number, or when the
 yields summed over the shared mass numbers are not positive.
@@ -187,9 +185,9 @@ function total_average(curve::RatioCurve, yields::MassYield)
         entry = mass_yield(yields, mass)
         ismissing(entry) && continue
         push!(weight, entry[1])
-        push!(σ_Y, entry[2])
+        push!(σ_Y, coalesce(entry[2], 0.0))
         push!(ratio, curve.ratio[index])
-        push!(σ_R, curve.σ[index])
+        push!(σ_R, coalesce(curve.σ[index], 0.0))
     end
 
     isempty(weight) &&

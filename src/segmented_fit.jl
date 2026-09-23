@@ -27,7 +27,8 @@ A continuous piecewise-linear fit with breakpoints selected from the data.
 - `breakpoints`: interior breakpoints `ψ`, ascending; `length(breakpoints) + 1` segments.
 - `coefficients`: `[β₀,] β₁, γ₁, …` in the truncated-power basis; `β₀` is absent when the fit is
   pinned.
-- `covariance`: covariance of `coefficients`, scaled by the reduced chi-squared.
+- `covariance`: covariance of `coefficients`, scaled by `max(1, χ²/dof)` where the data quote
+  uncertainties and by `χ²/dof` alone where none does; see [`fit_segments`](@ref).
 - `pinned_value`: the value the fit was pinned to at `x₀`, or `nothing`.
 - `wrss`, `dof`, `bic`: weighted residual sum of squares, degrees of freedom, and the
   selection criterion. `wrss/dof` is a reduced chi-squared to the extent that the quoted
@@ -74,14 +75,17 @@ end
 """
     fit_weights(σ) -> Tuple{Vector{Float64},Int}
 
-Inverse-variance weights, together with the number of points whose uncertainty was absent.
+Inverse-variance weights, together with the number of points whose uncertainty was not quoted.
 
-Points without an uncertainty carry no information about their own weight. They are given the
-median of the positive weights rather than being discarded, so that datasets quoting no
-uncertainties — of which there are several — still enter the fit. This borrows the scale of the
-uncertainties from the sets that do quote them, which is an assumption, and the number of points
-it was applied to is recorded with the fit. Where no point has an uncertainty the weights are
-uniform and the fit reduces to ordinary least squares.
+An uncertainty is `missing` where the source quotes none. Such points carry no information about
+their own weight and are given the median of the quoted weights rather than being discarded, so
+that datasets quoting no uncertainties — of which there are several — still enter the fit. This
+borrows the scale of the uncertainties from the sets that do quote them, which is an assumption,
+and the number of points it was applied to is recorded with the fit. Where no point has a quoted
+uncertainty the weights are uniform and the fit reduces to ordinary least squares.
+
+A quoted uncertainty must be positive. Zero denotes an exact value, which has no finite weight;
+an unquoted uncertainty is `missing`, never zero, so that the two cannot be confused.
 
 The weights are not rescaled, so that the weighted residual sum of squares is a chi-squared to
 the extent that the quoted uncertainties are trustworthy. A constant factor on the weights shifts
@@ -93,27 +97,36 @@ order is chosen.
 The third point quotes no uncertainty and takes the median of the other two weights:
 
 ```jldoctest
-julia> w, imputed = fit_weights([0.1, 0.2, 0.0]);
+julia> w, imputed = fit_weights([0.1, 0.2, missing]);
 
 julia> (round.(w; digits = 1), imputed)
 ([100.0, 25.0, 62.5], 1)
 ```
 
 ```jldoctest
-julia> fit_weights([0.0, 0.0])
+julia> fit_weights([missing, missing])
 ([1.0, 1.0], 2)
 ```
 """
-function fit_weights(σ::AbstractVector{<:Real})
-    positive = σ .> 0
+function fit_weights(σ::AbstractVector{<:Union{Missing,Real}})
+    quoted = .!ismissing.(σ)
     w = Vector{Float64}(undef, length(σ))
-    imputed = count(!, positive)
-    if !any(positive)
+    imputed = count(!, quoted)
+    if !any(quoted)
         fill!(w, 1.0)
         return (w, imputed)
     end
-    w[positive] .= 1 ./ σ[positive] .^ 2
-    w[.!positive] .= median(view(w, positive))
+    for index in eachindex(σ)
+        quoted[index] || continue
+        σ[index] > 0 || throw(
+            ArgumentError(
+                "a quoted uncertainty must be positive, got $(σ[index]) at position \
+                 $(index); an unquoted uncertainty is missing, and zero denotes an exact value",
+            ),
+        )
+        w[index] = 1 / σ[index]^2
+    end
+    w[.!quoted] .= median(view(w, quoted))
     return (w, imputed)
 end
 
@@ -129,6 +142,17 @@ function _solve(X::Matrix{Float64}, y::Vector{Float64}, w::Vector{Float64})
     residual = yw .- Xw * β
     wrss = sum(abs2, residual)
     return (β, wrss, gram)
+end
+
+# The factor the coefficient covariance (XᵀWX)⁻¹ is scaled by. Where the data quote
+# uncertainties the weights are inverse variances and wrss/dof is a reduced chi-squared: the
+# covariance is inflated where the residuals exceed what the quoted uncertainties predict and left
+# alone where they do not, since shrinking it below the quoted scale would claim a precision the
+# data do not carry. Where no point quotes an uncertainty the weights are uniform and carry no
+# scale at all; the noise is then estimated from the residuals, which is ordinary least squares.
+function _covariance_scale(wrss::Float64, dof::Int, imputed::Int, n::Int)
+    imputed == n && return wrss / dof
+    return max(1.0, wrss / dof)
 end
 
 # A continuous piecewise-linear function is monotone on each segment, so its extrema over the
@@ -162,29 +186,31 @@ function _within_bounds(
     return true
 end
 
-function _bic(wrss::Float64, n::Int, parameters::Int, parsimony::Float64)
+function _bic(wrss::Float64, n::Int, parameters::Int)
     # Gaussian likelihood with the noise scale estimated from the residuals, plus the Schwarz
     # penalty, Ann. Stat. 6, 461 (1978), doi:10.1214/aos/1176344136. The breakpoints are counted
     # as parameters: they are fitted, and a criterion that ignored them would always prefer more
     # segments.
-    #
-    # `parsimony` scales that penalty. At one this is the criterion as published; above one each
-    # added segment must buy more of a fit to be worth its parameters, which is how the choice is
-    # biased towards fewer segments without inventing a different criterion.
-    return n * log(wrss / n) + parsimony * parameters * log(n)
+    return n * log(wrss / n) + parameters * log(n)
 end
 
 # Enumerate ascending interior breakpoint sets drawn from `candidates`, subject to a minimum
-# number of data points per segment and, optionally, windows that must each contain a breakpoint.
+# number of data points per segment, a minimum extent per segment in units of the abscissa, and,
+# optionally, windows that must each contain a breakpoint.
+#
+# The first segment runs from the first abscissa to the first breakpoint and the last from the
+# last breakpoint to the last abscissa, so every segment has an extent to test, not only the
+# interior ones.
 function _each_breakpoint_set(
     f::Function,
     x::Vector{Int},
     candidates::Vector{Int},
     count::Int,
     min_points::Int,
+    min_span::Int,
     windows::Vector{UnitRange{Int}},
 )
-    count == 0 && return f(Int[])
+    count == 0 && return (last(x) - first(x) ≥ min_span ? f(Int[]) : nothing)
     chosen = Vector{Int}(undef, count)
 
     function recurse(depth::Int, start::Int)
@@ -192,9 +218,11 @@ function _each_breakpoint_set(
             ψ = candidates[index]
             lower = depth == 1 ? first(x) - 1 : chosen[depth - 1]
             Base.count(xi -> lower < xi ≤ ψ, x) ≥ min_points || continue
+            ψ - (depth == 1 ? first(x) : chosen[depth - 1]) ≥ min_span || continue
             chosen[depth] = ψ
             if depth == count
                 Base.count(xi -> xi > ψ, x) ≥ min_points || continue
+                last(x) - ψ ≥ min_span || continue
                 all(window -> any(in(window), chosen), windows) || continue
                 f(copy(chosen))
             else
@@ -224,8 +252,8 @@ function Base.showerror(io::IO, exception::InsufficientDataError)
 end
 
 """
-    fit_segments(x, y, σ; max_segments, min_points_per_segment, pinned_value,
-                 required_windows) -> SegmentedFit
+    fit_segments(x, y, σ; max_segments, min_points_per_segment, min_segment_span, pinned_value,
+                 required_windows, bounds) -> SegmentedFit
 
 Fit `y(x)` by a continuous piecewise-linear function, selecting both the number of segments and
 the breakpoint positions from the data.
@@ -238,21 +266,24 @@ search, returns the global optimum of the criterion. The number of segments is c
 Bayesian information criterion, which prices each additional segment and each additional
 breakpoint; the criterion for every order examined is retained in the result.
 
+The coefficient covariance is `(XᵀWX)⁻¹` scaled by `max(1, χ²/dof)` where the data quote
+uncertainties — inflated where the residuals exceed what the quoted uncertainties predict, never
+shrunk below the quoted scale — and by `χ²/dof` alone where no point quotes one, since uniform
+weights carry no scale and the noise must then be estimated from the residuals.
+
 # Arguments
 
 - `max_segments`: largest number of segments examined.
-- `parsimony`: multiplies the penalty the criterion charges per parameter. One, the default, is
-  the criterion as published. Above one each added segment must buy more of a fit to be worth its
-  parameters, which biases the choice towards fewer segments; the effect scales with sample size
-  and with how many parameters a segment costs, which a flat offset would not. Predicting one
-  measurement from a fit to another stops improving at about four segments while the fit to its
-  own data keeps improving, so this is the knob for refusing structure that describes the
-  measurement rather than the quantity.
 - `min_segments`: smallest number examined, `1` by default. Setting it equal to `max_segments`
   fits exactly that many segments rather than selecting, which is how a given order is inspected
   on its own; the criterion is still reported for every order examined.
 - `min_points_per_segment`: smallest number of data points a segment may contain; the
   identifiability guard on the search.
+- `min_segment_span`: smallest extent of a segment in units of the abscissa, from its first
+  pivot to its last, `1` by default. The point count bounds how much data a segment rests on and
+  the span bounds how short a feature it may assert; at four points per segment on consecutive
+  mass numbers the two coincide at three mass units, so the span guard acts where the abscissae
+  repeat or the point count is set lower.
 - `pinned_value`: when given, the fit is constrained to pass through `(first(x), pinned_value)`.
   For the multiplicity ratio of a fissioning nucleus of even mass number this is exact at the
   symmetric split, where the two fragments are identical and the ratio is one half.
@@ -264,9 +295,12 @@ breakpoint; the criterion for every order examined is retained in the result.
   than repaired afterwards. The test is exact, because a piecewise-linear function attains its
   extrema at its pivots.
 
+`σ` is `missing` where no uncertainty is quoted and positive otherwise; see
+[`fit_weights`](@ref).
+
 Throws a `DimensionMismatch` when the inputs have different lengths, an `ArgumentError` for an
-invalid keyword value or unsorted abscissae, and an [`InsufficientDataError`](@ref) when the data
-cannot support a fit under the constraints.
+invalid keyword value, unsorted abscissae or a non-positive quoted uncertainty, and an
+[`InsufficientDataError`](@ref) when the data cannot support a fit under the constraints.
 
 # Examples
 
@@ -303,11 +337,11 @@ julia> [(x, round(value; digits = 3)) for (x, value) in pivots(fit)]
 function fit_segments(
     x::AbstractVector{<:Integer},
     y::AbstractVector{<:Real},
-    σ::AbstractVector{<:Real};
+    σ::AbstractVector{<:Union{Missing,Real}};
     max_segments::Integer = 6,
     min_segments::Integer = 1,
-    parsimony::Real = 1.0,
     min_points_per_segment::Integer = 4,
+    min_segment_span::Integer = 1,
     pinned_value::Union{Real,Nothing} = nothing,
     required_windows::Vector{UnitRange{Int}} = UnitRange{Int}[],
     bounds::Union{Tuple{Real,Real},Nothing} = nothing,
@@ -317,7 +351,6 @@ function fit_segments(
                            $(length(x)), $(length(y)), $(length(σ))"))
     max_segments ≥ 1 ||
         throw(ArgumentError("max_segments must be at least 1, got $(max_segments)"))
-    parsimony > 0 || throw(ArgumentError("parsimony must be positive, got $(parsimony)"))
     1 ≤ min_segments ≤ max_segments || throw(
         ArgumentError("min_segments must lie between 1 and max_segments = $(max_segments), \
              got $(min_segments)"),
@@ -327,6 +360,8 @@ function fit_segments(
             "min_points_per_segment must be at least 2, got $(min_points_per_segment)"
         ),
     )
+    min_segment_span ≥ 1 ||
+        throw(ArgumentError("min_segment_span must be at least 1, got $(min_segment_span)"))
     issorted(x) || throw(ArgumentError("x must be sorted in ascending order"))
 
     n = length(x)
@@ -362,7 +397,12 @@ function fit_segments(
 
         best_for_order = nothing
         _each_breakpoint_set(
-            xs, candidates, count, min_points_per_segment, required_windows
+            xs,
+            candidates,
+            count,
+            min_points_per_segment,
+            Int(min_segment_span),
+            required_windows,
         ) do ψ
             X = _design_matrix(xs, first(xs), ψ, pinned)
             solved = _solve(X, ys, w)
@@ -372,9 +412,9 @@ function fit_segments(
             dof = n - parameters
             dof > 0 || return nothing
             _within_bounds(bounds, xs, ψ, β, pinned, pinned_value) || return nothing
-            criterion = _bic(wrss, n, parameters, Float64(parsimony))
+            criterion = _bic(wrss, n, parameters)
             if best_for_order === nothing || criterion < best_for_order.bic
-                covariance = Symmetric(inv(gram)) * (wrss / dof)
+                covariance = Symmetric(inv(gram)) * _covariance_scale(wrss, dof, imputed, n)
                 best_for_order = (
                     ψ = ψ,
                     β = β,
@@ -399,6 +439,7 @@ function fit_segments(
             "no piecewise-linear model satisfies the constraints: $(n) points, \
              max_segments = $(max_segments), \
              min_points_per_segment = $(min_points_per_segment), \
+             min_segment_span = $(min_segment_span), \
              required_windows = $(required_windows)"
         ),
     )
@@ -418,6 +459,17 @@ function fit_segments(
     )
 end
 
+# The basis vector at `x`: the row of the design matrix a point there would contribute.
+function _basis(fit::SegmentedFit, x::Real)
+    j = Float64[]
+    fit.pinned_value === nothing && push!(j, 1.0)
+    push!(j, x - fit.x₀)
+    for ψ in fit.breakpoints
+        push!(j, max(x - ψ, 0))
+    end
+    return j
+end
+
 """
     evaluate(fit, x) -> Tuple{Float64,Float64}
 
@@ -425,20 +477,42 @@ Value and uncertainty of the fit at `x`.
 
 The uncertainty is the propagated parameter uncertainty, `σ(x) = sqrt(jᵀ Σ j)` with `j` the basis
 vector at `x`, so it widens away from the bulk of the data and vanishes at a pinned abscissa, as
-it should. The covariance is scaled by the reduced chi-squared, which estimates the noise level
-from the residuals rather than trusting the quoted uncertainties in absolute terms.
+it should. It is the square root of the diagonal of [`covariance`](@ref) at that abscissa; the
+values at two abscissae are correlated, since they are functions of the same coefficients, and
+a quantity that sums the curve over its range needs the full matrix.
 """
 function evaluate(fit::SegmentedFit, x::Real)
-    pinned = fit.pinned_value !== nothing
-    j = Float64[]
-    pinned || push!(j, 1.0)
-    push!(j, x - fit.x₀)
-    for ψ in fit.breakpoints
-        push!(j, max(x - ψ, 0))
-    end
-    value = dot(j, fit.coefficients) + (pinned ? fit.pinned_value : 0.0)
+    j = _basis(fit, x)
+    value = dot(j, fit.coefficients) + something(fit.pinned_value, 0.0)
     variance = dot(j, fit.covariance, j)
     return (value, sqrt(max(variance, 0.0)))
+end
+
+"""
+    covariance(fit, xs) -> Matrix{Float64}
+
+Covariance of the fitted values at the abscissae `xs`, `J Σ Jᵀ` with `J` the rows of the basis
+at each abscissa and `Σ` the coefficient covariance.
+
+The fitted values at different abscissae are not independent — a curve with at most a handful of
+coefficients cannot have independent errors at fifty mass numbers — and any quantity that combines
+them, such as a yield-weighted average, propagates this matrix rather than the diagonal alone.
+
+# Examples
+
+The diagonal is the square of the uncertainty [`evaluate`](@ref) reports:
+
+```jldoctest fit
+julia> Σ = covariance(fit, 120:139);
+
+julia> sqrt(Σ[11, 11]) ≈ last(evaluate(fit, 130))
+true
+```
+"""
+function covariance(fit::SegmentedFit, xs::AbstractVector{<:Real})
+    J = reduce(vcat, (_basis(fit, x)' for x in xs); init = zeros(0, length(fit.coefficients)))
+    Σ = J * fit.covariance * J'
+    return Matrix(Symmetric(Σ))
 end
 
 """
@@ -451,7 +525,7 @@ function evaluate(
     fit::SegmentedFit, x_range::AbstractVector{<:Integer}; label::AbstractString = "fit"
 )
     values = Float64[]
-    uncertainties = Float64[]
+    uncertainties = Union{Missing,Float64}[]
     for x in x_range
         value, σ = evaluate(fit, Float64(x))
         push!(values, value)

@@ -4,8 +4,8 @@
 !/data/README.md
 
 # Generated results and figures
-/results/
 /plots/
+/data/sims/
 
 # Resolved environments. This package supports a range of Julia versions and a manifest is
 # resolved against one of them, so committing one breaks instantiation on the others. The versions

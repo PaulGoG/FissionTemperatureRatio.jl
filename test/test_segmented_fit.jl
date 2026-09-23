@@ -1,4 +1,5 @@
 using StableRNGs
+using LinearAlgebra: LinearAlgebra
 
 @testset "segmented fit" begin
     rng = StableRNG(20260912)
@@ -78,13 +79,48 @@ using StableRNGs
     end
 
     @testset "weights" begin
-        w, imputed = fit_weights([0.1, 0.0, 0.2])
+        w, imputed = fit_weights([0.1, missing, 0.2])
         @test imputed == 1
         @test w[1] ≈ 100
         @test w[2] ≈ median([100.0, 25.0])
-        uniform, all_absent = fit_weights([0.0, 0.0])
+        uniform, all_absent = fit_weights([missing, missing])
         @test all_absent == 2
         @test all(==(1.0), uniform)
+        # Zero denotes an exact value, which has no finite weight; an unquoted uncertainty is
+        # missing, never zero.
+        @test_throws ArgumentError fit_weights([0.1, 0.0])
+    end
+
+    @testset "the covariance is scaled by the reduced chi-squared only upwards" begin
+        honest = fit_segments(A_H, noisy, σ; max_segments = 3)
+        # Uncertainties quoted ten times too large: the residuals are far below what they
+        # predict, and the covariance keeps the quoted scale rather than shrinking to the
+        # residuals. Uncertainties quoted ten times too small: the covariance inflates.
+        generous = fit_segments(A_H, noisy, 10 .* σ; max_segments = 3)
+        stingy = fit_segments(A_H, noisy, σ ./ 10; max_segments = 3)
+        @test generous.wrss / generous.dof < 1
+        @test stingy.wrss / stingy.dof > 1
+        @test last(evaluate(generous, 150)) ≈ 10 * last(evaluate(honest, 150)) rtol = 0.2
+        @test last(evaluate(stingy, 150)) ≈ last(evaluate(honest, 150)) rtol = 0.2
+        # No uncertainty quoted at all: uniform weights carry no scale, so the noise is
+        # estimated from the residuals and the result matches the honest fit.
+        unquoted = fit_segments(A_H, noisy, fill(missing, length(A_H)); max_segments = 3)
+        @test unquoted.weights_imputed == length(A_H)
+        @test last(evaluate(unquoted, 150)) ≈ last(evaluate(honest, 150)) rtol = 0.2
+    end
+
+    @testset "the covariance of the fitted values" begin
+        fit = fit_segments(A_H, noisy, σ; max_segments = 4)
+        Σ = covariance(fit, A_H)
+        @test size(Σ) == (length(A_H), length(A_H))
+        @test Σ ≈ Σ'
+        for (index, x) in enumerate(A_H)
+            @test sqrt(Σ[index, index]) ≈ last(evaluate(fit, x)) atol = 1e-12
+        end
+        # Values on one segment are functions of the same two coefficients, so they are
+        # correlated, which the diagonal alone cannot say.
+        @test abs(Σ[2, 3]) > 0
+        @test all(≥(-1e-12), LinearAlgebra.eigvals(LinearAlgebra.Symmetric(Σ)))
     end
 
     @testset "invalid arguments are rejected" begin
@@ -124,33 +160,27 @@ using StableRNGs
         )
     end
 
-    @testset "parsimony biases the choice towards fewer segments" begin
+    @testset "a minimum span rejects segments shorter than it" begin
         A_H = collect(120:159)
         value = [a ≤ 130 ? 0.50 - 0.02 * (a - 120) : 0.30 + 0.008 * (a - 130) for a in A_H]
         value .+= 0.004 .* sin.(A_H)
         σ = fill(0.004, length(A_H))
 
-        orders = [
-            segments(fit_segments(A_H, value, σ; max_segments = 6, parsimony = λ)) for
-            λ in (1.0, 2.0, 4.0, 8.0)
-        ]
-        # Never increasing with the multiplier. It does not reduce the order here, and should not:
-        # the kink in this data is genuine and well resolved, so the likelihood it buys outweighs
-        # any plausible penalty. The multiplier bites where the evidence is marginal — on the
-        # 252-Cf measurement of Göök it moves the choice from five segments to three.
-        @test issorted(orders; rev = true)
-
-        # At one it is the criterion as published, so the default cannot have moved.
-        @test segments(fit_segments(A_H, value, σ; max_segments = 6, parsimony = 1.0)) ==
-            segments(fit_segments(A_H, value, σ; max_segments = 6))
-
-        # The penalty is what changes, so the criterion reported must change with it even where
-        # the chosen order does not.
-        plain = fit_segments(A_H, value, σ; max_segments = 6)
-        penalised = fit_segments(A_H, value, σ; max_segments = 6, parsimony = 4.0)
-        segments(penalised) == segments(plain) && @test penalised.bic > plain.bic
-
-        @test_throws ArgumentError fit_segments(A_H, value, σ; parsimony = 0.0)
-        @test_throws ArgumentError fit_segments(A_H, value, σ; parsimony = -1.0)
+        # With two points per segment the point count alone admits a segment one mass unit
+        # long; the span guard is what keeps every segment at least six.
+        fit = fit_segments(
+            A_H, value, σ; max_segments = 6, min_points_per_segment = 2, min_segment_span = 6
+        )
+        pivot_abscissae = [first(A_H); fit.breakpoints; last(A_H)]
+        @test all(≥(6), diff(pivot_abscissae))
+        # At the shipped point count on consecutive mass numbers a span of three coincides with
+        # the point guard, so it changes nothing.
+        @test fit_segments(A_H, value, σ; max_segments = 4, min_segment_span = 3).breakpoints ==
+            fit_segments(A_H, value, σ; max_segments = 4).breakpoints
+        # A span the data cannot honour leaves no admissible model.
+        @test_throws InsufficientDataError fit_segments(
+            A_H, value, σ; min_segments = 2, max_segments = 2, min_segment_span = 30
+        )
+        @test_throws ArgumentError fit_segments(A_H, value, σ; min_segment_span = 0)
     end
 end
