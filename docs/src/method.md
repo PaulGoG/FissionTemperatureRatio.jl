@@ -4,44 +4,117 @@
 
 The method and its conventions are those of [Tudora2024](@cite). Two premises carry the
 extraction. The prompt neutron multiplicity ratio of complementary fragments follows their
-excitation energy ratio, and the fragments are excited highly enough for their level densities to
-be of Fermi-gas form, ``E^* = a T^2``. Together,
+excitation energy ratio, eq. (1) of that paper, and the fragments are excited highly enough for
+their level densities to be of Fermi-gas form, ``E^* = a T^2``. For one fragmentation
+``(A_H, Z)`` with ``\rho_Z = a_L/a_H``, the heavy fragment then carries
 
 ```math
-\frac{E_L^*}{E_H^*} = \frac{a_L T_L^2}{a_H T_H^2} \approx \frac{\nu_L}{\nu_H},
+\frac{E_H^*}{\mathrm{TXE}} = \frac{1}{1 + \rho_Z R_T^2}
 ```
 
-so with ``r_\nu = \nu_H/(\nu_L + \nu_H)`` and ``R_a = a_L/a_H``,
+of the total excitation energy. The measured multiplicity ratio ``r_\nu = \nu_H/(\nu_L + \nu_H)``
+is resolved by mass alone: each ``\nu(A)`` is a yield-weighted mean over the charges and kinetic
+energies of that mass. Carried to such means, the premise identifies ``r_\nu(A_H)`` with the
+excitation-weighted mean of the relation over the isobaric charge distribution ``p(Z, A_H)``,
 
 ```math
-R_T = \left[\frac{1 - r_\nu}{R_a\, r_\nu}\right]^{1/2}.
+r_\nu(A_H) = \frac{\sum_Z p(Z, A_H)\, \langle \mathrm{TXE} \rangle_Z \,/\, (1 + \rho_Z R_T^2)}
+                  {\sum_Z p(Z, A_H)\, \langle \mathrm{TXE} \rangle_Z},
+\qquad
+\langle \mathrm{TXE} \rangle_Z = Q(A_H, Z) + E^*_{\mathrm{CN}} - \langle \mathrm{TKE} \rangle(A_H),
 ```
 
-No fit and no prompt emission calculation enters. What remains to be chosen is the fragmentation
-range, the level density model, and the order in which the parameter ratio is averaged over the
-isobaric charge distribution. The level density parameter is taken from the back-shifted Fermi-gas
-systematics of [vonEgidy2005, vonEgidy2009](@cite) by default, or from the composite formula of
-[GilbertCameron1965](@cite); the charge polarization and dispersion of the isobaric charge
-distribution are the evaluated values of [Wahl1988](@cite).
+and ``R_T(A_H)`` is its root, which is unique: the right-hand side falls strictly from one to zero
+as ``R_T`` grows. This is `ratio_averaging = "charge_resolved"`, the default. The mean total
+kinetic energy comes from a measured pre-neutron ``\langle \mathrm{TKE} \rangle(A)`` named in the
+configuration; without one, every fragmentation is weighted by ``p(Z, A_H)`` alone, and the run
+says so in its log and in its manifest. A heavy mass beyond the measured span takes the value at
+the nearest measured mass and is listed as extrapolated in the run metadata.
+
+For a single effective ratio ``R_a`` in place of the per-charge ``\rho_Z`` the relation inverts in
+closed form, eq. (4) of [Tudora2024](@cite),
+
+```math
+R_T = \left[\frac{1 - r_\nu}{R_a\, r_\nu}\right]^{1/2},
+```
+
+with ``R_a = \langle a_L \rangle / \langle a_H \rangle`` (`"ratio_of_means"`, the setting of the
+published extraction) or ``R_a = \langle a_L / a_H \rangle`` (`"mean_of_ratios"`); both averages
+run over ``p(Z, A_H)``. The three coincide for a single charge per mass and differ at second order
+in the spread of ``\rho_Z`` over the charge window. The paper adopts the ratio of means and shows
+it beside the mean of ratios in its Fig. 2; it remains selectable for that reason.
+
+No fit and no prompt emission calculation enters. The fragmentation domain — heavy masses, the
+charges retained about ``Z_p(A)``, their probabilities — the mass table, the level density
+parameters and the relation between ``R_T`` and ``E_H^*/\mathrm{TXE}`` are those of
+FissionFragmentsDomain.jl, which the codes that consume ``R_T(A_H)`` partition on as well, so the
+two sides do not hold diverging copies of one definition. The charge distribution is Wahl's
+``Z_p`` model with the parameters of [Wahl1988](@cite) for the four reactions evaluated there and
+the systematics of [Wahl2002](@cite) otherwise. The level density parameter is taken from the
+back-shifted Fermi-gas systematics of [vonEgidy2005, vonEgidy2009](@cite) by default, or from the
+formula of [GilbertCameron1965](@cite) with the shell corrections of its Table III, whose
+eq. (21), ``a/A = 0.00917\,S + 0.120``, applies to the nuclei it counts as deformed and eq. (20),
+``0.00917\,S + 0.142``, to the rest; about a third of the yield-weighted ``^{252}``Cf fragments
+lie in the first deformed region. The shell corrections ``S`` are referred to a spherical
+reference, and eq. (21) is what corrects them for the deformation of those nuclei
+[BrancazioCameron1969](@cite), so both formulas apply by default. `deformed_branch = false`
+applies eq. (20) throughout, the spherical-only setting of Table 2 of [Tudora2024](@cite).
+
+## Why the charge-resolved inversion
+
+1. **It is the inverse of what the consumer does.** The Point-by-Point and sequential emission
+   treatments apply a temperature ratio to every fragment pair ``(A, Z, \mathrm{TKE})`` with its
+   own ``a_L/a_H``, eq. (5) of [Tudora2022](@cite), and so do the Monte Carlo codes CGMF
+   [Talou2021](@cite) and FIFRELIN [Piau2023](@cite). The charge-resolved inversion closes that
+   round trip to rounding. An effective ratio does not: on the ``^{252}``Cf(sf) domain with the
+   back-shifted Fermi gas, the ratio of means misses it by ``2.9 \times 10^{-3}`` in ``R_T`` along
+   the systematic trend and the mean of ratios by ``1.4 \times 10^{-2}``, both at the doubly magic
+   heavy fragment, ``A_H = 132``; over ``0.8 \le R_T \le 1.45`` and the four shipped systems the
+   misses reach ``4.2 \times 10^{-3}`` and ``1.3 \times 10^{-2}``.
+2. **It returns ``R_T = 1`` from ``r_\nu = 1/2`` at the symmetric split** exactly, provided the
+   charge set there is its own mirror under ``Z \to Z_0 - Z``. The terms of the sum then pair as
+   ``\rho`` and ``1/\rho`` with equal weight, and ``1/(1 + \rho) + 1/(1 + 1/\rho) = 1``; the
+   excitation weights pair the same way, ``Z`` and ``Z_0 - Z`` being one fragmentation.
+3. **The excitation weight is the premise itself.** ``\nu_L/\nu_H = E_L^*/E_H^*`` holds, if at
+   all, fragmentation by fragmentation; a mass-resolved multiplicity weights each fragmentation by
+   the excitation it shares out. At the ``Z = 50`` shell the ``Q``-value and ``a_L/a_H`` change
+   together across the charge window, so the weight matters there: omitting it moves ``R_T`` at
+   ``A_H = 130`` by ``7 \times 10^{-3}`` to ``1.1 \times 10^{-2}`` along the systematic trends of
+   the four shipped systems, with the ``\langle \mathrm{TKE} \rangle(A)`` of Göök et al.
+   (``^{252}``Cf), Al-Adili et al. (``^{235}``U), Wagemans et al. (``^{239}``Pu) and Geltenbort
+   et al. (``^{233}``U). ``\mathrm{TKE}`` is a property of the split, so where a dataset gives both
+   ``A`` and ``A_0 - A`` the pair takes their mean. Double-energy measurements differ in their
+   pulse-height-defect calibration by several MeV; a run records the offset of the input's
+   yield-weighted mean from the energy standard of the system, the recommendation of Gönnenwein as
+   tabulated in [Bertsch2015](@cite).
+4. **FIFRELIN fixes ``R_T(A_{\mathrm{CN}}/2) = 1``** [Piau2023](@cite); the charge-resolved
+   inversion reaches the same value from the data rather than by construction.
+5. **Uncertainties propagate with the exact slope** ``\partial R_T/\partial r_\nu`` of the
+   inversion, the reciprocal of
+   ``-\sum_Z w_Z\, 2 \rho_Z R_T/(1 + \rho_Z R_T^2)^2`` with the normalized weights ``w_Z``,
+   in place of the closed-form ``-1/(2 R_T R_a r_\nu^2)`` of an effective ratio.
 
 ## Exact behaviour at the symmetric split
 
 For a fissioning nucleus of even mass number the two fragments of the symmetric split are the same
-nuclide. Three consequences are imposed by construction rather than fitted:
+nuclide. The charge polarization vanishes there, ``\Delta Z(A_0/2) = 0``, as a property of the
+charge model rather than an imposition: Wahl's 1988 fits pass through point X of their Fig. 2 at
+the symmetric split, and the steep branch of the 2002 systematics crosses zero there linearly
+[Wahl1988, Wahl2002](@cite). The retained charges are then invariant under ``Z \to Z_0 - Z``, and
+the multiplicity ratio is exactly one half, which the parameterization pins. ``R_T(A_0/2) = 1``
+follows under the charge-resolved inversion and under the ratio of means, whose two averages run
+over one set of nuclides. The mean of ratios cannot reproduce it: the per-charge ratios come in
+reciprocal pairs of equal weight, and the arithmetic mean of ``x`` and ``1/x`` exceeds one unless
+``x = 1``, which leaves ``R_T(A_0/2)`` below one, by ``1 \times 10^{-5}`` to
+``2 \times 10^{-4}`` on the four shipped domains. The identity at the
+symmetric split therefore no longer singles out the ratio of means, as it did when that was the
+only order compared with the mean of ratios.
 
-- the charge polarization vanishes, ``\Delta Z(A_0/2) = 0``, since there is nothing to polarize;
-- the level density parameter ratio is exactly one, provided the retained charges are invariant
-  under ``Z \to Z_0 - Z``, which the vanishing polarization secures;
-- the multiplicity ratio is exactly one half, and therefore ``R_T(A_0/2) = 1``.
-
-The last of these is not imposed on ``R_T``: it follows from pinning ``r_\nu`` and from
-``R_a = 1``. A run records whether the identities hold, so that an input violating them is
-reported rather than silently absorbed.
-
-This also distinguishes the two averaging orders. [`RatioOfMeans`](@ref) satisfies
-``R_a(A_0/2) = 1`` exactly. [`MeanOfRatios`](@ref) cannot: at the symmetric split the per-charge
-ratios come in reciprocal pairs of equal weight, and the arithmetic mean of ``x`` and ``1/x``
-exceeds one unless ``x = 1``. The former is the default for that reason.
+A run checks both conditions — the invariance of the charge set, and ``R_T`` from ``r_\nu = 1/2``
+at ``A_0/2`` — and records them, so that an input violating them is reported rather than silently
+absorbed. A tabulated charge distribution may be given in place of Wahl's model; its polarization
+at ``A_0/2`` is taken as tabulated unless `zero_polarization_at_symmetry` forces it to zero, as
+the published extraction did.
 
 ## Description by joined segments
 
@@ -133,7 +206,8 @@ covariance,
 ```
 
 with ``J \Sigma J^\mathsf{T}`` the covariance of the fitted ``r_\nu`` at the tabulated mass numbers
-and ``D`` the diagonal matrix of ``\partial R_T/\partial r_\nu = -1/(2 R_T R_a r_\nu^2)``. The
+and ``D`` the diagonal matrix of the slope ``\partial R_T/\partial r_\nu`` of the inversion at
+each of them. The
 tabulated points of a fitted curve are functions of a few coefficients and are not independent.
 The independent-points form, which replaces ``w^\mathsf{T} C w`` by
 ``\sum (Y/\sum Y)^2 \sigma_{R_T}^2``, is the approximation of the published tables; it is written

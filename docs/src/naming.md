@@ -28,7 +28,7 @@ and the file layout, so a name learned here is the name there.
 A configuration is edited by hand and has to explain itself, so it spells a quantity out. A path
 and a header are read at a glance and are the field's own nomenclature, so they carry the symbol.
 This is why [`FragmentationSettings`](@ref) has a field `heavy_mass_max`, mirroring the key it was
-read from, while [`FragmentationDomain`](@ref) has a field `A_H_range`, mirroring the equations.
+read from, while a ratio curve has a field `A_H`, mirroring the equations.
 
 ## The quantities
 
@@ -46,10 +46,14 @@ read from, while [`FragmentationDomain`](@ref) has a field `A_H_range`, mirrorin
 | *S*(*N*), *S*(*Z*) | `S_N`, `S_Z` | `S_N`, `S_Z` | shell correction |
 | δ*W* | `dW` | `δW` | shell correction plus pairing, as the Fermi-gas systematic uses it |
 | *a* | `a` | `a` | level density parameter |
+| ρ_*Z* | `rho` | `ρ` | level density parameter ratio of one fragmentation, a_L/a_H |
+| *Q* | `Q` | `Q` | energy released in one fragmentation |
+| TKE | `TKE` | `TKE` | pre-neutron total kinetic energy |
+| TXE | `TXE` | `TXE` | total excitation energy, Q + E*_CN − TKE |
 | ν(*A*) | `nu` | `ν` | prompt neutron multiplicity per fragment |
 | *Y*(*A*) | `Y` | `Y` | pre-neutron fragment mass yield |
 | *r*_ν | `r_nu` | `r_ν` | multiplicity ratio, ν_H/(ν_L + ν_H) |
-| *R*_a | `R_a` | `R_a` | level density parameter ratio, a_L/a_H |
+| *R*_a | `R_a` | `R_a` | effective level density parameter ratio, ⟨a_L⟩/⟨a_H⟩ or ⟨a_L/a_H⟩ |
 | *R*_T | `R_T` | `R_T` | temperature ratio, T_L/T_H |
 
 `rms` is retired. It named a root-mean-square of nothing stated; the quantity is the Gaussian
@@ -66,8 +70,8 @@ leaves the reader to work out which quantity it belongs to. In Julia the symbol 
 
 | Kind | Case | Example |
 | :--- | :--- | :--- |
-| module, type, abstract type | `CamelCase` | [`SegmentedCurve`](@ref), [`LevelDensityModel`](@ref) |
-| function, macro | `lowercase_snake_case` | [`level_density_parameter`](@ref), [`system_label`](@ref) |
+| module, type, abstract type | `CamelCase` | [`ExtractedCurve`](@ref), [`SegmentedFit`](@ref) |
+| function, macro | `lowercase_snake_case` | [`run_pipeline`](@ref), [`read_mean_kinetic_energy`](@ref) |
 | variable, field, keyword | `lowercase_snake_case` | `charges_per_mass`, `significant_digits` |
 | constant | `SCREAMING_SNAKE_CASE` | [`RUN_IDENTIFIER_ABBREVIATIONS`](@ref) |
 
@@ -79,17 +83,25 @@ the field it is passed is `A₀`.
 
 Verb prefixes are a small closed set — `read_`, `write_`, `build_`, `load_`, `run_`, `is_` — and a
 function that fits none of them is named for what it returns. `read_<thing>` must return the type
-named `<Thing>`, which is the rule that decides [`read_mass_excess_table`](@ref) against
-`read_mass_excess`: the type is [`MassExcessTable`](@ref), so the reader carries `table` too.
+named `<Thing>`, which is the rule that decides `read_mass_excess_table` against
+`read_mass_excess`: the type is `MassExcessTable`, so the reader carries `table` too.
 `load_<thing>` reads *and* validates, which is why the configuration entry point is
 [`load_configuration`](@ref) and not `read_configuration`.
 
 Type names carry no `Data` suffix: a type holding multiplicities is [`Multiplicity`](@ref), one
-holding mass yields is [`MassYield`](@ref), one holding the charge polarization and dispersion is
-[`ChargeDistribution`](@ref). `Table` survives only where the thing genuinely is a lookup table
-keyed by nucleon number. No adjective stands in for a noun, and no abstract noun stands in for a
-description: the piecewise-linear description of one measurement is a [`SegmentedCurve`](@ref),
-not a `Parameterization` — "segmented" says how, "parameterized" says nothing a reader can act on.
+holding mass yields is `MassYield`, one holding the charge polarization and dispersion is
+`ChargeDistribution`. `Table` survives only where the thing genuinely is a lookup table keyed by
+nucleon number. No adjective stands in for a noun, and no abstract noun stands in for a
+description: the piecewise-linear fit of one measurement is a [`SegmentedFit`](@ref), and the
+temperature ratio extracted through it an [`ExtractedCurve`](@ref), not a `Parameterization` —
+"segmented" says how, "parameterized" says nothing a reader can act on. The tabulated curve a
+consuming code reads is FissionFragmentsDomain's `SegmentedCurve`; the two names are distinct
+because the two things are.
+
+The fragmentation domain, the nuclides and systems, the mass table, the charge models, the level
+density models, the relation between `R_T` and `E*_H/TXE`, the mass yield and the run record are
+FissionFragmentsDomain's, and keep its names here; this package adds methods to its functions,
+never a second definition under the same name.
 
 The result type of a package is `<Verb>Result`, **one per package**. Here it is
 [`ExtractionResult`](@ref), named for what this package does: it extracts a temperature ratio.
@@ -118,7 +130,7 @@ run rationale — those belong in the documentation. The loader enforces exactly
 declares, so a run cannot start from a configuration it cannot honour.
 
 **A key that can only be redundant or wrong is not in the file.** The reaction code follows from
-the entrance channel through [`CHANNEL_REACTION`](@ref), so it is not written down; the fissioning
+the entrance channel, so it is not written down; the fissioning
 nucleus follows from the target and the channel, so it is not written down either.
 
 `subdirectory` names a folder under a root; `directory` only ever names a root path. So a
@@ -143,25 +155,27 @@ with the channel spelled as the field spells it and not as a reaction code write
 belongs in the run record where the reaction code already is. The channel is also what
 distinguishes a thermal from a resonance run of one system, which `n,f` alone cannot.
 
-[`system_label`](@ref) returns that token. The typeset form for a figure or a caption —
-`²⁵²Cf(sf)`, `²³³U(nth,f)` — is [`system_notation`](@ref), a separate function: one name may not
-mean both.
+FissionFragmentsDomain's `system_label` returns that token. The typeset form for a figure or a
+caption — `²⁵²Cf(sf)`, `²³³U(nth,f)` — is its `system_notation`, a separate function: one name may
+not mean both.
 
 ## Directories, files and headers
 
 ```
 data/
-├── reference/                        system-independent evaluations
-│   ├── mass_excess_ame2020.dat
-│   └── shell_corrections_gilbert_cameron.dat
 └── <system>/                         Cf252_sf, U233_nth, U235_nth, Pu239_nth
-    ├── charge_distribution_vs_A.dat
+    ├── charge_distribution_vs_A.dat  optional: a tabulated charge distribution
     ├── nu_vs_A/
     │   ├── retrieval.toml            the run record of the retrieval
     │   └── <accession>_<Author>_<year>.dat
-    └── Y_vs_A/
+    ├── Y_vs_A/
+    │   └── <accession>_<Author>_<year>.dat
+    └── TKE_vs_A/
         └── <accession>_<Author>_<year>.dat
 ```
+
+The atomic mass evaluation and the Gilbert-Cameron shell corrections are the ones
+FissionFragmentsDomain ships, named `"ame2020"` and `"gilbert_cameron_1965"` in a configuration.
 
 One directory per system, one subdirectory per measured quantity, one file per measurement. The
 directory carries the quantity and the file carries the provenance, which is what makes the
@@ -177,6 +191,7 @@ One header line, ASCII, abscissae first, then the ordinate, then its uncertainty
 ```
 A nu nu_uncertainty
 A Y Y_uncertainty
+A TKE TKE_uncertainty
 A dZ sigma_Z
 A_H,R_T,R_T_uncertainty
 ```
@@ -187,9 +202,7 @@ that cross a package boundary.
 
 Readers take columns **by position**, not by header text. That is what makes a header rename a
 no-op for code, upstream and downstream alike, and it must stay that way: every reader in this
-package says so in its docstring, and nothing may be changed to a lookup by name. The one
-evaluation held as distributed, the atomic mass table, has no header line at all — which is the
-same rule seen from the other side.
+package says so in its docstring, and nothing may be changed to a lookup by name.
 
 ## Output files and run identifiers
 
@@ -205,7 +218,8 @@ data/sims/<system>/<run>/
 ├── r_nu_vs_A_H_segmented_<label>.csv
 ├── R_T_vs_A_H_segmented_<label>.csv
 ├── r_nu_vs_A_H_pivots_<label>.csv
-├── total_average_R_T.csv
+├── segmented_curves_<run>.csv                 one row per manifest curve
+├── total_average_R_T_<run>.csv
 ├── dataset_diagnostics.csv
 ├── metadata.toml                              how it was produced: configuration, commit, machine
 ├── configuration.toml
@@ -230,15 +244,19 @@ curve or dataset, nothing more:
 | `r_nu_vs_A_H_segmented_<label>.csv` | the fitted ratio, tabulated |
 | `R_T_vs_A_H_segmented_<label>.csv` | the temperature ratio from the fitted ratio |
 | `r_nu_vs_A_H_pivots_<label>.csv` | the fit as its joined points |
-| `total_average_R_T.csv` | ⟨R_T⟩ over each yield distribution |
-| `dataset_diagnostics.csv` | one row per dataset read |
+| `segmented_curves_<run>.csv` | per manifest curve, keyed by its label: segments, pin, span, pairs, coverage, reduced chi-squared, range mean |
+| `total_average_R_T_<run>.csv` | ⟨R_T⟩ over each yield distribution |
+| `dataset_diagnostics.csv` | one row per dataset read, with the qualifiers its retrieval recorded |
 | `manifest_<run>.toml` | what the run produced, for a consuming code |
 | `metadata.toml` | how it was produced: configuration, commit, machine |
 
-The manifest is the one file inside the directory whose name repeats the identifier. A consuming
-code stages the whole run directory and selects the manifest by its `manifest_` prefix, and the
-token keeps a staged copy attributable after it has left `data/sims/`. A run directory holds
-exactly one.
+The manifest, the curve table and the total averages repeat the identifier in their names; the
+per-curve ratio tables do not, and are found through the manifest. A consuming code stages the
+whole run directory and selects the manifest by its `manifest_` prefix, and the token keeps a
+staged copy attributable after it has left `data/sims/`. A run directory holds exactly one. The
+manifest holds FissionFragmentsDomain's run record and nothing else: `[system]`, `[run]`, the
+`[domain]` the curves were extracted on, and per `[[segmented_curve]]` its label, its kind and its
+two files. The systematic-trend curve is labelled `systematic_trend`, the same token as its kind.
 
 **A run-identifier token is the configuration key it came from.** Spelling every key out in full
 would put some two hundred characters into every directory name, so the keys are abbreviated —
@@ -251,7 +269,8 @@ suite asserts that every key it uses has one.
 Every key that changes the result is a token. The system is not: it names the directory the
 identifier sits in. `significant_digits` is not either, since it changes how a number is rendered
 and not the number. A value that is a list or a path — the required windows, the exclusion list,
-the charge distribution file, the yield directory — does not reduce to a token and enters as the
+a tabulated charge distribution, a mass or shell-correction table, the `⟨TKE⟩(A)` dataset, the
+yield directory — does not reduce to a token and enters as the
 first eight hexadecimal digits of the SHA-1 of its canonical spelling, paths taken relative to the
 data directory so that the same inputs staged on another machine give the same identifier. The
 value itself is written in full into `metadata.toml` under `[identifier.hashed]`.

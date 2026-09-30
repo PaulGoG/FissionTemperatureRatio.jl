@@ -10,18 +10,25 @@ version-controlled either and is not input.
 
 ```
 data/
-├── reference/                                     the system-independent evaluations
-│   ├── mass_excess_ame2020.dat
-│   └── shell_corrections_gilbert_cameron.dat
 └── <system>/                                      Cf252_sf, U233_nth, U235_nth, Pu239_nth
-    ├── charge_distribution_vs_A.dat
+    ├── charge_distribution_vs_A.dat               optional
     ├── nu_vs_A/
     │   ├── retrieval.toml
     │   └── <accession>_<Author>_<year>.dat
-    └── Y_vs_A/
+    ├── Y_vs_A/
+    │   ├── retrieval.toml
+    │   └── <accession>_<Author>_<year>.dat
+    └── TKE_vs_A/
         ├── retrieval.toml
         └── <accession>_<Author>_<year>.dat
 ```
+
+The system-independent evaluations are not held here: the atomic mass evaluation, AME2020, and the
+Gilbert-Cameron shell corrections, Table III of the 1965 paper, ship with FissionFragmentsDomain.jl,
+and a configuration names them `"ame2020"` and `"gilbert_cameron_1965"`. A table of either in the
+same layout can be named by its path under `data/` instead. So does Wahl's charge distribution model, which the
+shipped configurations use; a tabulated charge distribution is needed only to reproduce the
+published extraction exactly.
 
 One directory per system, one subdirectory per measured quantity, one file per measurement: the
 directory carries the quantity and the file carries the provenance. A system is named
@@ -30,14 +37,12 @@ extension states a format and never a nuclide.
 
 | File | Columns |
 |---|---|
-| `reference/mass_excess_ame2020.dat` | `Z A symbol mass_excess mass_excess_uncertainty`, the last two in keV |
-| `reference/shell_corrections_gilbert_cameron.dat` | `n S_N S_Z` in MeV |
 | `<system>/charge_distribution_vs_A.dat` | `A dZ sigma_Z` |
 | `<system>/nu_vs_A/*.dat` | `A nu nu_uncertainty`, or `A nu` where no uncertainty is quoted |
 | `<system>/Y_vs_A/*.dat` | `A Y Y_uncertainty` |
+| `<system>/TKE_vs_A/*.dat` | `A TKE TKE_uncertainty`, or `A TKE`; pre-neutron, in MeV |
 
-All files are whitespace-separated with a single header line, except the mass excess table, which
-is held as the evaluation distributes it and has none. **Readers take columns by position, not by
+All files are whitespace-separated with a single header line. **Readers take columns by position, not by
 header text**, so a header rename upstream cannot affect a result here — and nothing downstream
 may be coupled to header text either.
 
@@ -47,26 +52,18 @@ so the record sits beside the data without interfering.
 
 ## Sources
 
-**`reference/mass_excess_ame2020.dat`** — the 2020 atomic mass evaluation.
-W. J. Huang, M. Wang, F. G. Kondev, G. Audi, S. Naimi, *Chinese Physics C* **45**, 030002 (2021);
-M. Wang, W. J. Huang, F. G. Kondev, G. Audi, S. Naimi, *Chinese Physics C* **45**, 030003 (2021).
-Distributed by the Atomic Mass Data Center.
-
 **`<system>/charge_distribution_vs_A.dat`** — charge polarization `ΔZ(A)` and the Gaussian
 dispersion `σ_Z(A)` of the isobaric charge distribution, held for `U235_nth`, `Pu239_nth` and
-`Cf252_sf`.
+`Cf252_sf`: the digitised tables of the published extraction, read only to reproduce it.
 A. C. Wahl, *Atomic Data and Nuclear Data Tables* **39**, 1–156 (1988),
 [doi:10.1016/0092-640X(88)90016-2](https://doi.org/10.1016/0092-640X(88)90016-2).
-These are the per-reaction least-squares fits, not the CYF systematics.
+These are the per-reaction least-squares fits, not the CYF systematics. The same fits, evaluated
+from their parameters rather than digitised, are what FissionFragmentsDomain.jl's Wahl (1988)
+model gives.
 
-**`reference/shell_corrections_gilbert_cameron.dat`** — shell corrections `S_N` and `S_Z`,
-tabulated against nucleon number from 11 to 150.
-A. Gilbert, A. G. W. Cameron, *Canadian Journal of Physics* **43**, 1446 (1965), as distributed in
-the IAEA Reference Input Parameter Library, segment on level densities, file `Beijing.gc`. Checked
-against Table III of that paper: the values and the column order agree.
-
-**`<system>/nu_vs_A/*.dat`** and **`<system>/Y_vs_A/*.dat`** — experimental prompt neutron
-multiplicity and pre-neutron fragment mass yield against fragment mass, from the EXFOR
+**`<system>/nu_vs_A/*.dat`**, **`<system>/Y_vs_A/*.dat`** and **`<system>/TKE_vs_A/*.dat`** —
+experimental prompt neutron multiplicity, pre-neutron fragment mass yield and pre-neutron mean
+total kinetic energy against fragment mass, from the EXFOR
 Experimental Nuclear Data Library of the IAEA Nuclear Data Services,
 <https://www-nds.iaea.org/exfor/>. Each measurement remains the work of its authors and should be
 cited as such in any result derived from it; the EXFOR DatasetID that opens each file name
@@ -78,7 +75,12 @@ its retrieval from its own checkout, giving the root of this repository as the o
 
 ```
 julia scripts/retrieve.jl config/U233_nth_nu_vs_A.toml /path/to/FissionTemperatureRatio
+julia scripts/retrieve.jl config/U233_nth_TKE_vs_A.toml /path/to/FissionTemperatureRatio
 ```
+
+Check that package out at a named commit before retrieving: the `[run]` table of every
+`retrieval.toml` records the revision and version that wrote it, and a run of this package copies
+that table, for every input directory it reads, into its `metadata.toml`.
 
 A DatasetID has eight digits, or nine where it points within a subentry; the dataset label drops
 the leading digits either way. Two files of one author and year keep their DatasetID in
@@ -118,17 +120,21 @@ it.
 
 ## Known defects
 
-**No evaluated charge distribution table is held for 233-U.** An evaluated
-`charge_distribution_vs_A.dat` of the same construction as the other three can be staged under
-`data/U233_nth/`. Until it is, runs for that nucleus fall back to `ΔZ = -0.5`, `σ_Z = 0.6`, the
-yield-weighted means of the evaluated tables themselves, and the pipeline reports the fallback at
-every run. These are not EXFOR observables — they are fit parameters of a `Z_p` model — so the
-retrieval cannot supply them. The effect is bounded at 3.4 % on `R_T(A_H)` at the shell minimum,
-with a median of 0.27 %.
+**No digitised charge distribution table is held for 233-U.** The published extraction took
+`ΔZ = -0.5`, `σ_Z = 0.6` there, which `charge_distribution_file = "mean"` reproduces. The shipped
+configuration takes Wahl's 1988 parameters for that reaction instead, from FissionFragmentsDomain.jl.
 
-**The charge distribution tables carry no edition record.** The `charge_distribution_vs_A.dat`
-tables were assembled by hand from two single-column tables and do not say which edition or fit of
-Wahl they came from.
+**The digitised charge distribution tables carry no edition record.** The
+`charge_distribution_vs_A.dat` tables were assembled by hand from two single-column tables and do
+not say which edition or fit of Wahl they came from. They serve only the exact reproduction of the
+published extraction; the shipped configurations do not read them.
+
+**Qualified datasets are used, not corrected.** A dataset whose retrieval record lists `DERIV` or
+`SPA` among its reaction-code qualifiers is flagged in the log, in `dataset_diagnostics.csv` and in
+the run metadata. Three staged sets carry `SPA`: the 239-Pu `ν(A)` of Basova 1979 and of
+Zamyatnin 1979, and the 235-U `Y(A)` of Straede 1987, over which two rows of the published table
+are averaged. The 233-U `⟨TKE⟩(A)` sets of Geltenbort, Baba and Takamiya carry `MXW`, a
+Maxwellian-averaged thermal spectrum, which is the entrance channel and is not flagged.
 
 **Uncertainties are absent from several multiplicity datasets.** An unquoted uncertainty is read
 as `missing`, never as zero; such points take the median weight of the quoted ones and are counted

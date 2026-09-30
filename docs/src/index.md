@@ -10,14 +10,18 @@ on the emission model of that code; the method implemented here uses the same ex
 ``\nu(A)`` and no emission calculation, so its result is independent of any particular prompt
 emission treatment.
 
+The fragmentation domain, the level density parameters and the relation between ``R_T`` and the
+excitation-energy partition are those of
+[FissionFragmentsDomain.jl](https://PaulGoG.github.io/FissionFragmentsDomain.jl/stable/), shared
+with the prompt emission codes that read ``R_T(A_H)``, so that the curve is extracted on the
+domain it is applied on. The [method](method.md) page sets out how.
+
 ## Installation
 
-The package is not registered. Clone it and instantiate the environment:
+The package is not registered. Clone it; every environment activates and instantiates itself:
 
-```julia
-using Pkg
-Pkg.activate(".")
-Pkg.instantiate()
+```
+julia -i activate.jl
 ```
 
 ## Running the pipeline
@@ -44,9 +48,11 @@ refuses one that already holds files. The script names that directory
 configuration, as `configuration.toml`, and of the resolved manifest of its environment, as
 `Manifest.toml`. The figures go to `plots/<system>/<run identifier>/`. The run identifier covers
 every configuration key that changes the result, so the directory name alone identifies the run;
-inside it, only `manifest_<run identifier>.toml` carries the identifier again, and a consuming code
-stages the whole directory and selects the manifest by its prefix. The file layout is set out
-under [Naming](naming.md).
+inside it, `manifest_<run identifier>.toml`, `segmented_curves_<run identifier>.csv` and
+`total_average_R_T_<run identifier>.csv` carry the identifier again, and a consuming code stages
+the whole directory and selects the manifest by its prefix. The manifest records the domain the
+curves were extracted on, and a consuming code refuses a curve extracted on another. The file
+layout is set out under [Naming](naming.md).
 
 The vocabulary the package uses for identifiers, configuration keys, files and column headers is
 set out under [Naming](naming.md); it is the same vocabulary the retrieval that supplies the

@@ -8,6 +8,44 @@ Notable changes to FissionTemperatureRatio.jl. The format follows
 
 ### Added
 
+- The fragmentation domain is FissionFragmentsDomain.jl's (v0.1.9), shared with the prompt
+  emission codes that read `R_T(A_H)`: nuclides and systems, the shipped AME2020 mass table and
+  Gilbert-Cameron shell corrections, Wahl's charge model, the fragmentation domain, the level density models, and the relation
+  between `R_T` and `E*_H/TXE` with its inverse and slope. Every environment takes the package
+  from its repository at the tag through `[sources]`, and every activation script sets
+  `JULIA_PKG_USE_CLI_GIT`.
+- `ratio_averaging = "charge_resolved"`, the exact inverse of a partition that gives every
+  fragmentation its own `a_L/a_H`, with the relation reduced over the charge distribution rather
+  than through an effective ratio.
+- `level_density.mean_kinetic_energy_file`, a pre-neutron `⟨TKE⟩(A)` dataset from the EXFOR
+  retrieval, weighting every fragmentation of the charge-resolved inversion by its mean total
+  excitation `Q + E*_CN − ⟨TKE⟩(A_H)`. Validated on load: listed in a retrieval record beside it,
+  reaching the heavy-mass range. Where both `A` and `A₀ − A` are measured the pair takes their
+  mean, and a light-wing value alone stands for its heavy complement; interior gaps are
+  interpolated, and masses beyond the measured span take the nearest measured value. All are listed
+  in `metadata.toml` with the retrieval record, its parser revision and its SHA-1, and with the
+  yield-weighted mean `⟨TKE⟩` and its offset from the energy standard of the system,
+  `recommended_mean_total_kinetic_energy`, over every yield distribution read. The 233-U
+  configuration names Geltenbort 1985. `MeanKineticEnergy`, `read_mean_kinetic_energy`,
+  `mean_kinetic_energy_offset`.
+- Reaction-code qualifiers from the retrieval records. `DERIV` and `SPA` datasets are used and
+  flagged: in the log, in the new `qualifiers` and `flagged` columns of `dataset_diagnostics.csv`,
+  and in `metadata.toml`. `RetrievalRecord`, `retrieval_record`, `retrieval_qualifiers`,
+  `FLAGGED_QUALIFIERS`.
+- `fragmentation.charge_distribution_file` takes `"wahl"`, the default, `"mean"`, or a tabulated
+  `A dZ sigma_Z` read with FissionFragmentsDomain's reader; `zero_polarization_at_symmetry` sets
+  `ΔZ(A₀/2) = 0` for the last two, as the published extraction did, and is refused with `"wahl"`.
+- `level_density.deformed_branch`, default `true`: Gilbert-Cameron with its eq. (21) for deformed
+  nuclei beside eq. (20); `false` applies eq. (20) throughout, the published Table 2 setting.
+- `segmented_curves_<run identifier>.csv`, one row per manifest curve keyed by its label: segments,
+  pin, span, pairs, coverage, reduced chi-squared, imputed weights, range mean. `metadata.toml`
+  names it under `[outputs]`.
+- The manifest records `[domain]`: level density model and Gilbert-Cameron branch, averaging and
+  excitation weighting, charges per mass, charge model, mass table, FissionFragmentsDomain version.
+  `manifest_domain(result)`.
+- `ExtractedCurve` carries `kind`, `pairs` and `coverage`.
+- `write_results` refuses a run whose identifier would make a file name longer than 255 bytes.
+
 - A run is one directory. `scripts/run.jl` writes the tables, the manifest and the provenance
   record to `data/sims/<system>/<run identifier>/` and the figures to
   `plots/<system>/<run identifier>/`. An existing run of the same identifier is moved aside as
@@ -88,6 +126,39 @@ Notable changes to FissionTemperatureRatio.jl. The format follows
   readable.
 
 ### Changed
+
+- **The default inversion is `"charge_resolved"`.** Along the systematic trends `R_T` moves by up
+  to 3.6 × 10⁻³ from the ratio of means, at the doubly magic heavy fragment, and every `⟨R_T⟩` by
+  −0.02 % to −0.06 %. The excitation weight moves ²³³U `⟨R_T⟩` by a further −0.11 % to −0.15 %.
+  `"ratio_of_means"` stays selectable.
+- **The charge distribution is Wahl's model by default**, the 1988 per-reaction parameters for the
+  four shipped systems, which have `ΔZ(A₀/2) = 0` of their own. Under the ratio of means, `⟨R_T⟩`
+  moves by +0.02 % to +0.06 % against the digitised tables, and for ²³³U by +0.26 % to +0.43 %
+  against the mean values it took before.
+- **The manifest is FissionFragmentsDomain's run record**, written by its
+  `write_temperature_ratio_manifest`: `[system]`, `[run]` (ordinate, abscissa, columns),
+  `[domain]`, and per curve its label, kind and two files. The per-curve fields it carried before
+  are in `segmented_curves_<run identifier>.csv`, `total_average_R_T_<run identifier>.csv` and
+  `metadata.toml`.
+- **The systematic-trend label is `systematic_trend`**, `SYSTEMATIC_TREND_LABEL`, the token a
+  consuming code looks it up by; the figures still read "Systematic trend".
+- `total_average_R_T.csv` is `total_average_R_T_<run identifier>.csv`.
+- The local `SegmentedCurve` is `ExtractedCurve`: the segmented fit of `r_ν`, the `R_T` derived
+  from it and that curve's diagnostics. `SegmentedCurve` is FissionFragmentsDomain's tabulated
+  curve, the one a consumer reads.
+- `temperature_ratio` and `total_average` are methods of FissionFragmentsDomain's functions:
+  `temperature_ratio(averaging, model, domain, r_ν::RatioCurve)`,
+  `total_average(::RatioCurve, ::MassYield)` and `total_average(::ExtractedCurve, ::MassYield)`.
+  Uncertainties propagate with the exact slope of the inversion.
+- `SymmetryDiagnostics.R_a_at_symmetric_split` is `R_T_at_symmetric_split`, the inversion of
+  `r_ν = 1/2` at `A₀/2`; the effective `R_a` is no longer part of a result.
+- `level_density.mass_excess_file` defaults to `"ame2020"` and `level_density.shell_correction_file`
+  to `"gilbert_cameron_1965"`, the tables FissionFragmentsDomain ships; the latter matches the
+  RIPL copy read before in every tabulated value.
+- `build_level_density_model(settings, masses)`; `build_mass_table`, `build_charge_model`.
+- Run-identifier tokens: `chg`, `dZ0`, `mass`, `sc`, `def`, `TKE` added; `dZ`, `sZ`, `dZfile`
+  removed.
+- `Configuration.system` is a `FissioningSystem`.
 
 - The run identifier is DrWatson's `savename` over every configuration key that changes the
   result, tokens sorted and joined by `_`. The system is not a token, since it names the directory
@@ -209,6 +280,15 @@ names while refusing old keys is worse to debug than a clean break.
   because rounding drops a trailing zero. Both are written to the same three decimal places.
 
 ### Removed
+
+- The local mass table reader, level density models, charge distribution, fragmentation domain,
+  `average_over_charge`, `level_density_ratio`, `RatioAveraging` and its subtypes, `MassYield`,
+  `read_mass_yield`, `mass_yield`, `REACTIONS`, `CHANNEL_REACTION`, `element_symbol`,
+  `system_label`, `system_notation` and `TREND_LABEL`: FissionFragmentsDomain's are used instead,
+  under the same names where they exist.
+- The forced `ΔZ(A₀/2) = 0`; the charge model provides it, and `zero_polarization_at_symmetry`
+  imposes it on a table.
+- `fragmentation.fallback_charge_polarization` and `fallback_charge_dispersion`.
 
 - `weighted_mean`. The summaries of a segmented curve, `range_mean` and `total_average`,
   propagate its covariance instead; an inverse-variance mean over correlated points had no
