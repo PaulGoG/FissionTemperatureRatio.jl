@@ -25,6 +25,7 @@ subdirectory = "Cf252_sf/nu_vs_A"             # under data/; whitespace-separate
 
 [yield]
 subdirectory = "Cf252_sf/Y_vs_A"              # under data/; pre-neutron mass yields A Y Y_uncertainty; optional
+symmetrize = true                             # Y(A) and Y(A0 - A) averaged where both are measured (pre-neutron identity)
 
 [segments]
 max_segments = 6                              # largest segment count examined, 1 to 12

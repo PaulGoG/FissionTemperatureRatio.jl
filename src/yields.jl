@@ -26,6 +26,31 @@ function read_mass_yield_directory(directory::AbstractString)
 end
 
 """
+    symmetrized_mass_yield(yields, compound_mass) -> MassYield
+
+`yields` with the pre-neutron identity `Y(A) = Y(A₀ - A)` imposed, `A₀` being `compound_mass`: the
+two fragments of a split are counted in one event, so their masses have one yield. Where both
+complements are measured each takes their mean, with the uncertainty of the mean of two
+independent values, `√(σ_A² + σ_{A₀-A}²)/2`; an unquoted one contributes nothing to it, and where
+neither is quoted the result quotes none. A mass whose complement is not measured is kept as it is.
+The sum over both wings is unchanged. The rule is that of FissionFragmentsDomain's
+`symmetrized_yield` for a joint `Y(A, TKE)`, applied to the marginal.
+"""
+function symmetrized_mass_yield(yields::MassYield, compound_mass::Integer)
+    index = Dict(A => i for (i, A) in enumerate(yields.A))
+    Y = copy(yields.Y)
+    σY = copy(yields.σY)
+    for (i, A) in enumerate(yields.A)
+        j = get(index, Int(compound_mass) - A, nothing)
+        (j === nothing || j == i) && continue
+        Y[i] = (yields.Y[i] + yields.Y[j]) / 2
+        σ = (yields.σY[i], yields.σY[j])
+        σY[i] = all(ismissing, σ) ? missing : sqrt(sum(abs2, skipmissing(σ))) / 2
+    end
+    return MassYield(copy(yields.A), Y, σY, yields.label, yields.source)
+end
+
+"""
     total_average(curve, yields) -> Tuple{Float64,Float64}
 
 The total average of a ratio curve over a fragment mass yield distribution,

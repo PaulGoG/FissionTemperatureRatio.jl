@@ -72,6 +72,7 @@ end
             @test configuration.level_density.ratio_averaging == "charge_resolved"
             @test configuration.level_density.mean_kinetic_energy_file === nothing
             @test configuration.level_density.deformed_branch
+            @test configuration.symmetrize_yields
             @test configuration.segments.pin_symmetric_split
             @test configuration.segments.min_segment_span == 3
             @test configuration.segments.min_dataset_coverage == 0.3
@@ -370,7 +371,16 @@ end
         with_configuration(MINIMAL_CONFIGURATION) do path, directory
             configuration = load_configuration(path; data_directory = directory)
             tokens = run_parameters(configuration)
-            @test Set(keys(tokens)) == Set(values(RUN_IDENTIFIER_ABBREVIATIONS))
+            # The Gilbert-Cameron keys change a Gilbert-Cameron result only.
+            gilbert_cameron = Set(["sc", "def"])
+            @test Set(keys(tokens)) ==
+                setdiff(Set(values(RUN_IDENTIFIER_ABBREVIATIONS)), gilbert_cameron)
+            other = write_beside(
+                path, replace(MINIMAL_CONFIGURATION, "model = \"BSFG\"" => "model = \"GC\"")
+            )
+            gc_tokens = run_parameters(load_configuration(other; data_directory = directory))
+            @test Set(keys(gc_tokens)) == Set(values(RUN_IDENTIFIER_ABBREVIATIONS))
+            @test gc_tokens["sc"] == "gc1965"
             @test allunique(values(RUN_IDENTIFIER_ABBREVIATIONS))
             identifier = run_identifier(configuration)
             for token in keys(tokens)
@@ -400,6 +410,46 @@ end
             write(copy, MINIMAL_CONFIGURATION)
             @test run_identifier(load_configuration(copy; data_directory = elsewhere)) ==
                 identifier
+        end
+    end
+
+    @testset "the file names that carry the identifier fit a file system" begin
+        # The longest the identifier gets: Gilbert-Cameron, a resonance energy, a ⟨TKE⟩(A)
+        # dataset, exclusions, windows, a coverage floor with two decimals.
+        body = replace(
+            MINIMAL_CONFIGURATION,
+            "target_A = 252\ntarget_Z = 98\nchannel = \"sf\"" => "target_A = 235\ntarget_Z = 92\nchannel = \"nres\"\nincident_energy = 5.8013e-4",
+        )
+        body = replace(
+            body, "heavy_mass_max = 140" => "heavy_mass_min = 118\nheavy_mass_max = 160"
+        )
+        body = replace(
+            body,
+            "model = \"BSFG\"" => "model = \"GC\"\nratio_averaging = \"charge_resolved\"\nmean_kinetic_energy_file = \"TKE_vs_A/1_A.Author_2000.dat\"",
+        )
+        body = replace(
+            body,
+            "[multiplicity]" => "[multiplicity]\nexclude = [{ dataset = \"A\", reason = \"b\" }]",
+        )
+        body = replace(
+            body,
+            "max_segments = 3" => "max_segments = 12\nrequired_windows = [[128, 132]]\nmin_dataset_coverage = 0.35\nmin_points_per_segment = 10\nmin_segment_span = 10",
+        )
+        with_configuration(body) do path, directory
+            identifier = run_identifier(load_configuration(path; data_directory = directory))
+            @test ncodeunits("total_average_R_T_$(identifier).csv") <= 255
+        end
+        # And every shipped configuration, under either level density model.
+        if DATA_AVAILABLE
+            mktempdir() do directory
+                for system in SHIPPED_SYSTEMS, model in ("BSFG", "GC")
+                    configuration = variant_configuration(
+                        system, directory; set = Dict("level_density" => Dict("model" => model))
+                    )
+                    identifier = run_identifier(configuration)
+                    @test ncodeunits("total_average_R_T_$(identifier).csv") <= 255
+                end
+            end
         end
     end
 

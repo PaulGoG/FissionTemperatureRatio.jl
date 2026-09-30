@@ -101,6 +101,7 @@ function published_settings(label::AbstractString)
                 "zero_polarization_at_symmetry" => true,
             ),
             "level_density" => Dict("ratio_averaging" => "ratio_of_means"),
+            "yield" => Dict("symmetrize" => false),
         ),
         remove = Dict("level_density" => ["mean_kinetic_energy_file"]),
     )
@@ -132,3 +133,12 @@ const PUBLISHED_TOTAL_AVERAGES = [
     ("U235_nth", "A.S. Vorobyev 2010", "A. Al-adili 2020", 1.1186, 0.010),
     ("U235_nth", "A.S. Vorobyev 2010", "Ch.Straede 1987", 1.1221, 0.006),
 ]
+
+# Widened for the shipped configurations only, which average over Y(A) symmetrized to the
+# pre-neutron identity where the published table averaged over it as measured. Symmetrizing
+# Göök's and Straede's distributions, the two held on both wings, moves these rows to −0.61 % and
+# −1.24 %; the published settings keep the tolerances above.
+const SHIPPED_TOLERANCE = Dict(
+    ("Cf252_sf", "C. Budtz-jorgensen 1988", "A. Goeoek 2014") => 0.007,
+    ("U235_nth", "K. Nishio 1998", "Ch.Straede 1987") => 0.013,
+)

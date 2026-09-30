@@ -162,7 +162,7 @@ end
             metadata = run_metadata(result)
             @test metadata["result"]["dataset_outcomes"]["sparse"] ==
                 result.dataset_outcomes["sparse"]
-            @test metadata["identifier"]["tokens"]["mincov"] == 0.3
+            @test metadata["identifier"]["tokens"]["cov"] == 0.3
             @test metadata["inputs"]["multiplicity_directory"] == "datasets"
         end
 

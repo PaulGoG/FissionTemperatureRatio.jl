@@ -5,14 +5,16 @@
 # with ΔZ(A₀/2) = 0, or over the mean values for 233-U — need the digitised tables, which are held
 # locally and not shipped, so that run is skipped without them. The shipped configurations — the
 # charge-resolved inversion on Wahl's 1988 model, weighted by ⟨TXE⟩ where a ⟨TKE⟩(A) dataset is
-# configured — are held to the same tolerances.
+# configured, and Y(A) symmetrized to the pre-neutron identity — are held to the same
+# tolerances, two of them widened for the symmetrization (`SHIPPED_TOLERANCE`).
 #
 # Both need the measured input, so both are skipped on a bare clone. A row is skipped, not failed,
 # when the local data holds no dataset of that label: what the archive returns for a query changes
 # over time.
 
-function published_rows_hold(results)
+function published_rows_hold(results; widened = Dict())
     for (system, dataset, distribution, published, tolerance) in PUBLISHED_TOTAL_AVERAGES
+        tolerance = get(widened, (system, dataset, distribution), tolerance)
         averages = haskey(results, system) ? results[system].total_average_R_T : Dict()
         if haskey(averages, dataset) && haskey(averages[dataset], distribution)
             @test averages[dataset][distribution].value ≈ published rtol = tolerance
@@ -59,7 +61,7 @@ DATA_AVAILABLE && @testset "published total averages" begin
             @test manifest_domain(results[system]).ratio_averaging == "charge_resolved"
             @test startswith(manifest_domain(results[system]).charge_model, "Wahl1988(")
         end
-        published_rows_hold(results)
+        published_rows_hold(results; widened = SHIPPED_TOLERANCE)
 
         # Straede's 235-U yields are spectrum-averaged: used, and flagged. The retrieval record
         # lists many more such sets; only a distribution the run read is reported.

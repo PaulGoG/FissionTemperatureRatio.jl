@@ -29,13 +29,20 @@ const RUN_IDENTIFIER_ABBREVIATIONS = Dict(
     "level_density.mean_kinetic_energy_file" => "TKE",
     "multiplicity.exclude" => "excl",
     "yield.subdirectory" => "Y",
-    "segments.max_segments" => "maxseg",
-    "segments.min_points_per_segment" => "minpts",
-    "segments.min_segment_span" => "minspan",
+    "yield.symmetrize" => "Ysym",
+    "segments.max_segments" => "nseg",
+    "segments.min_points_per_segment" => "npts",
+    "segments.min_segment_span" => "span",
     "segments.pin_symmetric_split" => "pin",
     "segments.required_windows" => "win",
-    "segments.windows_apply_to_datasets" => "windat",
-    "segments.min_dataset_coverage" => "mincov",
+    "segments.windows_apply_to_datasets" => "wdat",
+    "segments.min_dataset_coverage" => "cov",
+)
+
+# Keys that change the result of a Gilbert-Cameron run only; a back-shifted Fermi gas run carries
+# no token for them.
+const GILBERT_CAMERON_KEYS = (
+    "level_density.shell_correction_file", "level_density.deformed_branch"
 )
 
 # A value that does not reduce to a savename token — a list, a path — enters the identifier as a
@@ -68,11 +75,15 @@ Every key is abbreviated through [`RUN_IDENTIFIER_ABBREVIATIONS`](@ref), and a k
 there throws rather than being given a token on the spot. A value that is a list or a path — the
 required windows, the exclusion list, a tabulated charge distribution, a mass or shell-correction
 table other than the shipped one, the `⟨TKE⟩(A)` dataset, the yield directory — enters as a
-content-hash token and is written in full into the run metadata, with the reason. The
-Gilbert-Cameron branch and shell corrections are tokens of a Gilbert-Cameron run only, and read
-`false` and `none` otherwise, as the run record states them. The system is not a token: it names
-the directory the identifier sits in. `significant_digits` changes how a number is rendered, not
-the number, and is left out.
+content-hash token and is written in full into the run metadata, with the reason; a named source
+enters as its name, the shipped Table III as `gc1965`. The Gilbert-Cameron branch and shell
+corrections change a Gilbert-Cameron result only, and are tokens of such a run alone. The system is
+not a token: it names the directory the identifier sits in. `significant_digits` changes how a
+number is rendered, not the number, and is left out.
+
+The identifier is kept short enough that the file names that carry it stay within the 255 bytes a
+file system admits; the test suite asserts it for every shipped configuration under both level
+density models.
 """
 function run_parameters(configuration::Configuration)
     fragmentation = configuration.fragmentation
@@ -92,18 +103,17 @@ function run_parameters(configuration::Configuration)
         "level_density.mass_excess_file" => _input_token(
             level_density.mass_excess_file, configuration
         ),
-        "level_density.shell_correction_file" => if gilbert_cameron
-            _input_token(level_density.shell_correction_file, configuration)
-        else
-            "none"
-        end,
-        "level_density.deformed_branch" => gilbert_cameron && level_density.deformed_branch,
+        "level_density.shell_correction_file" => _input_token(
+            level_density.shell_correction_file, configuration
+        ),
+        "level_density.deformed_branch" => level_density.deformed_branch,
         "level_density.ratio_averaging" => level_density.ratio_averaging,
         "level_density.mean_kinetic_energy_file" => _input_token(
             level_density.mean_kinetic_energy_file, configuration
         ),
         "multiplicity.exclude" => _hash_token(_canonical(configuration.excluded_datasets)),
         "yield.subdirectory" => _input_token(configuration.yield_directory, configuration),
+        "yield.symmetrize" => configuration.symmetrize_yields,
         "segments.max_segments" => segments.max_segments,
         "segments.min_points_per_segment" => segments.min_points_per_segment,
         "segments.min_segment_span" => segments.min_segment_span,
@@ -114,6 +124,7 @@ function run_parameters(configuration::Configuration)
     ]
     parameters = Dict{String,Any}()
     for (key, value) in entries
+        !gilbert_cameron && key in GILBERT_CAMERON_KEYS && continue
         haskey(RUN_IDENTIFIER_ABBREVIATIONS, key) || throw(
             ArgumentError("no entry in RUN_IDENTIFIER_ABBREVIATIONS for the key $(repr(key))"),
         )
@@ -122,13 +133,15 @@ function run_parameters(configuration::Configuration)
     return parameters
 end
 
-# A configured input: a named source ("wahl", "mean", "ame2020", "gilbert_cameron_1965") as itself, a path as the hash of
-# its spelling relative to the data directory, an absent one as "none".
+# A configured input: a named source ("wahl", "mean", "ame2020", "gilbert_cameron_1965") by its
+# name, a path as the hash of its spelling relative to the data directory, an absent one as "none".
+# Table III is abbreviated in the identifier, which must stay short; the metadata spells it out.
 const NAMED_SOURCES = ("wahl", "mean", SHIPPED_MASS_TABLE, SHIPPED_SHELL_CORRECTIONS)
+const NAMED_SOURCE_TOKENS = Dict(SHIPPED_SHELL_CORRECTIONS => "gc1965")
 
 _input_token(::Nothing, ::Configuration) = "none"
 function _input_token(value::AbstractString, configuration::Configuration)
-    value in NAMED_SOURCES && return String(value)
+    value in NAMED_SOURCES && return get(NAMED_SOURCE_TOKENS, value, String(value))
     return _hash_token(_canonical(_relative_input(value, configuration)))
 end
 
@@ -246,6 +259,7 @@ function run_metadata(result::ExtractionResult)
             "required_windows" => [[first(w), last(w)] for w in segments.required_windows],
             "windows_apply_to_datasets" => segments.windows_apply_to_datasets,
             "min_dataset_coverage" => segments.min_dataset_coverage,
+            "symmetrize_yields" => configuration.symmetrize_yields,
             "significant_digits" => configuration.output.significant_digits,
         ),
         "identifier" => Dict{String,Any}(

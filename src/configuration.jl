@@ -160,6 +160,10 @@ than directly, so that the constraints documented in the TOML file are enforced.
 `data_directory` is the root every input path was resolved against; the run identifier and the
 metadata spell input paths relative to it, so that a run made on another machine names the same
 inputs.
+
+`symmetrize_yields` imposes the pre-neutron identity `Y(A) = Y(A₀ - A)` on every mass yield
+distribution before the total average: where both complements are measured each takes their mean.
+The published extraction averaged over the distributions as measured.
 """
 struct Configuration
     system::FissioningSystem
@@ -168,6 +172,7 @@ struct Configuration
     multiplicity_directory::String
     excluded_datasets::Dict{String,String}
     yield_directory::Union{String,Nothing}
+    symmetrize_yields::Bool
     segments::SegmentSettings
     output::OutputSettings
     source::String
@@ -259,7 +264,7 @@ const LEVEL_DENSITY_KEYS = (
     "mean_kinetic_energy_file",
 )
 const MULTIPLICITY_KEYS = ("subdirectory", "exclude")
-const YIELD_KEYS = ("subdirectory",)
+const YIELD_KEYS = ("subdirectory", "symmetrize")
 const SEGMENT_KEYS = (
     "max_segments",
     "min_points_per_segment",
@@ -628,6 +633,11 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
     else
         nothing
     end
+    symmetrize_yields = if haskey(document, "yield")
+        _value(document["yield"], "symmetrize", Bool, "yield.symmetrize", true)
+    else
+        true
+    end
 
     segments_section = _section(document, "segments", source)
     _refuse_unknown(segments_section, SEGMENT_KEYS, "[segments]")
@@ -745,6 +755,7 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
         multiplicity_directory,
         excluded_datasets,
         yield_directory,
+        symmetrize_yields,
         SegmentSettings(
             max_segments, min_points, min_span, pin, windows, windows_apply, min_coverage
         ),

@@ -24,6 +24,29 @@
         end
     end
 
+    @testset "symmetrized to the pre-neutron identity" begin
+        # A₀ = 236: 118 is its own complement, 130 ↔ 106 both measured, 140 has no partner.
+        yields = MassYield(
+            [106, 118, 130, 140],
+            [2.0, 0.5, 4.0, 6.0],
+            [0.3, missing, 0.4, 0.2],
+            "y",
+            "source.dat",
+        )
+        symmetric = symmetrized_mass_yield(yields, 236)
+        @test symmetric.A == yields.A
+        @test symmetric.Y ≈ [3.0, 0.5, 3.0, 6.0]
+        @test symmetric.σY[1] ≈ sqrt(0.3^2 + 0.4^2) / 2
+        @test symmetric.σY[3] ≈ symmetric.σY[1]
+        @test ismissing(symmetric.σY[2])
+        @test symmetric.σY[4] == 0.2
+        @test sum(symmetric.Y) ≈ sum(yields.Y)
+        @test (symmetric.label, symmetric.source) == (yields.label, yields.source)
+        # One quoted uncertainty of a pair: the other contributes nothing.
+        partial = MassYield([106, 130], [2.0, 4.0], [missing, 0.4], "p", "")
+        @test symmetrized_mass_yield(partial, 236).σY == [0.2, 0.2]
+    end
+
     @testset "total average" begin
         curve = RatioCurve([130, 132], [1.2, 1.0], [missing, missing], "example")
         exact = MassYield([130, 132], [1.0, 3.0], [missing, missing], "exact", "")

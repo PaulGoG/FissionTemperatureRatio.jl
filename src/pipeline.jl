@@ -340,6 +340,11 @@ function run_pipeline(configuration::Configuration)
     else
         read_mass_yield_directory(configuration.yield_directory)
     end
+    if configuration.symmetrize_yields && !isempty(mass_yields)
+        # Before the qualifiers are looked up by file: the source and label are unchanged.
+        mass_yields = [symmetrized_mass_yield(y, A₀) for y in mass_yields]
+        @info "mass yields symmetrized: Y(A) and Y(A₀ - A) averaged where both are measured"
+    end
     for (distribution, tags) in _yield_qualifiers(configuration, mass_yields)
         flagged = _flagged(tags)
         isempty(flagged) ||
