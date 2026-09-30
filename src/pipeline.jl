@@ -8,17 +8,19 @@ The identities that hold by construction at the symmetric split, checked rather 
 # Fields
 
 - `charge_set_invariant`: whether the charge numbers retained at the symmetric split are
-  invariant under `Z -> Z₀ - Z`, which is what makes `R_a = 1` exact there; `missing` for a
-  fissioning nucleus of odd mass number, which has no symmetric split.
-- `R_a_at_symmetric_split`: the level density parameter ratio there, one by identity; `missing`
-  where there is no symmetric split or the ratio is undefined.
+  invariant under `Z -> Z₀ - Z`, which is what makes `r_ν = 1/2` invert to `R_T = 1` there;
+  `missing` for a fissioning nucleus of odd mass number, which has no symmetric split, or a range
+  that does not reach it.
+- `R_T_at_symmetric_split`: the temperature ratio the inversion returns for `r_ν = 1/2` at
+  `A₀/2`, one by identity for the charge-resolved inversion and for the ratio of means; `missing`
+  where there is no symmetric split or the relation is undefined.
 - `pinned_curves`: the labels of the segmented curves pinned to `r_ν = 1/2` at the symmetric
   split.
 - `warnings`: every departure found, one sentence each; empty when the identities hold.
 """
 struct SymmetryDiagnostics
     charge_set_invariant::Union{Bool,Missing}
-    R_a_at_symmetric_split::Union{Float64,Missing}
+    R_T_at_symmetric_split::Union{Float64,Missing}
     pinned_curves::Vector{String}
     warnings::Vector{String}
 end
@@ -35,10 +37,17 @@ written to disk by [`write_results`](@ref).
 - `datasets`: the experimental multiplicity data that was read.
 - `r_ν`, `R_T`: the multiplicity and temperature ratios extracted point by point from each
   dataset.
-- `R_a`: the level density parameter ratio against heavy-fragment mass number.
-- `segmented_curves`: one per dataset that supports a fit and reaches the coverage floor,
-  followed by the systematic-trend curve. Alternatives offered to a prompt emission code, not an
-  ensemble.
+- `masses`, `model`, `charge`, `domain`: the mass table, the level density model, the charge
+  distribution and the fragmentation domain built from them, all FissionFragmentsDomain's, which
+  the consuming emission code partitions on too.
+- `averaging`: how the relation between `R_T` and `E*_H/TXE` was reduced over the charge
+  distribution, with the excitation weights where a `⟨TKE⟩(A)` dataset was given.
+- `mean_kinetic_energy`: that dataset carried onto the heavy-mass range, or `nothing`.
+- `qualifiers`: the reaction-code qualifiers the retrieval recorded for each multiplicity dataset,
+  keyed by label.
+- `segmented_curves`: one [`ExtractedCurve`](@ref) per dataset that supports a fit and reaches the
+  coverage floor, followed by the systematic-trend curve. Alternatives offered to a prompt
+  emission code, not an ensemble.
 - `range_mean_R_T`: for each segmented curve, the mean of its temperature ratio over its mass
   range with the uncertainty propagated through the curve's covariance; see [`range_mean`](@ref)
   for why this is not the total average.
@@ -57,8 +66,14 @@ struct ExtractionResult
     datasets::Vector{Multiplicity}
     r_ν::Vector{RatioCurve}
     R_T::Vector{RatioCurve}
-    R_a::Dict{Int,Float64}
-    segmented_curves::Vector{SegmentedCurve}
+    masses::MassExcessTable
+    model::LevelDensityModel
+    charge::ChargeModel
+    domain::FragmentationDomain
+    averaging::RatioAveraging
+    mean_kinetic_energy::Union{MeanKineticEnergy,Nothing}
+    qualifiers::Dict{String,Vector{String}}
+    segmented_curves::Vector{ExtractedCurve}
     range_mean_R_T::Dict{String,Tuple{Float64,Float64}}
     mass_yields::Vector{MassYield}
     total_average_R_T::Dict{String,Dict{String,TotalAverage}}
@@ -69,13 +84,27 @@ struct ExtractionResult
 end
 
 """
-    systematic_trend(result) -> SegmentedCurve
+    manifest_domain(result) -> ManifestDomain
+
+The `[domain]` record of a run: the level density model and its Gilbert-Cameron branch, the
+ratio averaging and its excitation weighting, the charges per mass, the charge model, the mass
+table and the version of FissionFragmentsDomain, as that package spells them. A consuming code
+refuses a curve extracted on a domain other than the one it partitions on.
+"""
+function manifest_domain(result::ExtractionResult)
+    return ManifestDomain(
+        result.model, result.averaging, result.domain, result.charge, result.masses
+    )
+end
+
+"""
+    systematic_trend(result) -> ExtractedCurve
 
 The segmented curve that follows the systematic behaviour of the ratio rather than any single
 dataset.
 """
 function systematic_trend(result::ExtractionResult)
-    index = findfirst(c -> c.label == TREND_LABEL, result.segmented_curves)
+    index = findfirst(c -> c.label == SYSTEMATIC_TREND_LABEL, result.segmented_curves)
     index === nothing && throw(ArgumentError("this result carries no systematic-trend curve"))
     return result.segmented_curves[index]
 end
@@ -152,11 +181,11 @@ end
 
 Execute the extraction for one configuration.
 
-The steps are: read the tabulated data and the experimental multiplicity data; build the
-fragmentation range and the isobaric charge distribution; form the multiplicity ratio
-`r_ν = ν_H/(ν_L + ν_H)` of every dataset and the temperature ratio from it; and describe the
-multiplicity ratio by joined straight segments, once per dataset and once more following its
-systematic behaviour.
+The steps are: build the fragmentation domain from the mass table and the isobaric charge
+distribution, and the level density model; read the experimental multiplicity data; form the
+multiplicity ratio `r_ν = ν_H/(ν_L + ν_H)` of every dataset and the temperature ratio from it; and
+describe the multiplicity ratio by joined straight segments, once per dataset and once more
+following its systematic behaviour.
 
 A run therefore returns several segmented curves rather than one. Where the datasets of a
 fissioning nucleus disagree — as they do markedly for some — a curve fitted through all of them
@@ -166,8 +195,8 @@ by comparing the multiplicity distributions and yields it produces against exper
 systematic-trend curve is the one to use where a dataset is too sparse or too scattered to
 determine the shape on its own.
 
-The temperature ratio is obtained by transforming the fitted multiplicity ratio, not by fitting
-segments to the temperature ratio a second time. The transformation is exact, whereas a second fit
+The temperature ratio is obtained by inverting the fitted multiplicity ratio, not by fitting
+segments to the temperature ratio a second time. The inversion is exact, whereas a second fit
 would discard the uncertainty of the first and impose a piecewise-linear shape on a quantity that
 is not piecewise-linear.
 
@@ -177,46 +206,54 @@ and adds the provenance record and the figures.
 """
 function run_pipeline(configuration::Configuration)
     @info "reading input" configuration = configuration.source
-    model = build_level_density_model(configuration.level_density)
-    charge_data = read_charge_distribution(
-        configuration.fragmentation.charge_distribution_file,
-        configuration.fragmentation.fallback_charge_polarization,
-        configuration.fragmentation.fallback_charge_dispersion,
-    )
-    datasets = read_multiplicity_directory(configuration.multiplicity_directory)
-
-    A₀ = configuration.system.A₀
-    Z₀ = configuration.system.Z₀
+    system = configuration.system
+    settings = configuration.level_density
+    masses = build_mass_table(settings)
+    model = build_level_density_model(settings, masses)
+    charge = build_charge_model(configuration, masses)
     range = A_H_range(configuration)
-
     domain = fragmentation_domain(
-        A₀, Z₀, range, configuration.fragmentation.charges_per_mass, charge_data
+        system,
+        charge,
+        range;
+        charges_per_mass = configuration.fragmentation.charges_per_mass,
+        zero_polarization_at_symmetry = configuration.fragmentation.zero_polarization_at_symmetry,
     )
-    if !isempty(domain.fallback_masses)
-        @warn "tabulated charge polarization and dispersion unavailable; the average values were \
-               used" masses = _summarize_range(domain.fallback_masses) ΔZ =
-            configuration.fragmentation.fallback_charge_polarization σ_Z =
-            configuration.fragmentation.fallback_charge_dispersion
+    @info "fragmentation domain" domain charge_model = charge_model_label(charge) level_density =
+        settings.model
+
+    mean_kinetic_energy = if settings.mean_kinetic_energy_file === nothing
+        nothing
+    else
+        read_mean_kinetic_energy(settings.mean_kinetic_energy_file, system, range)
+    end
+    averaging = _averaging(settings.ratio_averaging, masses, domain, mean_kinetic_energy)
+
+    datasets = read_multiplicity_directory(configuration.multiplicity_directory)
+    by_file = retrieval_qualifiers(configuration.multiplicity_directory)
+    qualifiers = Dict(
+        data.label => get(by_file, basename(data.source), String[]) for data in datasets
+    )
+    for data in datasets
+        flagged = _flagged(qualifiers[data.label])
+        isempty(flagged) ||
+            @warn "the retrieval records a qualifier on this dataset; it is used, not \
+                   corrected" dataset = data.label qualifiers = flagged
     end
 
-    R_a = level_density_ratio(
-        configuration.level_density.ratio_averaging, model, A₀, Z₀, domain
-    )
-    isempty(R_a) &&
-        throw(ArgumentError("the level density parameter ratio is undefined over the whole \
-                       fragmentation range; check the mass excess table"))
-
+    A₀ = system.compound.A
     r_ν = [multiplicity_ratio(data, A₀, range) for data in datasets]
-    R_T = [temperature_ratio(curve, R_a) for curve in r_ν]
+    R_T = [temperature_ratio(averaging, model, domain, curve) for curve in r_ν]
     diagnostics = [diagnose(datasets[i], r_ν[i], A₀, range) for i in eachindex(datasets)]
     usable = findall(!isempty, r_ν)
     isempty(usable) &&
         throw(ArgumentError("no dataset provides both fragments of any pair within \
                        $(first(range)):$(last(range))"))
 
-    settings = configuration.segments
-    segmented_curves = SegmentedCurve[]
+    segments_settings = configuration.segments
+    segmented_curves = ExtractedCurve[]
     outcomes = Dict{String,String}()
+    relation = (averaging, model, domain)
 
     # One curve per dataset. These are the alternatives a prompt emission code chooses between.
     # A dataset below the coverage floor is read, diagnosed and pooled, but offers no curve of
@@ -228,17 +265,20 @@ function run_pipeline(configuration::Configuration)
             continue
         end
         coverage = diagnostics[index].coverage
-        if coverage < settings.min_dataset_coverage
+        if coverage < segments_settings.min_dataset_coverage
             outcomes[data.label] = "coverage $(round(coverage; digits = 3)) below the floor \
-                                    $(settings.min_dataset_coverage); pooled only"
+                                    $(segments_settings.min_dataset_coverage); pooled only"
             @info "no segmented curve for this dataset" dataset = data.label coverage floor =
-                settings.min_dataset_coverage
+                segments_settings.min_dataset_coverage
             continue
         end
-        windows =
-            settings.windows_apply_to_datasets ? settings.required_windows : UnitRange{Int}[]
-        segmented = _segment(curve, R_a, settings, curve.label, windows, A₀)
-        if segmented isa SegmentedCurve
+        windows = if segments_settings.windows_apply_to_datasets
+            segments_settings.required_windows
+        else
+            UnitRange{Int}[]
+        end
+        segmented = _segment(curve, relation, segments_settings, curve.label, windows, A₀)
+        if segmented isa ExtractedCurve
             push!(segmented_curves, segmented)
             outcomes[data.label] = "segmented curve"
         else
@@ -246,7 +286,7 @@ function run_pipeline(configuration::Configuration)
         end
     end
     unpinned = [c.label for c in segmented_curves if c.fit.pinned_value === nothing]
-    if settings.pin_symmetric_split && !isempty(unpinned)
+    if segments_settings.pin_symmetric_split && !isempty(unpinned)
         @info "fitted without the pin: no complete pair at the symmetric split" datasets =
             unpinned
     end
@@ -269,25 +309,28 @@ function run_pipeline(configuration::Configuration)
     isempty(admitted) && throw(
         ArgumentError("every usable dataset is excluded from the pooling by configuration")
     )
-    pooled = consensus(r_ν[admitted]; label = TREND_LABEL)
-    trend = _segment(pooled, R_a, settings, TREND_LABEL, settings.required_windows, A₀)
-    if !(trend isa SegmentedCurve) && !isempty(settings.required_windows)
+    pooled = consensus(r_ν[admitted]; label = SYSTEMATIC_TREND_LABEL)
+    windows = segments_settings.required_windows
+    trend = _segment(pooled, relation, segments_settings, SYSTEMATIC_TREND_LABEL, windows, A₀)
+    if !(trend isa ExtractedCurve) && !isempty(windows)
         @warn "no segmented curve satisfies the required windows; the systematic-trend curve \
-               was fitted without them" windows = settings.required_windows reason = trend
-        trend = _segment(pooled, R_a, settings, TREND_LABEL, UnitRange{Int}[], A₀)
+               was fitted without them" windows reason = trend
+        trend = _segment(
+            pooled, relation, segments_settings, SYSTEMATIC_TREND_LABEL, UnitRange{Int}[], A₀
+        )
     end
-    trend isa SegmentedCurve && push!(segmented_curves, trend)
+    trend isa ExtractedCurve && push!(segmented_curves, trend)
 
     isempty(segmented_curves) &&
         throw(ArgumentError("no dataset supports a segmented curve with \
-                       min_points_per_segment = $(settings.min_points_per_segment)"))
+                       min_points_per_segment = $(segments_settings.min_points_per_segment)"))
 
     for curve in segmented_curves
         @info "segmented curve" dataset = curve.label segments = segments(curve.fit) breakpoints =
             curve.fit.breakpoints reduced_chi_squared = curve.fit.wrss / curve.fit.dof
     end
 
-    symmetry = _symmetry_diagnostics(configuration, domain, R_a, segmented_curves)
+    symmetry = _symmetry_diagnostics(configuration, relation, segmented_curves)
     for message in symmetry.warnings
         @warn message
     end
@@ -296,6 +339,20 @@ function run_pipeline(configuration::Configuration)
         MassYield[]
     else
         read_mass_yield_directory(configuration.yield_directory)
+    end
+    for (distribution, tags) in _yield_qualifiers(configuration, mass_yields)
+        flagged = _flagged(tags)
+        isempty(flagged) ||
+            @warn "the retrieval records a qualifier on this yield distribution; it is used, \
+                   not corrected" distribution qualifiers = flagged
+    end
+    if mean_kinetic_energy !== nothing
+        for distribution in mass_yields
+            offset = mean_kinetic_energy_offset(mean_kinetic_energy, distribution, system)
+            @info "⟨TKE⟩ of the excitation weights against the energy standard" dataset =
+                mean_kinetic_energy.label yield = distribution.label mean_MeV = offset.mean standard_MeV =
+                offset.standard offset_MeV = offset.offset
+        end
     end
     total_average_R_T = _total_averages(segmented_curves, mass_yields)
     for curve in segmented_curves
@@ -314,7 +371,13 @@ function run_pipeline(configuration::Configuration)
         datasets,
         r_ν,
         R_T,
-        R_a,
+        masses,
+        model,
+        charge,
+        domain,
+        averaging,
+        mean_kinetic_energy,
+        qualifiers,
         segmented_curves,
         Dict(c.label => range_mean(c) for c in segmented_curves),
         mass_yields,
@@ -326,12 +389,50 @@ function run_pipeline(configuration::Configuration)
     )
 end
 
+# The reaction-code qualifiers of the yield distributions a run read, keyed by label; the record
+# lists every dataset its query accepted, most of which need not be staged.
+function _yield_qualifiers(configuration::Configuration, mass_yields::Vector{MassYield})
+    directory = configuration.yield_directory
+    directory === nothing && return Dict{String,Vector{String}}()
+    by_file = retrieval_qualifiers(directory)
+    return Dict(
+        distribution.label => get(by_file, basename(distribution.source), String[]) for
+        distribution in mass_yields
+    )
+end
+
+# The averaging a configuration names. The charge-resolved inversion is weighted by the mean total
+# excitation of every fragmentation where a ⟨TKE⟩(A) dataset is given, and by p(Z, A_H) alone
+# otherwise; the run says which.
+function _averaging(
+    label::AbstractString,
+    masses::MassExcessTable,
+    domain::FragmentationDomain,
+    mean_kinetic_energy::Union{MeanKineticEnergy,Nothing},
+)
+    label == "charge_resolved" || return ratio_averaging(label)
+    if mean_kinetic_energy === nothing
+        @info "no ⟨TKE⟩(A) dataset: the charge-resolved inversion weights each fragmentation by \
+               p(Z, A_H) alone, not by its excitation"
+        return ChargeResolved()
+    end
+    record = retrieval_record(mean_kinetic_energy.source)
+    flagged = record === nothing ? String[] : _flagged(record.qualifiers)
+    isempty(flagged) ||
+        @warn "the retrieval records a qualifier on the ⟨TKE⟩(A) dataset; it is used, not \
+               corrected" dataset = mean_kinetic_energy.label qualifiers = flagged
+    @info "the charge-resolved inversion is weighted by ⟨TXE⟩ = Q + E*_CN - ⟨TKE⟩(A_H)" dataset =
+        mean_kinetic_energy.label interpolated = mean_kinetic_energy.interpolated extrapolated =
+        mean_kinetic_energy.extrapolated
+    return ChargeResolved(mean_total_excitation(masses, domain, mean_kinetic_energy.values))
+end
+
 # Whether a yield distribution carries positive weight at any mass number of the curve.
 function _overlaps(curve::RatioCurve, distribution::MassYield)
     total = 0.0
     for mass in curve.A_H
         entry = mass_yield(distribution, mass)
-        ismissing(entry) || (total += entry[1])
+        entry === nothing || (total += entry[1])
     end
     return total > 0
 end
@@ -339,7 +440,7 @@ end
 # The total average of every segmented curve over every yield distribution. A pair that shares no
 # mass number is omitted rather than reported as zero: a distribution covering only the light wing
 # says nothing about a ratio defined on the heavy one.
-function _total_averages(curves::Vector{SegmentedCurve}, mass_yields::Vector{MassYield})
+function _total_averages(curves::Vector{ExtractedCurve}, mass_yields::Vector{MassYield})
     averages = Dict{String,Dict{String,TotalAverage}}()
     isempty(mass_yields) && return averages
     for curve in curves
@@ -365,7 +466,7 @@ end
 # a dataset starting above it is fitted unpinned.
 function _segment(
     curve::RatioCurve,
-    R_a::AbstractDict{Int,Float64},
+    relation::Tuple{RatioAveraging,LevelDensityModel,FragmentationDomain},
     settings::SegmentSettings,
     label::AbstractString,
     windows::Vector{UnitRange{Int}},
@@ -389,37 +490,42 @@ function _segment(
         @warn "no segmented curve for this dataset" dataset = label reason = exception.msg
         return exception.msg
     end
-    return SegmentedCurve(label, fit, R_a)
+    return ExtractedCurve(label, fit, curve, relation...)
 end
 
 # The identities that hold by construction at the symmetric split, checked rather than assumed.
 function _symmetry_diagnostics(
     configuration::Configuration,
-    domain::FragmentationDomain,
-    R_a::AbstractDict{Int,Float64},
-    curves::Vector{SegmentedCurve},
+    relation::Tuple{RatioAveraging,LevelDensityModel,FragmentationDomain},
+    curves::Vector{ExtractedCurve},
 )
+    averaging, model, domain = relation
     warnings = String[]
-    A₀ = configuration.system.A₀
-    invariant = symmetric_charge_set_is_invariant(domain, A₀, configuration.system.Z₀)
+    A₀ = configuration.system.compound.A
+    invariant = something(symmetric_charge_set_is_invariant(domain), missing)
     if invariant === false
         push!(
             warnings,
             "the charge numbers retained at the symmetric split are not invariant under \
-             Z -> Z₀ - Z, so R_a = 1 and R_T = 1 hold there only approximately; this occurs when \
-             Z₀ is odd and the most probable charge falls between two integers",
+             Z -> Z₀ - Z, so r_ν = 1/2 does not return R_T = 1 there exactly; this occurs when \
+             the charge distribution is polarized at A₀/2, or when Z₀ is odd",
         )
     end
 
-    R_a_symmetric = missing
-    if iseven(A₀) && haskey(R_a, A₀ ÷ 2)
-        R_a_symmetric = R_a[A₀ ÷ 2]
-        deviation = abs(R_a_symmetric - 1)
-        deviation < 1e-8 || push!(
-            warnings,
-            "R_a departs from unity by $(round(deviation; sigdigits = 3)) at the symmetric \
-             split, where the two fragments are the same nuclide and the ratio must be exactly one",
-        )
+    R_T_symmetric = missing
+    if iseven(A₀) && (A₀ ÷ 2) in domain.heavy_masses
+        value = temperature_ratio(averaging, model, domain, A₀ ÷ 2, 0.5)
+        if value !== nothing
+            R_T_symmetric = value
+            deviation = abs(value - 1)
+            deviation < 1e-8 || push!(
+                warnings,
+                "r_ν = 1/2 inverts to R_T = $(round(value; sigdigits = 8)) at the symmetric \
+                 split under ratio_averaging = \"$(ratio_averaging_label(averaging))\", \
+                 $(round(deviation; sigdigits = 3)) from unity where the two fragments are the \
+                 same nuclide",
+            )
+        end
     end
 
     pinned = String[]
@@ -433,91 +539,52 @@ function _symmetry_diagnostics(
              symmetric split of A₀ = $(A₀)",
         )
     end
-    return SymmetryDiagnostics(invariant, R_a_symmetric, pinned, warnings)
+    return SymmetryDiagnostics(invariant, R_T_symmetric, pinned, warnings)
 end
 
-# A machine-readable index of what a run produced, for a code that consumes these curves rather
-# than a person reading them. It names the system, lists every segmented curve with the file to
-# read for it, and says which datasets were pooled. Deliberately separate from the run metadata,
-# which records how the result was produced; this records what is on offer.
+# The run record a consuming code reads: the system, the quantity tabulated, the domain the curves
+# were extracted on, and for every segmented curve its label, its kind and the two files it is
+# tabulated in, written by FissionFragmentsDomain's writer and nothing besides. What else a run
+# knows about each curve is in the segmented-curves table and in the run metadata.
 function _write_manifest(
     result::ExtractionResult,
     directory::AbstractString,
     identifier::AbstractString,
     written::Dict{String,String},
 )
-    entries = Dict{String,Any}[]
-    coverage = Dict(d.label => d.coverage for d in result.dataset_diagnostics)
-    range = A_H_range(result.configuration)
-    for curve in result.segmented_curves
-        label = curve.label
-        trend = label == TREND_LABEL
-        # The pairs the curve was fitted to: the dataset's own, or the combined curve's.
-        fitted_to = if trend
-            result.consensus_r_ν
-        else
-            result.r_ν[findfirst(c -> c.label == label, result.r_ν)]
-        end
-        averages = get(result.total_average_R_T, label, Dict{String,TotalAverage}())
-        entry = Dict{String,Any}(
-            "label" => label,
-            "kind" => trend ? "systematic_trend" : "dataset",
-            "pooled" => trend || !haskey(result.configuration.excluded_datasets, label),
-            "segments" => segments(curve.fit),
-            "pinned_at_symmetric_split" => curve.fit.pinned_value !== nothing,
-            "breakpoints" => curve.fit.breakpoints,
-            # Parallel arrays rather than pairs: a mixed array of integers and floats is
-            # promoted to floats on serialization, and a mass number is not a float.
-            "pivot_A_H" => [p[1] for p in pivots(curve.fit)],
-            "pivot_r_nu" => [p[2] for p in pivots(curve.fit)],
-            "reduced_chi_squared" => curve.fit.wrss / curve.fit.dof,
-            # What the curve rests on: the pairs it was fitted to and the span they cover, so a
-            # consumer can see a sparse curve for what it is without reading the data.
-            "first_A_H" => first(curve.R_T.A_H),
-            "last_A_H" => last(curve.R_T.A_H),
-            "pairs" => length(fitted_to),
-            "coverage" =>
-                trend ? count(in(range), fitted_to.A_H) / length(range) : coverage[label],
-            "range_mean_R_T" => collect(result.range_mean_R_T[label]),
-            "total_average_R_T" => Dict{String,Any}(
-                k => [v.value, v.uncertainty, v.uncertainty_independent_points] for
-                (k, v) in averages
-            ),
-        )
-        # The file a consumer should read. The temperature ratio is tabulated at every mass
-        # number, because it is not piecewise-linear even where the multiplicity ratio is:
-        # interpolating between the segment pivots would cut across the structure the level
-        # density parameter ratio puts into it.
-        for (key, name) in (
-            ("R_T_segmented/$(label)", "temperature_ratio_file"),
-            ("r_nu_pivots/$(label)", "multiplicity_ratio_pivots_file"),
-        )
-            haskey(written, key) && (entry[name] = basename(written[key]))
-        end
-        push!(entries, entry)
-    end
-
-    manifest = Dict{String,Any}(
-        "system" => _system_record(result.configuration.system),
-        "run" => Dict{String,Any}(
-            "identifier" => identifier,
-            "package_version" => string(PACKAGE_VERSION),
-            "quantity" => "R_T = T_L/T_H of complementary fully accelerated fragments",
-            "ordinate" => "R_T",
-            "abscissa" => ["A_H"],
-            # Stated so that a reader knows what the columns hold, not so that a reader looks
-            # them up by name: the files are read by column position.
-            "columns" => ["A_H", "R_T", "R_T_uncertainty"],
-            "total_average_R_T_columns" =>
-                ["R_T", "R_T_uncertainty", "R_T_uncertainty_independent_points"],
-        ),
-        "segmented_curve" => entries,
+    record = system_record(result.configuration.system)
+    system = ManifestSystem(
+        record["label"],
+        record["notation"],
+        record["target_A"],
+        record["target_Z"],
+        record["channel"],
+        record["reaction"],
+        record["incident_energy_MeV"],
+        record["compound_A"],
+        record["compound_Z"],
     )
+    curves = [
+        ManifestCurve(
+            curve.label,
+            curve.kind,
+            basename(written["R_T_segmented/$(curve.label)"]),
+            basename(written["r_nu_pivots/$(curve.label)"]),
+        ) for curve in result.segmented_curves
+    ]
     path = joinpath(directory, "manifest_$(identifier).toml")
-    open(path, "w") do io
-        return TOML.print(io, manifest; sorted = true)
-    end
-    return path
+    manifest = TemperatureRatioManifest(
+        system,
+        MANIFEST_ORDINATE,
+        copy(MANIFEST_ABSCISSA),
+        # Stated so that a reader knows what the columns hold, not so that a reader looks them up
+        # by name: the files are read by column position.
+        ["A_H", "R_T", "R_T_uncertainty"],
+        curves,
+        path,
+        manifest_domain(result),
+    )
+    return write_temperature_ratio_manifest(path, manifest)
 end
 
 function _summarize_range(masses::Vector{Int})
@@ -541,8 +608,9 @@ end
 """
     write_results(result, directory) -> Dict{String,String}
 
-Write the tabulated ratios, the segment pivots, the total averages, the dataset diagnostics and
-the manifest of a run into `directory`, and return the paths written, keyed by content.
+Write the tabulated ratios, the segment pivots, the segmented-curve summary, the total averages,
+the dataset diagnostics and the manifest of a run into `directory`, and return the paths written,
+keyed by content.
 
 `directory` is created. One that already holds files is refused rather than written into, so a
 caller that wants a second run of one configuration beside the first moves the first aside;
@@ -551,8 +619,12 @@ caller that wants a second run of one configuration beside the first moves the f
 here: [`run_metadata`](@ref) supplies what the library knows about a run, and the script adds the
 rest, writes `metadata.toml`, and calls [`write_figures`](@ref).
 
-The manifest is `manifest_<run identifier>.toml`, the one file whose name carries the identifier:
-a consuming code stages the whole directory and selects the manifest by that prefix.
+The manifest, `manifest_<run identifier>.toml`, is the contract with a consuming code, which
+stages the whole directory and selects the manifest by that prefix; it holds the system, the
+domain and, per segmented curve, the label, the kind and the two files, and nothing else. What else
+a run reports about each curve — segments, pin, span, pairs, coverage, reduced chi-squared, range
+mean — is one row per manifest curve, keyed by its label, in `segmented_curves_<run
+identifier>.csv`; the total averages are in `total_average_R_T_<run identifier>.csv`.
 """
 function write_results(result::ExtractionResult, directory::AbstractString)
     isdir(directory) &&
@@ -563,9 +635,21 @@ function write_results(result::ExtractionResult, directory::AbstractString)
                  that does, move it aside first"
             ),
         )
-    mkpath(directory)
     configuration = result.configuration
     identifier = run_identifier(configuration)
+    # The three files named by the identifier; a name longer than a file system admits would fail
+    # halfway through writing the run, so it is refused before anything is written.
+    for name in (
+        "manifest_$(identifier).toml",
+        "segmented_curves_$(identifier).csv",
+        "total_average_R_T_$(identifier).csv",
+    )
+        ncodeunits(name) <= MAX_FILE_NAME_BYTES || throw(
+            ArgumentError("the file name $(name) is $(ncodeunits(name)) bytes, beyond the \
+                 $(MAX_FILE_NAME_BYTES) a file system admits")
+        )
+    end
+    mkpath(directory)
     digits = configuration.output.significant_digits
     written = Dict{String,String}()
 
@@ -609,6 +693,34 @@ function write_results(result::ExtractionResult, directory::AbstractString)
         end
     end
 
+    # What a run knows about each segmented curve beyond the manifest: one row per manifest curve,
+    # keyed by its label. No column is an energy; the ratios are dimensionless.
+    excluded = configuration.excluded_datasets
+    rows = [
+        (
+            label = curve.label,
+            kind = curve.kind,
+            pooled = curve.kind == "systematic_trend" || !haskey(excluded, curve.label),
+            segments = segments(curve.fit),
+            pinned_at_symmetric_split = curve.fit.pinned_value !== nothing,
+            first_A_H = first(curve.R_T.A_H),
+            last_A_H = last(curve.R_T.A_H),
+            pairs = curve.pairs,
+            coverage = round(curve.coverage; sigdigits = digits),
+            reduced_chi_squared = round(curve.fit.wrss / curve.fit.dof; sigdigits = digits),
+            weights_imputed = curve.fit.weights_imputed,
+            range_mean_R_T = round(
+                first(result.range_mean_R_T[curve.label]); sigdigits = digits
+            ),
+            range_mean_R_T_uncertainty = round(
+                last(result.range_mean_R_T[curve.label]); sigdigits = digits
+            ),
+        ) for curve in result.segmented_curves
+    ]
+    path = joinpath(directory, "segmented_curves_$(identifier).csv")
+    CSV.write(path, DataFrame(rows))
+    written["segmented_curves"] = path
+
     # The total average over each yield distribution: one row per segmented curve and
     # distribution, which is how the literature tabulates it. The covariance-propagated
     # uncertainty first; the independent-points one, the published approximation, beside it.
@@ -644,15 +756,15 @@ function write_results(result::ExtractionResult, directory::AbstractString)
             end
         end
         if !isempty(rows)
-            path = joinpath(directory, "total_average_R_T.csv")
+            path = joinpath(directory, "total_average_R_T_$(identifier).csv")
             CSV.write(path, DataFrame(rows))
             written["total_average_R_T"] = path
         end
     end
 
-    # Per-dataset diagnostics, written for every dataset whether or not it was pooled or fitted.
+    # Per-dataset diagnostics, written for every dataset whether or not it was pooled or fitted,
+    # with the reaction-code qualifiers the retrieval recorded for it.
     if !isempty(result.dataset_diagnostics)
-        excluded = configuration.excluded_datasets
         rows = [
             (
                 dataset = d.label,
@@ -666,6 +778,8 @@ function write_results(result::ExtractionResult, directory::AbstractString)
                 complement_sum = d.complement_sum,
                 complement_spread = d.complement_spread,
                 without_uncertainties = d.without_uncertainties,
+                qualifiers = join(get(result.qualifiers, d.label, String[]), " "),
+                flagged = !isempty(_flagged(get(result.qualifiers, d.label, String[]))),
                 pooled = !haskey(excluded, d.label),
                 exclusion_reason = get(excluded, d.label, ""),
                 segmented_curve = get(result.dataset_outcomes, d.label, ""),
@@ -680,5 +794,8 @@ function write_results(result::ExtractionResult, directory::AbstractString)
     @info "results written" directory
     return written
 end
+
+# The longest file name, in bytes, that common file systems admit (NAME_MAX).
+const MAX_FILE_NAME_BYTES = 255
 
 _file_token(label::AbstractString) = replace(strip(label), r"[^A-Za-z0-9.\-]+" => "_")

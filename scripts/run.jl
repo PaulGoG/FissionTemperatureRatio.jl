@@ -13,6 +13,7 @@
 include(joinpath(@__DIR__, "activate.jl"))
 
 using CairoMakie: CairoMakie
+using FissionFragmentsDomain: system_label
 using FissionTemperatureRatio
 using Dates: Dates
 using DrWatson: tag!
@@ -35,15 +36,15 @@ function main(arguments::Vector{String})
     configuration = load_configuration(path; data_directory = data)
     result = run_pipeline(configuration)
 
-    system = configuration.system.label
+    system = system_label(configuration.system)
     identifier = run_identifier(configuration)
     destination = joinpath(ROOT, "data", "sims", system, identifier)
     figures = joinpath(ROOT, "plots", system, identifier)
     move_aside(destination)
     move_aside(figures)
-    write_results(result, destination)
+    written = write_results(result, destination)
     write_figures(result, figures)
-    write_provenance(destination, result, path, data)
+    write_provenance(destination, result, written, path, data)
 
     for curve in result.segmented_curves
         averages = get(result.total_average_R_T, curve.label, nothing)
@@ -76,17 +77,23 @@ function move_aside(directory::AbstractString)
     return nothing
 end
 
-# The provenance record: what the library knows about the run, the identifier and the paths, the
-# commit through DrWatson's tag!, and the platform, written as metadata.toml; beside it, copies of
-# the configuration and of the resolved Manifest of this environment. A result then traces to
-# configuration, commit, environment and hardware from its own directory.
+# The provenance record: what the library knows about the run, the identifier, the paths and the
+# files written, the commit through DrWatson's tag!, and the platform, written as metadata.toml;
+# beside it, copies of the configuration and of the resolved Manifest of this environment. A result
+# then traces to configuration, commit, environment and hardware from its own directory.
 function write_provenance(
     directory::AbstractString,
     result::ExtractionResult,
+    written::Dict{String,String},
     configuration_path::AbstractString,
     data_directory::AbstractString,
 )
     metadata = run_metadata(result)
+    # The tables a consumer or a reader looks for by content; the per-curve ratio tables are named
+    # in the manifest.
+    metadata["outputs"] = Dict{String,Any}(
+        key => basename(path) for (key, path) in written if !occursin('/', key)
+    )
     run = Dict{String,Any}(
         "identifier" => run_identifier(result.configuration),
         "configuration" => relpath(configuration_path, ROOT),

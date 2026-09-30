@@ -1,18 +1,18 @@
-# Benchmarks for the parts whose cost scales: the exhaustive breakpoint search, and the level
-# density parameter ratio over a full fragmentation range.
+# Benchmarks for the parts whose cost scales: the exhaustive breakpoint search, and the inversion
+# of the relation between R_T and E*_H/TXE over a full fragmentation range.
 #
 #     julia bench/benchmarks.jl
 
 include(joinpath(@__DIR__, "activate.jl"))
 
 using BenchmarkTools
+using FissionFragmentsDomain
 using FissionTemperatureRatio
 using StableRNGs
 
-const MASSES = read_mass_excess_table(
-    joinpath(pkgdir(FissionTemperatureRatio), "data", "reference", "mass_excess_ame2020.dat")
-)
-const CHARGES = ChargeDistribution(Dict{Int,Float64}(), Dict{Int,Float64}(), -0.5, 0.6, nothing)
+const MASSES = read_mass_excess_table(String(AME2020_MASS_EXCESS_FILE))
+const SYSTEM = spontaneous_fission(Nuclide(98, 252))
+const CHARGES = charge_model(MASSES, SYSTEM)
 const MODEL = BackShiftedFermiGas(MASSES)
 
 function ratio_sample()
@@ -33,13 +33,27 @@ let (x, y, σ) = ratio_sample()
     end
 end
 
-suite["fragmentation"] = @benchmarkable fragmentation_domain(252, 98, 126:174, 5, $CHARGES)
+suite["fragmentation"] = @benchmarkable fragmentation_domain($SYSTEM, $CHARGES, 126:174)
 
-let domain = fragmentation_domain(252, 98, 126:174, 5, CHARGES)
-    suite["level_density_ratio"] = BenchmarkGroup()
-    for averaging in (RatioOfMeans(), MeanOfRatios())
-        suite["level_density_ratio"][string(nameof(typeof(averaging)))] = @benchmarkable(
-            level_density_ratio($averaging, $MODEL, 252, 98, $domain)
+# The inversion of a full r_ν(A_H) curve, as a run applies it to every tabulated curve.
+let domain = fragmentation_domain(SYSTEM, CHARGES, 126:174)
+    A_H = collect(126:174)
+    r_ν = RatioCurve(
+        A_H,
+        @.(ifelse(A_H ≤ 130, 0.5 - 0.03 * (A_H - 126), 0.38 + 0.0125 * (A_H - 130))),
+        fill(0.004, length(A_H)),
+        "reference",
+    )
+    energies = Dict(A => 178.0 - 0.02 * (A - 132)^2 for A in A_H)
+    weighted = ChargeResolved(mean_total_excitation(MASSES, domain, energies))
+    suite["temperature_ratio"] = BenchmarkGroup()
+    for (name, averaging) in (
+        "charge_resolved" => ChargeResolved(),
+        "charge_resolved_weighted" => weighted,
+        "ratio_of_means" => RatioOfMeans(),
+    )
+        suite["temperature_ratio"][name] = @benchmarkable(
+            temperature_ratio($averaging, $MODEL, $domain, $r_ν)
         )
     end
 end

@@ -2,60 +2,88 @@
 # with the covariance the transformation gives it.
 
 """
-    SegmentedCurve
+    ExtractedCurve
 
-One piecewise-linear description of the multiplicity ratio, and the temperature ratio obtained
-from it.
+One extracted temperature ratio: the segmented fit of the multiplicity ratio, the temperature
+ratio derived from it, and the diagnostics of that curve.
 
 A run produces several: one per experimental dataset, and one following the systematic behaviour
 of the ratio. They are alternatives, not an ensemble to be averaged — a prompt emission code takes
 one of them as input, and which one describes reality is settled downstream, by comparing the
-multiplicity distributions and yields that code produces against experiment.
+multiplicity distributions and yields that code produces against experiment. The curve a
+consuming code reads is the tabulated `R_T`, through the manifest a run writes; it is not this
+object.
 
-Construct with `SegmentedCurve(label, fit, R_a)`, which evaluates the fit at every mass number of
-its range, transforms it, and propagates the coefficient covariance.
+Construct with `ExtractedCurve(label, fit, fitted_to, averaging, model, domain)`, which evaluates
+the fit at every mass number of its range, inverts the relation between `R_T` and `E*_H/TXE` there
+as `averaging` prescribes, and propagates the coefficient covariance through the exact slope of
+that inverse.
 
 # Fields
 
-- `label`: the dataset the curve came from, or `"systematic trend"`.
-- `fit`: the piecewise-linear fit of `r_ν`.
+- `label`: the dataset the curve came from, or `SYSTEMATIC_TREND_LABEL`.
+- `kind`: `"dataset"` or `"systematic_trend"`, as the manifest declares it.
+- `fit`: the [`SegmentedFit`](@ref) of `r_ν`.
 - `r_ν`, `R_T`: the segmented multiplicity ratio and the temperature ratio from it, tabulated at
-  every mass number of the fitted range that the level density parameter ratio covers.
+  every mass number of the fitted range where the relation is defined.
 - `R_T_covariance`: covariance of `R_T.ratio`. Its diagonal is the square of `R_T.σ`; the
   off-diagonal elements are what a yield-weighted average of the curve has to carry, since a
   curve with a handful of coefficients cannot have independent errors at every mass number.
+- `pairs`: the points the fit was made to: the dataset's complete fragment pairs, or the mass
+  numbers of the combined curve.
+- `coverage`: the fraction of the mass numbers of the fragmentation range those points reach.
 """
-struct SegmentedCurve
+struct ExtractedCurve
     label::String
+    kind::String
     fit::SegmentedFit
     r_ν::RatioCurve
     R_T::RatioCurve
     R_T_covariance::Matrix{Float64}
+    pairs::Int
+    coverage::Float64
 
-    function SegmentedCurve(
-        label::AbstractString, fit::SegmentedFit, R_a::AbstractDict{Int,Float64}
+    function ExtractedCurve(
+        label::AbstractString,
+        fit::SegmentedFit,
+        fitted_to::RatioCurve,
+        averaging::RatioAveraging,
+        model::LevelDensityModel,
+        domain::FragmentationDomain,
     )
         r_ν = evaluate(fit, fit.x₀:fit.x_max; label = label)
-        R_T = temperature_ratio(r_ν, R_a)
+        R_T = temperature_ratio(averaging, model, domain, r_ν)
         isempty(R_T) && throw(
             ArgumentError(
-                "the level density parameter ratio covers no mass number of the range \
+                "the temperature ratio relation is defined at no mass number of the range \
                  $(fit.x₀):$(fit.x_max) of the curve $(repr(label))"
             ),
         )
-        # Covariance of r_ν at the mass numbers R_T kept, then the transformation's slope at each.
+        # Covariance of r_ν at the mass numbers R_T kept, then the inverse's slope at each.
         Σ = covariance(fit, R_T.A_H)
-        slope = Float64[]
-        for (index, mass) in enumerate(R_T.A_H)
-            r = r_ν.ratio[findfirst(==(mass), r_ν.A_H)]
-            push!(slope, _temperature_ratio_slope(R_T.ratio[index], R_a[mass], r))
-        end
-        return new(String(label), fit, r_ν, R_T, Matrix(Symmetric(slope .* Σ .* slope')))
+        # Defined wherever the inverse is, and R_T keeps only those mass numbers.
+        slope = Float64[
+            something(temperature_ratio_slope(averaging, model, domain, A, R)) for
+            (A, R) in zip(R_T.A_H, R_T.ratio)
+        ]
+        range = domain.heavy_masses
+        kind = label == SYSTEMATIC_TREND_LABEL ? "systematic_trend" : "dataset"
+        coverage = count(in(range), unique(fitted_to.A_H)) / length(range)
+        return new(
+            String(label),
+            kind,
+            fit,
+            r_ν,
+            R_T,
+            Matrix(Symmetric(slope .* Σ .* slope')),
+            length(fitted_to),
+            coverage,
+        )
     end
 end
 
 # The variance of a linear functional `wᵀ R_T` of the curve.
-function _functional_variance(curve::SegmentedCurve, w::AbstractVector{<:Real})
+function _functional_variance(curve::ExtractedCurve, w::AbstractVector{<:Real})
     return max(dot(w, curve.R_T_covariance, w), 0.0)
 end
 
@@ -69,14 +97,14 @@ This is *not* the total average the literature quotes: it weights every mass num
 so is dominated by the far-asymmetric tail, where the yield is negligible. It is the only summary
 available when no yield distribution is given.
 """
-function range_mean(curve::SegmentedCurve)
+function range_mean(curve::ExtractedCurve)
     n = length(curve.R_T)
     w = fill(1 / n, n)
     return (dot(w, curve.R_T.ratio), sqrt(_functional_variance(curve, w)))
 end
 
 """
-    total_average(curve::SegmentedCurve, yields) -> Tuple{Float64,Float64}
+    total_average(curve::ExtractedCurve, yields) -> Tuple{Float64,Float64}
 
 The total average `⟨R_T⟩` of a segmented curve over a fragment mass yield distribution, with the
 fit covariance propagated.
@@ -91,19 +119,19 @@ times the independent-points one, which is the published approximation and remai
 
 Throws as [`total_average`](@ref) does when the curve and the distribution share no mass number.
 """
-function total_average(curve::SegmentedCurve, yields::MassYield)
+function FissionFragmentsDomain.total_average(curve::ExtractedCurve, yields::MassYield)
     R_T = curve.R_T
     weight = zeros(length(R_T))
     σ_Y = zeros(length(R_T))
     for (index, mass) in enumerate(R_T.A_H)
         entry = mass_yield(yields, mass)
-        ismissing(entry) && continue
+        entry === nothing && continue
         weight[index] = entry[1]
         σ_Y[index] = coalesce(entry[2], 0.0)
     end
 
     total = sum(weight)
-    any(!ismissing(mass_yield(yields, mass)) for mass in R_T.A_H) ||
+    any(mass_yield(yields, mass) !== nothing for mass in R_T.A_H) ||
         throw(ArgumentError("the ratio curve \"$(curve.label)\" and the yield distribution \
              \"$(yields.label)\" share no mass number"))
     total > 0 || throw(
@@ -135,7 +163,7 @@ struct TotalAverage
     uncertainty_independent_points::Float64
 end
 
-function TotalAverage(curve::SegmentedCurve, yields::MassYield)
+function TotalAverage(curve::ExtractedCurve, yields::MassYield)
     value, uncertainty = total_average(curve, yields)
     return TotalAverage(value, uncertainty, last(total_average(curve.R_T, yields)))
 end

@@ -19,16 +19,25 @@ be of Fermi-gas form, `E* = a T²`. Together these give
 E*_L / E*_H = a_L T_L² / (a_H T_H²) ≈ ν_L / ν_H
 ```
 
-and hence, with `r_ν = ν_H/(ν_L + ν_H)` and `R_a = a_L/a_H`,
+so that for one fragmentation, with `ρ = a_L/a_H`, the heavy fragment carries
+`E*_H/TXE = 1/(1 + ρ R_T²)`. The measured `r_ν = ν_H/(ν_L + ν_H)` is resolved by mass alone, and
+`R_T(A_H)` is taken as the root of that relation reduced over the isobaric charge distribution at
+`A_H`, every fragmentation with its own `ρ` and weighted by `p(Z, A_H)` and by its mean total
+excitation. This is the exact inverse of a prompt emission code that partitions every fragment
+pair with its own level density parameters. For a single effective ratio `R_a` it reduces to
 
 ```
-R_T = [(1 - r_ν) / (R_a r_ν)]^(1/2).
+R_T = [(1 - r_ν) / (R_a r_ν)]^(1/2),
 ```
+
+eq. (4) of the paper, which remains selectable. The fragmentation domain, the level density
+parameters and the relation itself are those of FissionFragmentsDomain.jl, shared with the codes
+that consume `R_T(A_H)`.
 
 The ratio extracted point by point from experimental data is scattered, and for some datasets
 sparse, so it is the multiplicity ratio that is described by a continuous piecewise-linear
 function whose segment count and breakpoints are selected from the data, and the temperature
-ratio follows by the exact transformation above.
+ratio follows by the exact inversion above.
 
 Method and conventions follow Eur. Phys. J. A **60**, 190 (2024). The vocabulary the package uses
 for identifiers, configuration keys, files and column headers is set out in `docs/src/naming.md`.
@@ -49,7 +58,57 @@ using CSV: CSV
 using DataFrames: DataFrame, eachrow
 using Dates: Dates
 using DrWatson: datadir, savename
+using FissionFragmentsDomain:
+    FissionFragmentsDomain,
+    AME2020_MASS_EXCESS_FILE,
+    ChargeDistribution,
+    ChargeModel,
+    ChargeResolved,
+    FissioningSystem,
+    FragmentationDomain,
+    GILBERT_CAMERON_SHELL_CORRECTION_FILE,
+    GilbertCameron,
+    BackShiftedFermiGas,
+    LevelDensityModel,
+    MANIFEST_ABSCISSA,
+    MANIFEST_ORDINATE,
+    MEAN_KINETIC_ENERGY_SPEC,
+    ManifestCurve,
+    ManifestDomain,
+    ManifestSystem,
+    MassExcessTable,
+    MassYield,
+    Nuclide,
+    RATIO_AVERAGINGS,
+    RatioAveraging,
+    SYSTEMATIC_TREND_LABEL,
+    TemperatureRatioManifest,
+    charge_model,
+    charge_model_label,
+    column,
+    fragmentation_domain,
+    integer_column,
+    mass_yield,
+    mean_charge_distribution,
+    mean_total_excitation,
+    neutron_induced_fission,
+    read_charge_distribution,
+    read_delimited_table,
+    read_mass_excess_table,
+    read_mass_yield,
+    read_shell_correction_table,
+    recommended_mean_total_kinetic_energy,
+    spontaneous_fission,
+    symmetric_charge_set_is_invariant,
+    system_record,
+    temperature_ratio,
+    temperature_ratio_slope,
+    total_average,
+    ratio_averaging,
+    ratio_averaging_label,
+    write_temperature_ratio_manifest
 using LinearAlgebra: Symmetric, cond, dot
+using Measurements: uncertainty, value
 using SHA: sha1
 using Statistics: mean, median, std
 using TOML: TOML
@@ -61,50 +120,41 @@ const PACKAGE_VERSION = VersionNumber(
     TOML.parsefile(joinpath(dirname(@__DIR__), "Project.toml"))["version"]
 )
 
-include("mass_data.jl")
-include("level_density.jl")
-include("fragmentation.jl")
 include("multiplicity_ratio.jl")
+include("kinetic_energy.jl")
 include("yields.jl")
 include("consensus.jl")
 include("temperature_ratio.jl")
 include("segmented_fit.jl")
-include("segmented_curve.jl")
+include("extracted_curve.jl")
 include("configuration.jl")
 include("plotting.jl")
 include("pipeline.jl")
 include("provenance.jl")
 
 # Configuration
-export Configuration, load_configuration, build_level_density_model
-export REACTIONS, CHANNEL_REACTION, system_label, system_notation, element_symbol
+export Configuration, load_configuration
+export build_mass_table, build_level_density_model, build_charge_model
 export A_H_range, has_symmetric_split
 
 # Input data
-export MassExcessTable, read_mass_excess_table, mass_excess
-export ShellCorrectionTable, read_shell_correction_table
-export ChargeDistribution, read_charge_distribution
 export Multiplicity, read_multiplicity, read_multiplicity_directory, multiplicity
-export MassYield, read_mass_yield, read_mass_yield_directory, mass_yield
+export read_mass_yield_directory
+export MeanKineticEnergy, read_mean_kinetic_energy, mean_kinetic_energy_offset
+export RetrievalRecord, retrieval_record, retrieval_qualifiers, FLAGGED_QUALIFIERS
 
 # Physics
-export LevelDensityModel, BackShiftedFermiGas, GilbertCameron
-export level_density_parameter, shell_correction
-export FragmentationDomain, fragmentation_domain, charges, charge_probability
-export most_probable_charge, average_over_charge, symmetric_charge_set_is_invariant
-export RatioAveraging, RatioOfMeans, MeanOfRatios
-export RatioCurve, TREND_LABEL, multiplicity_ratio, level_density_ratio, temperature_ratio
-export total_average
+export RatioCurve, multiplicity_ratio
 export DatasetDiagnostics, diagnose, consensus
 
 # Segmented description of the ratio
 export SegmentedFit,
     fit_segments, fit_weights, evaluate, covariance, pivots, segments, InsufficientDataError
-export SegmentedCurve, TotalAverage, range_mean
+export ExtractedCurve, TotalAverage, range_mean
 
 # Pipeline
 export ExtractionResult,
-    SymmetryDiagnostics, run_pipeline, write_results, pool, systematic_trend
+    SymmetryDiagnostics, run_pipeline, write_results, pool, systematic_trend, manifest_domain
 export run_identifier, run_parameters, run_metadata, RUN_IDENTIFIER_ABBREVIATIONS
 
 # Figures

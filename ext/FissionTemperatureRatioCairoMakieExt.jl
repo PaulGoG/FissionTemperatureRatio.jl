@@ -14,8 +14,9 @@ using LaTeXStrings: @L_str, LaTeXString
 using Printf: @sprintf
 using MathTeXEngine: texfont
 
+using FissionFragmentsDomain: SYSTEMATIC_TREND_LABEL
 using FissionTemperatureRatio:
-    FissionTemperatureRatio, ExtractionResult, Multiplicity, RatioCurve, TREND_LABEL
+    FissionTemperatureRatio, ExtractionResult, Multiplicity, RatioCurve
 
 const BASE_WIDTH = 900
 const WIDE_WIDTH = 1200
@@ -24,6 +25,8 @@ const LEGEND_ROW_HEIGHT = 38
 # Above this many legend entries the canvas widens, so the legend banks into three columns.
 const WIDE_ABOVE_ENTRIES = 8
 const ANNOTATION_SIZE = 21
+# The systematic-trend curve as a legend names it; its label is an identifier, not prose.
+const TREND_LEGEND = "Systematic trend"
 
 function FissionTemperatureRatio.publication_theme()
     return Theme(;
@@ -182,7 +185,8 @@ function FissionTemperatureRatio.plot_ratio(
     # A fitted curve reaches the legend if it is the trend, which is always named, or if the
     # caller named the dataset's own fit.
     fitted_labelled =
-        curve -> !isempty(curve) && (curve.label == TREND_LABEL || !isempty(fit_label))
+        curve ->
+            !isempty(curve) && (curve.label == SYSTEMATIC_TREND_LABEL || !isempty(fit_label))
     entries =
         count(!isempty, curves) +
         (reference !== nothing && !isempty(reference_label) ? 1 : 0) +
@@ -210,7 +214,7 @@ function FissionTemperatureRatio.plot_ratio(
     # The bands go down first, all of them, so that no band hides another curve's markers.
     for (position, curve) in enumerate(fitted)
         isempty(curve) && continue
-        trend = curve.label == TREND_LABEL
+        trend = curve.label == SYSTEMATIC_TREND_LABEL
         color =
             trend ? RGBf(0, 0, 0) : dataset_color(_style_index(curve.label, order, position))
         # Both ratios drawn here are non-negative by construction, so the band is clipped at zero
@@ -248,11 +252,11 @@ function FissionTemperatureRatio.plot_ratio(
     # measurement.
     for (position, curve) in enumerate(fitted)
         isempty(curve) && continue
-        trend = curve.label == TREND_LABEL
+        trend = curve.label == SYSTEMATIC_TREND_LABEL
         color =
             trend ? RGBf(0, 0, 0) : dataset_color(_style_index(curve.label, order, position))
         label = if trend
-            uppercasefirst(TREND_LABEL)
+            TREND_LEGEND
         else
             isempty(fit_label) ? nothing : fit_label
         end
@@ -355,8 +359,8 @@ _measured(value::Real, uncertainty::Real) = @sprintf("%.3f \\pm %.3f", value, un
 # The systematic-trend result, as the reader of the figure wants it: the total average where a
 # yield distribution was given, and the range mean otherwise, since only one of them exists.
 function _trend_annotation(result::ExtractionResult)
-    haskey(result.range_mean_R_T, TREND_LABEL) || return LaTeXString[]
-    averages = get(result.total_average_R_T, TREND_LABEL, nothing)
+    haskey(result.range_mean_R_T, SYSTEMATIC_TREND_LABEL) || return LaTeXString[]
+    averages = get(result.total_average_R_T, SYSTEMATIC_TREND_LABEL, nothing)
     if averages !== nothing && !isempty(averages)
         name = first(sort!(collect(keys(averages))))
         value, uncertainty = averages[name].value, averages[name].uncertainty
@@ -365,7 +369,7 @@ function _trend_annotation(result::ExtractionResult)
             L"over $Y(A)$ of %$(name)",
         ]
     end
-    value, uncertainty = result.range_mean_R_T[TREND_LABEL]
+    value, uncertainty = result.range_mean_R_T[SYSTEMATIC_TREND_LABEL]
     return [L"Trend range mean $= %$(_measured(value, uncertainty))$"]
 end
 
@@ -398,8 +402,8 @@ function FissionTemperatureRatio.write_figures(
     configuration = result.configuration
     order = [data.label for data in result.datasets]
     masses = FissionTemperatureRatio.A_H_range(configuration)
-    trend_r_ν = [c.r_ν for c in result.segmented_curves if c.label == TREND_LABEL]
-    trend_R_T = [c.R_T for c in result.segmented_curves if c.label == TREND_LABEL]
+    trend_r_ν = [c.r_ν for c in result.segmented_curves if c.label == SYSTEMATIC_TREND_LABEL]
+    trend_R_T = [c.R_T for c in result.segmented_curves if c.label == SYSTEMATIC_TREND_LABEL]
 
     # The temperature ratio is unbounded above and its far-asymmetric tail runs away, so the view
     # is bounded by the bulk of the measurements, as the multiplicity figure is.
@@ -412,7 +416,7 @@ function FissionTemperatureRatio.write_figures(
         written["figure/nu_vs_A"] = FissionTemperatureRatio.save_figure(
             joinpath(directory, "nu_vs_A.pdf"),
             FissionTemperatureRatio.plot_multiplicities(
-                result.datasets; A_0 = configuration.system.A₀, order = order
+                result.datasets; A_0 = configuration.system.compound.A, order = order
             ),
         )
         written["figure/r_nu_vs_A_H"] = FissionTemperatureRatio.save_figure(
@@ -443,7 +447,7 @@ function FissionTemperatureRatio.write_figures(
         )
 
         for curve in result.segmented_curves
-            curve.label == TREND_LABEL && continue
+            curve.label == SYSTEMATIC_TREND_LABEL && continue
             token = FissionTemperatureRatio._file_token(curve.label)
             annotation = _fit_annotation(curve)
 

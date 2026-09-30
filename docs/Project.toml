@@ -2,14 +2,17 @@
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 DocumenterCitations = "daee34ce-89f3-4625-b898-19384cb65244"
+FissionFragmentsDomain = "5f94ef1e-7421-42a3-adcf-a45cd611934b"
 FissionTemperatureRatio = "59d20cd3-813a-4745-b3df-4e6739f766a3"
 LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
 
 [sources]
+FissionFragmentsDomain = {url = "https://github.com/PaulGoG/FissionFragmentsDomain.jl", rev = "v0.1.9"}
 FissionTemperatureRatio = {path = ".."}
 
 [compat]
 CairoMakie = "0.15"
 Documenter = "1"
 DocumenterCitations = "1"
+FissionFragmentsDomain = "0.1.9"
 LaTeXStrings = "1"

@@ -1,43 +1,26 @@
 @testset "fragment mass yields" begin
-    @testset "reading" begin
+    # The reader of one distribution is FissionFragmentsDomain's; the directory is read here.
+    @testset "reading a directory" begin
         mktempdir() do directory
-            path = joinpath(directory, "40112004_V.M.Surin_1972.dat")
-            write(path, "A Y Y_uncertainty\n132 0.061 0.002\n130 0.058 0.001\n")
-            data = read_mass_yield(path)
-            # Ascending in mass number regardless of the order in the file.
-            @test data.A == [130, 132]
-            @test data.Y ≈ [0.058, 0.061]
-            @test data.σY ≈ [0.001, 0.002]
-            @test mass_yield(data, 132) == (0.061, 0.002)
-            @test ismissing(mass_yield(data, 131))
-            @test length(data) == 2
-
-            # A distribution quoting no uncertainties is carried, not discarded.
-            two_column = joinpath(directory, "two_column.dat")
-            write(two_column, "A Y\n130 0.058\n132 0.061\n")
-            @test all(ismissing, read_mass_yield(two_column).σY)
-
-            # Directory reading takes the label from the file name and ignores the run record.
+            write(
+                joinpath(directory, "40112004_V.M.Surin_1972.dat"),
+                "A Y Y_uncertainty\n132 0.061 0.002\n130 0.058 0.001\n",
+            )
+            # The run record beside the data is not data.
             write(joinpath(directory, "retrieval.toml"), "[query]\nordinate = \"yield\"\n")
-            rm(two_column)
             sets = read_mass_yield_directory(directory)
             @test length(sets) == 1
-            @test only(sets).label == "V.M. Surin 1972"
-        end
-    end
+            data = only(sets)
+            # The label from the file name, as for the multiplicity datasets.
+            @test data.label == "V.M. Surin 1972"
+            @test data.A == [130, 132]
+            @test mass_yield(data, 132) == (0.061, 0.002)
+            @test mass_yield(data, 131) === nothing
 
-    @testset "rejects what is not data" begin
-        mktempdir() do directory
-            negative = joinpath(directory, "negative.dat")
-            write(negative, "A Y\n130 -0.1\n")
-            @test_throws ArgumentError read_mass_yield(negative)
-
-            repeated = joinpath(directory, "repeated.dat")
-            write(repeated, "A Y\n130 0.05\n130 0.06\n")
-            @test_throws ArgumentError read_mass_yield(repeated)
-
-            @test_throws ArgumentError read_mass_yield(joinpath(directory, "absent.dat"))
             @test_throws ArgumentError read_mass_yield_directory(joinpath(directory, "absent"))
+            empty = joinpath(directory, "empty")
+            mkpath(empty)
+            @test_throws ArgumentError read_mass_yield_directory(empty)
         end
     end
 

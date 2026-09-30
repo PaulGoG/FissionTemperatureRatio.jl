@@ -9,6 +9,8 @@
 include(joinpath(@__DIR__, "activate.jl"))
 
 using CairoMakie
+using FissionFragmentsDomain:
+    Nuclide, neutron_induced_fission, spontaneous_fission, system_notation
 using FissionTemperatureRatio
 using LaTeXStrings: @L_str
 using Statistics: quantile
@@ -16,25 +18,13 @@ using Statistics: quantile
 const ASSETS = joinpath(@__DIR__, "src", "assets")
 const WIDTH = 900
 const DATA_DIRECTORY = joinpath(dirname(@__DIR__), "data")
-"The multiplicity ratio of the dataset with the most points, and the level density ratio."
+"The multiplicity ratio of the dataset with the most points."
 function richest_measurement(configuration)
-    model = build_level_density_model(configuration.level_density)
-    charges = read_charge_distribution(
-        configuration.fragmentation.charge_distribution_file,
-        configuration.fragmentation.fallback_charge_polarization,
-        configuration.fragmentation.fallback_charge_dispersion,
-    )
-    A₀, Z₀ = configuration.system.A₀, configuration.system.Z₀
+    A₀ = configuration.system.compound.A
     range = A_H_range(configuration)
-    domain = fragmentation_domain(
-        A₀, Z₀, range, configuration.fragmentation.charges_per_mass, charges
-    )
-    R_a = level_density_ratio(
-        configuration.level_density.ratio_averaging, model, A₀, Z₀, domain
-    )
     datasets = read_multiplicity_directory(configuration.multiplicity_directory)
     curves = [multiplicity_ratio(data, A₀, range) for data in datasets]
-    return (curves[argmax(length.(curves))], R_a)
+    return curves[argmax(length.(curves))]
 end
 
 """
@@ -146,7 +136,7 @@ function animate_selection(panels; path, max_segments = 6, hold = 8)
     return path
 end
 
-# Table 1 and Table 2 of Eur. Phys. J. A 60, 190 (2024), for the comparisons this package can
+# Table 1 of Eur. Phys. J. A 60, 190 (2024), for the comparisons this package can
 # make: the data sets and yield distributions it holds. 239-Pu is excluded because the table
 # averages over a yield distribution its caption does not name.
 const PUBLISHED = [
@@ -170,9 +160,9 @@ const SYSTEM_COLOR = Dict(
 )
 const SYSTEM_MARKER = Dict("U233_nth" => :circle, "Cf252_sf" => :rect, "U235_nth" => :utriangle)
 const SYSTEM_NOTATION = Dict(
-    "U233_nth" => system_notation(233, 92, "nth"),
-    "Cf252_sf" => system_notation(252, 98, "sf"),
-    "U235_nth" => system_notation(235, 92, "nth"),
+    "U233_nth" => system_notation(neutron_induced_fission(Nuclide(92, 233), 2.53e-8, "nth")),
+    "Cf252_sf" => system_notation(spontaneous_fission(Nuclide(98, 252))),
+    "U235_nth" => system_notation(neutron_induced_fission(Nuclide(92, 235), 2.53e-8, "nth")),
 )
 
 save_asset(name, figure) = save(joinpath(ASSETS, name), figure; px_per_unit = 4)
@@ -283,7 +273,7 @@ function figure_published_comparison(results)
     )
     axislegend(
         axis,
-        "Tables 1 and 2";
+        "Table 1";
         position = :rb,
         framevisible = false,
         labelsize = 22,
@@ -348,7 +338,7 @@ quantity are used together: each is carried through separately, and only the com
 middle panel merges them.
 """
 function figure_method_chain(result, count = 5)
-    A₀ = result.configuration.system.A₀
+    A₀ = result.configuration.system.compound.A
     order = sortperm(length.(result.r_ν); rev = true)
     chosen = [i for i in order if !isempty(result.r_ν[i])][1:min(count, length(order))]
 
@@ -505,11 +495,12 @@ function main()
 
     panels = map(systems) do system
         configuration = configurations[system]
-        curve, _ = richest_measurement(configuration)
+        curve = richest_measurement(configuration)
         settings = configuration.segments
         # As the pipeline does: the pin is an identity at the symmetric split and nowhere else.
         pinned =
-            if settings.pin_symmetric_split && 2 * first(curve.A_H) == configuration.system.A₀
+            if settings.pin_symmetric_split &&
+                2 * first(curve.A_H) == configuration.system.compound.A
                 0.5
             else
                 nothing

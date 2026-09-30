@@ -9,15 +9,16 @@ channel = "sf"                                # entrance channel; one of: "nfast
 charges_per_mass = 5                          # charge numbers per mass number, odd, 1 to 15
 heavy_mass_min = 126                          # smallest heavy-fragment mass number, at least the symmetric split A0/2
 heavy_mass_max = 174                          # largest heavy-fragment mass number, below A0
-charge_distribution_file = "Cf252_sf/charge_distribution_vs_A.dat"  # tabulated dZ(A), sigma_Z(A), relative to data/
-fallback_charge_polarization = -0.5           # dZ where untabulated, -5 to 5
-fallback_charge_dispersion = 0.6              # sigma_Z where untabulated, above 0 to 5
+charge_distribution_file = "wahl"             # one of: "wahl" | "mean", or a table A dZ sigma_Z relative to data/
+zero_polarization_at_symmetry = false         # dZ = 0 at A0/2 for a table or "mean"; not allowed with "wahl"
 
 [level_density]
 model = "BSFG"                                # one of: "BSFG" | "GC"
-mass_excess_file = "reference/mass_excess_ame2020.dat"                     # relative to data/; used by "BSFG"
-shell_correction_file = "reference/shell_corrections_gilbert_cameron.dat"  # relative to data/; required by "GC"
-ratio_averaging = "ratio_of_means"            # one of: "mean_of_ratios" | "ratio_of_means"
+mass_excess_file = "ame2020"                  # "ame2020", the evaluation FissionFragmentsDomain ships, or a table relative to data/
+shell_correction_file = "gilbert_cameron_1965"  # "gilbert_cameron_1965", Table III as FissionFragmentsDomain ships it, or a table relative to data/; read by "GC"
+deformed_branch = true                        # "GC" only: true takes c = 0.120 for deformed nuclei (eq. 21), false c = 0.142 throughout (eq. 20)
+ratio_averaging = "charge_resolved"           # one of: "charge_resolved" | "ratio_of_means" | "mean_of_ratios"
+# mean_kinetic_energy_file: pre-neutron <TKE>(A) in MeV, relative to data/; "charge_resolved" only; optional
 
 [multiplicity]
 subdirectory = "Cf252_sf/nu_vs_A"             # under data/; whitespace-separated A nu nu_uncertainty

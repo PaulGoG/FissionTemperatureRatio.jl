@@ -112,7 +112,7 @@ uncertainty, the unweighted mean is taken and the standard error of the values s
 uncertainty. Points quoting no uncertainty alongside points that do are given the median of the
 latter, as [`fit_weights`](@ref) does.
 """
-function consensus(curves::Vector{RatioCurve}; label::AbstractString = TREND_LABEL)
+function consensus(curves::Vector{RatioCurve}; label::AbstractString = SYSTEMATIC_TREND_LABEL)
     masses = sort!(unique!(reduce(vcat, (curve.A_H for curve in curves); init = Int[])))
     A_H = Int[]
     ratio = Float64[]

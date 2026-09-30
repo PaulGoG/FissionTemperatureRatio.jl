@@ -147,14 +147,6 @@ struct RatioCurve
     label::String
 end
 
-"""
-    TREND_LABEL
-
-Label carried by the segmented curve that follows the systematic behaviour of the multiplicity
-ratio rather than any single experimental dataset.
-"""
-const TREND_LABEL = "systematic trend"
-
 Base.length(curve::RatioCurve) = length(curve.A_H)
 Base.isempty(curve::RatioCurve) = isempty(curve.A_H)
 

@@ -13,7 +13,6 @@ heavy_mass_max = 140
 
 [level_density]
 model = "BSFG"
-mass_excess_file = "mass_excess.dat"
 
 [multiplicity]
 subdirectory = "datasets"
@@ -25,10 +24,28 @@ max_segments = 3
 significant_digits = 6
 """
 
+"Write `body` as a second configuration beside `path`, and return its path."
+function write_beside(path::AbstractString, body::AbstractString)
+    other = joinpath(dirname(path), "other_$(length(readdir(dirname(path)))).toml")
+    write(other, body)
+    return other
+end
+
 function with_configuration(f, body::AbstractString)
     mktempdir() do directory
         write(joinpath(directory, "mass_excess.dat"), "1 1 H 7289.0 0.0\n1 0 n 8071.0 0.0\n")
         mkpath(joinpath(directory, "datasets"))
+        # A ⟨TKE⟩(A) dataset with the record of the retrieval that wrote it, and one without.
+        mkpath(joinpath(directory, "TKE_vs_A"))
+        write(
+            joinpath(directory, "TKE_vs_A", "1_A.Author_2000.dat"),
+            "A TKE\n126 170.0\n140 175.0\n",
+        )
+        write(joinpath(directory, "TKE_vs_A", "2_B.Author_2001.dat"), "A TKE\n126 170.0\n")
+        write(
+            joinpath(directory, "TKE_vs_A", "retrieval.toml"),
+            "[[accepted]]\nfile = \"1_A.Author_2000.dat\"\nqualifiers = []\n",
+        )
         path = joinpath(directory, "configuration.toml")
         write(path, body)
         return f(path, directory)
@@ -39,15 +56,22 @@ end
     @testset "a valid configuration parses" begin
         with_configuration(MINIMAL_CONFIGURATION) do path, directory
             configuration = load_configuration(path; data_directory = directory)
-            @test configuration.system.A₀ == 252
-            @test configuration.system.channel == "sf"
-            @test configuration.system.reaction == "0,f"
+            @test configuration.system == spontaneous_fission(Nuclide(98, 252))
+            @test configuration.system.compound.A == 252
+            @test reaction(configuration.system) == "0,f"
             # The smallest heavy mass defaults to the symmetric split.
             @test configuration.fragmentation.heavy_mass_min == 126
             @test A_H_range(configuration) == 126:140
             @test has_symmetric_split(configuration)
-            @test configuration.level_density.ratio_averaging isa RatioOfMeans
-            @test configuration.fragmentation.fallback_charge_dispersion == 0.6
+            # Defaults: Wahl's charge model, the shipped mass table, the charge-resolved
+            # inversion without excitation weights, both Gilbert-Cameron formulas.
+            @test configuration.fragmentation.charge_distribution == "wahl"
+            @test !configuration.fragmentation.zero_polarization_at_symmetry
+            @test configuration.level_density.mass_excess_file == "ame2020"
+            @test configuration.level_density.shell_correction_file == "gilbert_cameron_1965"
+            @test configuration.level_density.ratio_averaging == "charge_resolved"
+            @test configuration.level_density.mean_kinetic_energy_file === nothing
+            @test configuration.level_density.deformed_branch
             @test configuration.segments.pin_symmetric_split
             @test configuration.segments.min_segment_span == 3
             @test configuration.segments.min_dataset_coverage == 0.3
@@ -123,8 +147,11 @@ end
                 replace(MINIMAL_CONFIGURATION, "model = \"BSFG\"" => "model = \"XYZ\""),
             ),
             (
-                "Gilbert-Cameron without its shell corrections",
-                replace(MINIMAL_CONFIGURATION, "model = \"BSFG\"" => "model = \"GC\""),
+                "absent shell correction table",
+                replace(
+                    MINIMAL_CONFIGURATION,
+                    "model = \"BSFG\"" => "model = \"GC\"\nshell_correction_file = \"absent.dat\"",
+                ),
             ),
             (
                 "unknown averaging",
@@ -137,7 +164,55 @@ end
                 "absent mass excess file",
                 replace(
                     MINIMAL_CONFIGURATION,
-                    "mass_excess_file = \"mass_excess.dat\"" => "mass_excess_file = \"absent.dat\"",
+                    "model = \"BSFG\"" => "model = \"BSFG\"\nmass_excess_file = \"absent.dat\"",
+                ),
+            ),
+            (
+                "absent charge distribution table",
+                replace(
+                    MINIMAL_CONFIGURATION,
+                    "heavy_mass_max = 140" => "heavy_mass_max = 140\ncharge_distribution_file = \"absent.dat\"",
+                ),
+            ),
+            (
+                "zero polarization imposed on Wahl's model",
+                replace(
+                    MINIMAL_CONFIGURATION,
+                    "heavy_mass_max = 140" => "heavy_mass_max = 140\nzero_polarization_at_symmetry = true",
+                ),
+            ),
+            (
+                "Gilbert-Cameron branch not a Boolean",
+                replace(
+                    MINIMAL_CONFIGURATION,
+                    "model = \"BSFG\"" => "model = \"BSFG\"\ndeformed_branch = 1",
+                ),
+            ),
+            (
+                "excitation weights on an effective ratio",
+                replace(
+                    MINIMAL_CONFIGURATION,
+                    "model = \"BSFG\"" => "model = \"BSFG\"\nratio_averaging = \"ratio_of_means\"\nmean_kinetic_energy_file = \"TKE_vs_A/1_A.Author_2000.dat\"",
+                ),
+            ),
+            (
+                "absent kinetic energy file",
+                replace(
+                    MINIMAL_CONFIGURATION,
+                    "model = \"BSFG\"" => "model = \"BSFG\"\nmean_kinetic_energy_file = \"TKE_vs_A/absent.dat\"",
+                ),
+            ),
+            (
+                "kinetic energy file no retrieval record lists",
+                replace(
+                    MINIMAL_CONFIGURATION,
+                    "model = \"BSFG\"" => "model = \"BSFG\"\nmean_kinetic_energy_file = \"TKE_vs_A/2_B.Author_2001.dat\"",
+                ),
+            ),
+            (
+                "heavy mass range of one mass",
+                replace(
+                    MINIMAL_CONFIGURATION, "heavy_mass_max = 140" => "heavy_mass_max = 126"
                 ),
             ),
             (
@@ -255,10 +330,9 @@ end
         body = replace(body, "heavy_mass_max = 140" => "heavy_mass_max = 160")
         with_configuration(body) do path, directory
             configuration = load_configuration(path; data_directory = directory)
-            @test configuration.system.A₀ == 236
-            @test configuration.system.Z₀ == 92
-            @test configuration.system.reaction == "n,f"
-            @test configuration.system.label == "U235_nth"
+            @test configuration.system.compound == Nuclide(92, 236)
+            @test reaction(configuration.system) == "n,f"
+            @test system_label(configuration.system) == "U235_nth"
             @test configuration.system.incident_energy == 2.53e-8
 
             # Two incident energies of one target and channel are two systems, and must not
@@ -268,21 +342,25 @@ end
             @test run_identifier(configuration) !=
                 run_identifier(load_configuration(other; data_directory = directory))
         end
-
-        @test system_label(252, 98, "sf") == "Cf252_sf"
-        @test system_label(235, 92, "nth") == "U235_nth"
-        @test system_label(235, 92, "nres") == "U235_nres"
-        @test element_symbol(98) == "Cf"
-        @test_throws ArgumentError element_symbol(0)
     end
 
-    @testset "the typeset notation is a separate name from the token" begin
-        # One name may not mean both the path token and the figure label.
-        @test system_notation(252, 98, "sf") == "²⁵²Cf(sf)"
-        @test system_notation(233, 92, "nth") == "²³³U(nth,f)"
-        @test system_notation(235, 92, "nres") == "²³⁵U(nres,f)"
-        @test system_notation(252, 98, "sf") != system_label(252, 98, "sf")
-        @test_throws ArgumentError system_notation(252, 98, "0,f")
+    @testset "a ⟨TKE⟩(A) dataset weights the charge-resolved inversion" begin
+        body = replace(
+            MINIMAL_CONFIGURATION,
+            "model = \"BSFG\"" => "model = \"BSFG\"\nmean_kinetic_energy_file = \"TKE_vs_A/1_A.Author_2000.dat\"",
+        )
+        with_configuration(body) do path, directory
+            configuration = load_configuration(path; data_directory = directory)
+            @test configuration.level_density.mean_kinetic_energy_file ==
+                joinpath(directory, "TKE_vs_A", "1_A.Author_2000.dat")
+            @test run_parameters(configuration)["TKE"] != "none"
+            @test run_identifier(configuration) != run_identifier(
+                load_configuration(
+                    joinpath(write_beside(path, MINIMAL_CONFIGURATION));
+                    data_directory = directory,
+                ),
+            )
+        end
     end
 
     @testset "every result-changing key enters the run identifier" begin
@@ -363,13 +441,8 @@ end
         files = filter(endswith(".toml"), readdir(directory))
         @test !isempty(files)
         for file in files
-            document = TOML.parsefile(joinpath(directory, file))
-            label = system_label(
-                document["system"]["target_A"],
-                document["system"]["target_Z"],
-                document["system"]["channel"],
-            )
-            @test file == "$(label).toml"
+            system = system_of(TOML.parsefile(joinpath(directory, file)))
+            @test file == "$(system_label(system)).toml"
         end
     end
 end

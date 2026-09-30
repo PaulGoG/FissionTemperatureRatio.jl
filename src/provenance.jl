@@ -19,11 +19,14 @@ const RUN_IDENTIFIER_ABBREVIATIONS = Dict(
     "fragmentation.charges_per_mass" => "nZ",
     "fragmentation.heavy_mass_min" => "AHmin",
     "fragmentation.heavy_mass_max" => "AHmax",
-    "fragmentation.charge_distribution_file" => "dZfile",
-    "fragmentation.fallback_charge_polarization" => "dZ",
-    "fragmentation.fallback_charge_dispersion" => "sZ",
+    "fragmentation.charge_distribution_file" => "chg",
+    "fragmentation.zero_polarization_at_symmetry" => "dZ0",
     "level_density.model" => "ldm",
+    "level_density.mass_excess_file" => "mass",
+    "level_density.shell_correction_file" => "sc",
+    "level_density.deformed_branch" => "def",
     "level_density.ratio_averaging" => "avg",
+    "level_density.mean_kinetic_energy_file" => "TKE",
     "multiplicity.exclude" => "excl",
     "yield.subdirectory" => "Y",
     "segments.max_segments" => "maxseg",
@@ -63,37 +66,44 @@ identifier.
 
 Every key is abbreviated through [`RUN_IDENTIFIER_ABBREVIATIONS`](@ref), and a key with no entry
 there throws rather than being given a token on the spot. A value that is a list or a path — the
-required windows, the exclusion list, the charge distribution file, the yield directory — enters
-as a content-hash token and is written in full into the run metadata, with the reason. The system
-is not a token: it names the directory the identifier sits in. `significant_digits` changes how a
-number is rendered, not the number, and is left out.
+required windows, the exclusion list, a tabulated charge distribution, a mass or shell-correction
+table other than the shipped one, the `⟨TKE⟩(A)` dataset, the yield directory — enters as a
+content-hash token and is written in full into the run metadata, with the reason. The
+Gilbert-Cameron branch and shell corrections are tokens of a Gilbert-Cameron run only, and read
+`false` and `none` otherwise, as the run record states them. The system is not a token: it names
+the directory the identifier sits in. `significant_digits` changes how a number is rendered, not
+the number, and is left out.
 """
 function run_parameters(configuration::Configuration)
     fragmentation = configuration.fragmentation
     level_density = configuration.level_density
     segments = configuration.segments
-    charge_file = fragmentation.charge_distribution_file
-    yield_directory = configuration.yield_directory
+    gilbert_cameron = level_density.model == "GC"
     entries = Pair{String,Any}[
         "system.incident_energy" => configuration.system.incident_energy,
         "fragmentation.charges_per_mass" => fragmentation.charges_per_mass,
         "fragmentation.heavy_mass_min" => fragmentation.heavy_mass_min,
         "fragmentation.heavy_mass_max" => fragmentation.heavy_mass_max,
-        "fragmentation.charge_distribution_file" => if charge_file === nothing
-            "none"
+        "fragmentation.charge_distribution_file" => _input_token(
+            fragmentation.charge_distribution, configuration
+        ),
+        "fragmentation.zero_polarization_at_symmetry" => fragmentation.zero_polarization_at_symmetry,
+        "level_density.model" => level_density.model,
+        "level_density.mass_excess_file" => _input_token(
+            level_density.mass_excess_file, configuration
+        ),
+        "level_density.shell_correction_file" => if gilbert_cameron
+            _input_token(level_density.shell_correction_file, configuration)
         else
-            _hash_token(_canonical(_relative_input(charge_file, configuration)))
+            "none"
         end,
-        "fragmentation.fallback_charge_polarization" => fragmentation.fallback_charge_polarization,
-        "fragmentation.fallback_charge_dispersion" => fragmentation.fallback_charge_dispersion,
-        "level_density.model" => String(level_density.model),
-        "level_density.ratio_averaging" => _averaging_name(level_density.ratio_averaging),
+        "level_density.deformed_branch" => gilbert_cameron && level_density.deformed_branch,
+        "level_density.ratio_averaging" => level_density.ratio_averaging,
+        "level_density.mean_kinetic_energy_file" => _input_token(
+            level_density.mean_kinetic_energy_file, configuration
+        ),
         "multiplicity.exclude" => _hash_token(_canonical(configuration.excluded_datasets)),
-        "yield.subdirectory" => if yield_directory === nothing
-            "none"
-        else
-            _hash_token(_canonical(_relative_input(yield_directory, configuration)))
-        end,
+        "yield.subdirectory" => _input_token(configuration.yield_directory, configuration),
         "segments.max_segments" => segments.max_segments,
         "segments.min_points_per_segment" => segments.min_points_per_segment,
         "segments.min_segment_span" => segments.min_segment_span,
@@ -112,21 +122,40 @@ function run_parameters(configuration::Configuration)
     return parameters
 end
 
+# A configured input: a named source ("wahl", "mean", "ame2020", "gilbert_cameron_1965") as itself, a path as the hash of
+# its spelling relative to the data directory, an absent one as "none".
+const NAMED_SOURCES = ("wahl", "mean", SHIPPED_MASS_TABLE, SHIPPED_SHELL_CORRECTIONS)
+
+_input_token(::Nothing, ::Configuration) = "none"
+function _input_token(value::AbstractString, configuration::Configuration)
+    value in NAMED_SOURCES && return String(value)
+    return _hash_token(_canonical(_relative_input(value, configuration)))
+end
+
+_input_value(::Nothing, ::Configuration) = "none"
+function _input_value(value::AbstractString, configuration::Configuration)
+    value in NAMED_SOURCES && return String(value)
+    return _relative_input(value, configuration)
+end
+
 # The values behind every hashed token, in full, for the run metadata.
 function _hashed_values(configuration::Configuration)
-    charge_file = configuration.fragmentation.charge_distribution_file
-    yield_directory = configuration.yield_directory
+    level_density = configuration.level_density
+    abbreviation(key) = RUN_IDENTIFIER_ABBREVIATIONS[key]
     return Dict{String,Any}(
-        RUN_IDENTIFIER_ABBREVIATIONS["fragmentation.charge_distribution_file"] =>
-            charge_file === nothing ? "none" : _relative_input(charge_file, configuration),
-        RUN_IDENTIFIER_ABBREVIATIONS["multiplicity.exclude"] =>
+        abbreviation("fragmentation.charge_distribution_file") =>
+            _input_value(configuration.fragmentation.charge_distribution, configuration),
+        abbreviation("level_density.mass_excess_file") =>
+            _input_value(level_density.mass_excess_file, configuration),
+        abbreviation("level_density.shell_correction_file") =>
+            _input_value(level_density.shell_correction_file, configuration),
+        abbreviation("level_density.mean_kinetic_energy_file") =>
+            _input_value(level_density.mean_kinetic_energy_file, configuration),
+        abbreviation("multiplicity.exclude") =>
             Dict{String,Any}(configuration.excluded_datasets),
-        RUN_IDENTIFIER_ABBREVIATIONS["yield.subdirectory"] => if yield_directory === nothing
-            "none"
-        else
-            _relative_input(yield_directory, configuration)
-        end,
-        RUN_IDENTIFIER_ABBREVIATIONS["segments.required_windows"] =>
+        abbreviation("yield.subdirectory") =>
+            _input_value(configuration.yield_directory, configuration),
+        abbreviation("segments.required_windows") =>
             [[first(w), last(w)] for w in configuration.segments.required_windows],
     )
 end
@@ -152,35 +181,19 @@ _token(x::AbstractString) = String(x)
 # Trailing zeros carry no information and would make two spellings of one value.
 _token(x::Real) = isinteger(x) ? string(Int(round(x))) : string(x)
 
-_averaging_name(::RatioOfMeans) = "ratio_of_means"
-_averaging_name(::MeanOfRatios) = "mean_of_ratios"
-
-# The system, as both the run metadata and the manifest state it. One definition, so the two
-# cannot drift apart.
-function _system_record(system::SystemSpecification)
-    return Dict{String,Any}(
-        "label" => system.label,
-        "notation" => system_notation(system),
-        "target_A" => system.target_A,
-        "target_Z" => system.target_Z,
-        "channel" => system.channel,
-        "reaction" => system.reaction,
-        "incident_energy_MeV" => system.incident_energy,
-        "compound_A" => system.A₀,
-        "compound_Z" => system.Z₀,
-    )
-end
-
 """
     run_metadata(result) -> Dict{String,Any}
 
 What the library knows about a run, as nested tables ready for `TOML.print`: the system, every
 configuration value in full, the identifier tokens and the values behind the hashed ones, the
-input files, the package and dependency versions, and a summary of the result — each segmented
-curve, the identities checked at the symmetric split, and what became of every dataset.
+fragmentation domain as the manifest records it together with the charge model that built it,
+the input files and the retrievals that produced them — the parser revision and the record of the
+`⟨TKE⟩(A)` dataset in particular, with the heavy masses it was interpolated or extrapolated to —
+the package and dependency versions, and a summary of the result: each segmented curve, the
+identities checked at the symmetric split, and what became of every dataset.
 
 The caller adds what only it knows — the run identifier's place on disk, the configuration path,
-the commit, the platform — and writes the whole; `scripts/run.jl` does.
+the files written, the commit, the platform — and writes the whole; `scripts/run.jl` does.
 """
 function run_metadata(result::ExtractionResult)
     configuration = result.configuration
@@ -191,6 +204,7 @@ function run_metadata(result::ExtractionResult)
 
     curves = Dict{String,Any}(
         curve.label => Dict{String,Any}(
+            "kind" => curve.kind,
             "segments" => FissionTemperatureRatio.segments(curve.fit),
             "breakpoints" => curve.fit.breakpoints,
             "pivots" => [[point[1], point[2]] for point in pivots(curve.fit)],
@@ -198,20 +212,32 @@ function run_metadata(result::ExtractionResult)
             "bic" => curve.fit.bic,
             "bic_by_order" => [[order, value] for (order, value) in curve.fit.selection],
             "weights_imputed" => curve.fit.weights_imputed,
+            "pairs" => curve.pairs,
+            "coverage" => curve.coverage,
             "range_mean_R_T" => collect(result.range_mean_R_T[curve.label]),
         ) for curve in result.segmented_curves
     )
+    domain = manifest_domain(result)
     symmetry = result.symmetry
+    flagged = Dict{String,Any}(
+        label => tags for (label, tags) in result.qualifiers if !isempty(_flagged(tags))
+    )
     return Dict{String,Any}(
-        "system" => _system_record(configuration.system),
+        "system" => system_record(configuration.system),
         "configuration" => Dict{String,Any}(
             "charges_per_mass" => fragmentation.charges_per_mass,
             "heavy_mass_min" => fragmentation.heavy_mass_min,
             "heavy_mass_max" => fragmentation.heavy_mass_max,
-            "fallback_charge_polarization" => fragmentation.fallback_charge_polarization,
-            "fallback_charge_dispersion" => fragmentation.fallback_charge_dispersion,
-            "model" => String(level_density.model),
-            "ratio_averaging" => _averaging_name(level_density.ratio_averaging),
+            "charge_distribution_file" =>
+                _input_value(fragmentation.charge_distribution, configuration),
+            "zero_polarization_at_symmetry" => fragmentation.zero_polarization_at_symmetry,
+            "model" => level_density.model,
+            "mass_excess_file" =>
+                _input_value(level_density.mass_excess_file, configuration),
+            "deformed_branch" => level_density.deformed_branch,
+            "ratio_averaging" => level_density.ratio_averaging,
+            "mean_kinetic_energy_file" =>
+                _input_value(level_density.mean_kinetic_energy_file, configuration),
             "excluded_datasets" => Dict{String,Any}(configuration.excluded_datasets),
             "max_segments" => segments.max_segments,
             "min_points_per_segment" => segments.min_points_per_segment,
@@ -227,15 +253,39 @@ function run_metadata(result::ExtractionResult)
             "hashed" => _hashed_values(configuration),
             "hashed_reason" => HASHED_TOKEN_REASON,
         ),
+        # The [domain] table of the manifest, field for field, and what it abbreviates.
+        "domain" => Dict{String,Any}(
+            "level_density_model" => domain.level_density_model,
+            "deformed_branch" => domain.deformed_branch,
+            "ratio_averaging" => domain.ratio_averaging,
+            "excitation_weighted" => domain.excitation_weighted,
+            "charges_per_mass" => domain.charges_per_mass,
+            "charge_model" => domain.charge_model,
+            "mass_table" => domain.mass_table,
+            "package_version" => domain.package_version,
+            "zero_polarization_at_symmetry" => fragmentation.zero_polarization_at_symmetry,
+            "fragmentations" => length(result.domain),
+        ),
         "inputs" => Dict{String,Any}(
-            "mass_excess_file" => relative(level_density.mass_excess_file),
-            "shell_correction_file" => relative(level_density.shell_correction_file),
-            "charge_distribution_file" => relative(fragmentation.charge_distribution_file),
+            "mass_excess_file" =>
+                _input_value(level_density.mass_excess_file, configuration),
+            "shell_correction_file" =>
+                _input_value(level_density.shell_correction_file, configuration),
+            "charge_distribution_file" =>
+                _input_value(fragmentation.charge_distribution, configuration),
             "multiplicity_directory" => relative(configuration.multiplicity_directory),
             "yield_directory" => relative(configuration.yield_directory),
             "datasets" => [basename(data.source) for data in result.datasets],
             "mass_yields" => [basename(data.source) for data in result.mass_yields],
+            "flagged_datasets" => flagged,
+            "flagged_mass_yields" => Dict{String,Any}(
+                label => tags for
+                (label, tags) in _yield_qualifiers(configuration, result.mass_yields) if
+                !isempty(_flagged(tags))
+            ),
+            "retrievals" => _retrieval_runs(configuration),
         ),
+        "mean_kinetic_energy" => _kinetic_energy_record(result),
         "source" => Dict{String,Any}(
             "package_version" => string(PACKAGE_VERSION),
             "dependencies" => _dependency_versions(),
@@ -249,17 +299,97 @@ function run_metadata(result::ExtractionResult)
                 else
                     symmetry.charge_set_invariant
                 end,
-                "R_a_at_symmetric_split" =>
-                    if symmetry.R_a_at_symmetric_split === missing
+                "R_T_at_symmetric_split" => if symmetry.R_T_at_symmetric_split === missing
                         "not applicable"
                     else
-                        symmetry.R_a_at_symmetric_split
+                        symmetry.R_T_at_symmetric_split
                     end,
                 "pinned_curves" => symmetry.pinned_curves,
                 "warnings" => symmetry.warnings,
             ),
         ),
     )
+end
+
+# The `[run]` table of every retrieval record in the input directories: which parser revision
+# produced the files, from which of its configurations, and when.
+function _retrieval_runs(configuration::Configuration)
+    runs = Dict{String,Any}()
+    for directory in (
+        configuration.multiplicity_directory,
+        configuration.yield_directory,
+        _parent(configuration.level_density.mean_kinetic_energy_file),
+    )
+        directory === nothing && continue
+        for (record, document) in _retrieval_documents(directory)
+            run = get(document, "run", nothing)
+            runs[_relative_input(record, configuration)] =
+                run isa AbstractDict ? Dict{String,Any}(run) : "no [run] table"
+        end
+    end
+    return runs
+end
+
+function _offset_record(energies, distribution, system)
+    offset = mean_kinetic_energy_offset(energies, distribution, system)
+    offset.standard === nothing && return Dict{String,Any}(
+        "mean_MeV" => offset.mean, "standard" => "none recorded for this system"
+    )
+    return Dict{String,Any}(
+        "mean_MeV" => offset.mean,
+        "standard_MeV" => offset.standard,
+        "standard_uncertainty_MeV" => offset.standard_uncertainty,
+        "offset_MeV" => offset.offset,
+    )
+end
+
+_parent(::Nothing) = nothing
+_parent(path::AbstractString) = dirname(path)
+
+# The ⟨TKE⟩(A) dataset that weighted the inversion: the file, its retrieval record entry, the
+# parser revision that wrote it, a digest of the whole record, and the heavy masses that rest on
+# a neighbour's value rather than their own.
+function _kinetic_energy_record(result::ExtractionResult)
+    configuration = result.configuration
+    energies = result.mean_kinetic_energy
+    weighted = manifest_domain(result).excitation_weighted
+    energies === nothing && return Dict{String,Any}(
+        "excitation_weighted" => weighted,
+        "file" => "none",
+        "reason" => if result.averaging isa ChargeResolved
+            "no ⟨TKE⟩(A) dataset configured; weights p(Z, A_H) alone"
+        else
+            "ratio_averaging = $(repr(configuration.level_density.ratio_averaging)) forms an \
+             effective ratio and takes no excitation weight"
+        end,
+    )
+    entry = Dict{String,Any}(
+        "excitation_weighted" => weighted,
+        "file" => _relative_input(energies.source, configuration),
+        "label" => energies.label,
+        "unit" => "MeV",
+        "measured" => energies.measured,
+        "averaged_with_complement" => energies.averaged,
+        "interpolated" => energies.interpolated,
+        "extrapolated" => energies.extrapolated,
+        # The input's yield-weighted mean against the energy standard, over each distribution
+        # the run read: the scale a double-energy measurement sits on.
+        "offset_from_standard" => Dict{String,Any}(
+            distribution.label =>
+                _offset_record(energies, distribution, configuration.system) for
+            distribution in result.mass_yields
+        ),
+    )
+    record = retrieval_record(energies.source)
+    if record !== nothing
+        entry["retrieval_record"] = _relative_input(record.path, configuration)
+        entry["retrieval_record_sha1"] = bytes2hex(open(sha1, record.path))
+        entry["retrieval_run"] = record.run
+        entry["retrieval_entry"] = record.entry
+        entry["qualifiers"] = record.qualifiers
+        entry["flagged"] = _flagged(record.qualifiers)
+    end
+    return entry
 end
 
 # The manifests are not version-controlled, because this package supports a range of Julia
