@@ -189,7 +189,11 @@ distribution,
 
 taken over the heavy branch, with ``Y`` the pre-neutron mass yield — the temperature ratio is a
 function of the primary heavy-fragment mass number, so a post-neutron distribution would weight
-each ratio by the yield of a different fragmentation. The normalization of ``Y`` cancels.
+each ratio by the yield of a different fragmentation. The normalization of ``Y`` cancels. The two fragments of a split are counted in one event, so pre-neutron
+``Y(A) = Y(A_0 - A)`` exactly; by default each mass of a distribution measured on both wings takes
+the mean of the two before the average, so that a difference between the wings — a backing loss
+on one side of a double-energy measurement — enters once and alike. The published averages took
+the distributions as measured.
 
 This is the quantity the literature tabulates, and it is not the mean over the fragment mass
 range. That mean weights every mass number equally, so the far-asymmetric tail, where the yield is

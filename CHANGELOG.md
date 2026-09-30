@@ -8,7 +8,7 @@ Notable changes to FissionTemperatureRatio.jl. The format follows
 
 ### Added
 
-- The fragmentation domain is FissionFragmentsDomain.jl's (v0.1.9), shared with the prompt
+- The fragmentation domain is FissionFragmentsDomain.jl's (v0.2.0), shared with the prompt
   emission codes that read `R_T(A_H)`: nuclides and systems, the shipped AME2020 mass table and
   Gilbert-Cameron shell corrections, Wahl's charge model, the fragmentation domain, the level density models, and the relation
   between `R_T` and `E*_H/TXE` with its inverse and slope. Every environment takes the package
@@ -37,6 +37,11 @@ Notable changes to FissionTemperatureRatio.jl. The format follows
   `ΔZ(A₀/2) = 0` for the last two, as the published extraction did, and is refused with `"wahl"`.
 - `level_density.deformed_branch`, default `true`: Gilbert-Cameron with its eq. (21) for deformed
   nuclei beside eq. (20); `false` applies eq. (20) throughout, the published Table 2 setting.
+- `yield.symmetrize`, default `true`: the total average is taken over `Y(A)` with the pre-neutron
+  identity `Y(A) = Y(A₀ − A)` imposed, each mass taking the mean of the two wings where both are
+  measured; `symmetrized_mass_yield`. The published settings keep `false`. It moves `⟨R_T⟩` over
+  Göök's ²⁵²Cf distribution by −0.3 % to +0.2 % and over Straede's ²³⁵U one by −0.2 % to −0.5 %;
+  the other distributions held are measured on the heavy wing alone and do not move.
 - `segmented_curves_<run identifier>.csv`, one row per manifest curve keyed by its label: segments,
   pin, span, pairs, coverage, reduced chi-squared, imputed weights, range mean. `metadata.toml`
   names it under `[outputs]`.
@@ -156,8 +161,10 @@ Notable changes to FissionTemperatureRatio.jl. The format follows
   to `"gilbert_cameron_1965"`, the tables FissionFragmentsDomain ships; the latter matches the
   RIPL copy read before in every tabulated value.
 - `build_level_density_model(settings, masses)`; `build_mass_table`, `build_charge_model`.
-- Run-identifier tokens: `chg`, `dZ0`, `mass`, `sc`, `def`, `TKE` added; `dZ`, `sZ`, `dZfile`
-  removed.
+- Run-identifier tokens: `chg`, `dZ0`, `mass`, `TKE`, `Ysym` added, and `sc` and `def` for a
+  Gilbert-Cameron run; `dZ`, `sZ`, `dZfile` removed; `maxseg`, `minpts`, `minspan`, `windat`,
+  `mincov` shortened to `nseg`, `npts`, `span`, `wdat`, `cov`, so that the file names repeating the
+  identifier stay within 255 bytes for every shipped configuration under either model.
 - `Configuration.system` is a `FissioningSystem`.
 
 - The run identifier is DrWatson's `savename` over every configuration key that changes the

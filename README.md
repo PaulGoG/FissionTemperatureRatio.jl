@@ -115,7 +115,7 @@ julia docs/assets.jl
 
 | Component | State |
 |---|---|
-| Mass table, shell corrections, charge distribution, fragmentation domain, level density parameters | FissionFragmentsDomain.jl v0.1.9 |
+| Mass table, shell corrections, charge distribution, fragmentation domain, level density parameters | FissionFragmentsDomain.jl v0.2.0 |
 | Multiplicity ratio | complete |
 | Temperature ratio: charge-resolved inversion, excitation-weighted by `⟨TKE⟩(A)` | complete; `⟨TKE⟩(A)` staged for ²³³U |
 | Temperature ratio: ratio of means, mean of ratios | complete |
@@ -374,7 +374,10 @@ independent-points form of the published tables, which treats the tabulated poin
 and understates the uncertainty by a factor of two to five. Without yields the run reports only the
 mean over the fragment mass range, with the covariance propagated likewise; it weights every mass
 number equally and is therefore dominated by the far-asymmetric tail. The normalization of `Y`
-cancels.
+cancels. `symmetrize = true`, the default, imposes the pre-neutron identity `Y(A) = Y(A₀ − A)`
+before averaging: the two fragments of a split are one event, so where a distribution is measured
+on both wings each mass takes the mean of the two. The published averages took the distributions as
+measured, `symmetrize = false`.
 
 Two level density models are available. The back-shifted Fermi gas is the default; setting
 `model = "GC"` selects Gilbert-Cameron, which for fission fragments returns markedly larger
@@ -443,10 +446,14 @@ rendering and not the number. A list or a path — the required windows, the exc
 tabulated charge distribution, a mass or shell-correction table, the `⟨TKE⟩(A)` dataset, the yield
 directory — enters as the first eight hexadecimal digits of
 the SHA-1 of its canonical spelling, paths relative to the data directory, and is written in full
-into `metadata.toml` under `[identifier.hashed]`. For 233-U:
+into `metadata.toml` under `[identifier.hashed]`; a shipped table enters by name, Table III as
+`gc1965`. The Gilbert-Cameron branch and shell corrections are tokens of a Gilbert-Cameron run
+only. The identifier stays short enough for the file names that repeat it to fit the 255 bytes a
+file system admits, which the test suite checks for every shipped configuration under both level
+density models. For 233-U:
 
 ```
-AHmax=159_AHmin=117_E=2.53e-8_TKE=3a048d94_Y=ab535eba_avg=charge_resolved_chg=wahl_dZ0=false_def=false_excl=da39a3ee_ldm=BSFG_mass=ame2020_maxseg=6_mincov=0.3_minpts=4_minspan=3_nZ=5_pin=true_sc=none_win=b552f081_windat=false
+AHmax=159_AHmin=117_E=2.53e-8_TKE=a1ad68dc_Y=ab535eba_Ysym=true_avg=charge_resolved_chg=wahl_cov=0.3_dZ0=false_excl=da39a3ee_ldm=BSFG_mass=ame2020_nZ=5_npts=4_nseg=6_pin=true_span=3_wdat=false_win=b552f081
 ```
 
 ## Consuming the output
@@ -483,7 +490,7 @@ excitation_weighted = true
 charges_per_mass = 5
 charge_model = "Wahl1988(U233T, Z_F = 92, A_F = 234)"
 mass_table = "mass_excess_ame2020.dat"
-package_version = "0.1.9"
+package_version = "0.2.0"
 
 [[segmented_curve]]
 label = "K. Nishio 1998"
