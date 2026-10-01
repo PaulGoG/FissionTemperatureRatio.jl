@@ -37,6 +37,29 @@
             data = read_multiplicity(path; label = "set")
             @test length(data) == 2
             @test ismissing(data.σν[2])
+            # A retrieval that writes a blank uncertainty as 0.0 has quoted none: no measured
+            # multiplicity is exact.
+            zero = joinpath(directory, "zero.dat")
+            write(zero, "A nu nu_uncertainty\n126 2.0 0.1\n132 3.0 0.0\n")
+            @test ismissing(read_multiplicity(zero; label = "zero").σν[2])
         end
+    end
+
+    @testset "pooled datasets are weighted by their measured points" begin
+        a = RatioCurve([130, 131], [0.30, 0.40], [0.01, 0.01], "a")
+        b = RatioCurve([130], [0.31], [0.01], "b")
+        # Values consistent within their uncertainties, so no between-dataset variance enters and
+        # the combination is the weighted mean.
+        equal = consensus([a, b])
+        @test equal.ratio[1] ≈ (0.30 + 0.31) / 2
+        halved = consensus([a, b]; weights = [1.0, 0.5])
+        @test halved.ratio[1] ≈ (0.30 + 0.5 * 0.31) / 1.5
+        @test halved.σ[1] ≈ 0.01 / sqrt(1.5)
+        # Alone at a mass number, a curve passes through with its uncertainty inflated by 1/√f.
+        alone = consensus([a, b]; weights = [0.25, 1.0])
+        @test alone.ratio[2] == 0.40
+        @test alone.σ[2] ≈ 0.01 / sqrt(0.25)
+        @test_throws DimensionMismatch consensus([a, b]; weights = [1.0])
+        @test_throws ArgumentError consensus([a, b]; weights = [1.0, 0.0])
     end
 end

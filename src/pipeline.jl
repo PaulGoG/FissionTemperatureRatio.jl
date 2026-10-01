@@ -309,7 +309,14 @@ function run_pipeline(configuration::Configuration)
     isempty(admitted) && throw(
         ArgumentError("every usable dataset is excluded from the pooling by configuration")
     )
-    pooled = consensus(r_ν[admitted]; label = SYSTEMATIC_TREND_LABEL)
+    # Interpolated datasets count by their measured points, not their written rows.
+    weights = [pooling_weight(retrieval_record(datasets[i].source)) for i in admitted]
+    for (i, w) in zip(admitted, weights)
+        w < 1 &&
+            @info "interpolated dataset pooled at reduced weight" dataset = datasets[i].label weight =
+                w
+    end
+    pooled = consensus(r_ν[admitted]; label = SYSTEMATIC_TREND_LABEL, weights = weights)
     windows = segments_settings.required_windows
     trend = _segment(pooled, relation, segments_settings, SYSTEMATIC_TREND_LABEL, windows, A₀)
     if !(trend isa ExtractedCurve) && !isempty(windows)
@@ -784,11 +791,15 @@ function write_results(result::ExtractionResult, directory::AbstractString)
                 complement_spread = d.complement_spread,
                 without_uncertainties = d.without_uncertainties,
                 qualifiers = join(get(result.qualifiers, d.label, String[]), " "),
+                pooling_weight = round(
+                    pooling_weight(retrieval_record(result.datasets[i].source));
+                    sigdigits = digits,
+                ),
                 flagged = !isempty(_flagged(get(result.qualifiers, d.label, String[]))),
                 pooled = !haskey(excluded, d.label),
                 exclusion_reason = get(excluded, d.label, ""),
                 segmented_curve = get(result.dataset_outcomes, d.label, ""),
-            ) for d in result.dataset_diagnostics
+            ) for (i, d) in enumerate(result.dataset_diagnostics)
         ]
         path = joinpath(directory, "dataset_diagnostics.csv")
         CSV.write(path, DataFrame(rows))

@@ -141,7 +141,8 @@ export A_H_range, has_symmetric_split
 export Multiplicity, read_multiplicity, read_multiplicity_directory, multiplicity
 export read_mass_yield_directory, symmetrized_mass_yield
 export MeanKineticEnergy, read_mean_kinetic_energy, mean_kinetic_energy_offset
-export RetrievalRecord, retrieval_record, retrieval_qualifiers, FLAGGED_QUALIFIERS
+export RetrievalRecord,
+    retrieval_record, retrieval_qualifiers, FLAGGED_QUALIFIERS, pooling_weight
 
 # Physics
 export RatioCurve, multiplicity_ratio

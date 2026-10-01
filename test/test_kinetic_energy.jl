@@ -106,6 +106,20 @@ package_version = "0.1.0"
             @test "MXW" ∉ FLAGGED_QUALIFIERS
 
             @test retrieval_record(joinpath(directory, "absent.dat")) === nothing
+            # Neither dataset was interpolated onto the integers: full weight where pooled.
+            @test pooling_weight(record) == 1.0
+            @test pooling_weight(nothing) == 1.0
+            interpolated = RetrievalRecord(
+                "r",
+                String[],
+                Dict{String,Any}(
+                    "mass_treatment" => "interpolated",
+                    "mass_values_non_integer" => 52,
+                    "rows_written" => 69,
+                ),
+                Dict{String,Any}(),
+            )
+            @test pooling_weight(interpolated) ≈ 52 / 69
             by_file = retrieval_qualifiers(directory)
             @test by_file["21981008_P.Geltenbort_1985.dat"] == ["MXW", "DERIV"]
             @test isempty(by_file["40112007_V.M.Surin_1972.dat"])

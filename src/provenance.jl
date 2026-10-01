@@ -292,6 +292,11 @@ function run_metadata(result::ExtractionResult)
             "datasets" => [basename(data.source) for data in result.datasets],
             "mass_yields" => [basename(data.source) for data in result.mass_yields],
             "flagged_datasets" => flagged,
+            # Interpolated datasets, pooled at raw points over rows written.
+            "pooling_weights" => Dict{String,Any}(
+                data.label => w for data in result.datasets for
+                w in (pooling_weight(retrieval_record(data.source)),) if w < 1
+            ),
             "flagged_mass_yields" => Dict{String,Any}(
                 label => tags for
                 (label, tags) in _yield_qualifiers(configuration, result.mass_yields) if

@@ -88,6 +88,24 @@ function retrieval_qualifiers(directory::AbstractString)
     return qualifiers
 end
 
+"""
+    pooling_weight(record) -> Float64
+
+The factor by which a dataset's values are weighted where datasets are pooled: raw points over
+rows written, `mass_values_non_integer / rows_written`, for a dataset whose retrieval interpolated
+non-integer masses onto the integers (`mass_treatment = "interpolated"`), and one otherwise or
+where no record is held. Neighbouring interpolated rows share their bracketing points, so a dataset
+written at more masses than it measured carries no more information than its measurements.
+"""
+pooling_weight(::Nothing) = 1.0
+function pooling_weight(record::RetrievalRecord)
+    get(record.entry, "mass_treatment", nothing) == "interpolated" || return 1.0
+    points = get(record.entry, "mass_values_non_integer", nothing)
+    rows = get(record.entry, "rows_written", nothing)
+    (points isa Integer && rows isa Integer && 0 < points <= rows) || return 1.0
+    return points / rows
+end
+
 function _flagged(qualifiers::AbstractVector{<:AbstractString})
     return [q for q in qualifiers if q in FLAGGED_QUALIFIERS]
 end

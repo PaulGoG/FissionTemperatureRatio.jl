@@ -87,7 +87,7 @@ function diagnose(data::Multiplicity, ratio::RatioCurve, A₀::Integer, A_H_rang
 end
 
 """
-    consensus(curves; label) -> RatioCurve
+    consensus(curves; label, weights) -> RatioCurve
 
 Combine several measurements of the same ratio into one curve, mass number by mass number.
 
@@ -111,8 +111,23 @@ is no dispersion to estimate. Where none of the values at a mass number carries 
 uncertainty, the unweighted mean is taken and the standard error of the values supplies the
 uncertainty. Points quoting no uncertainty alongside points that do are given the median of the
 latter, as [`fit_weights`](@ref) does.
+
+`weights`, one factor per curve, scales the weight of every value of that curve, in the
+fixed-effect stage and in the combination alike: `w = f/(σ² + τ²)`. A dataset whose masses were
+interpolated onto the integers has rows that share their bracketing points and so are not
+independent; [`pooling_weight`](@ref) gives it the factor raw points over rows. A curve alone at a
+mass number passes through with its uncertainty divided by `√f`.
 """
-function consensus(curves::Vector{RatioCurve}; label::AbstractString = SYSTEMATIC_TREND_LABEL)
+function consensus(
+    curves::Vector{RatioCurve};
+    label::AbstractString = SYSTEMATIC_TREND_LABEL,
+    weights::AbstractVector{<:Real} = ones(length(curves)),
+)
+    length(weights) == length(curves) || throw(
+        DimensionMismatch("one weight per curve: $(length(weights)) for $(length(curves))")
+    )
+    all(w -> 0 < w <= 1, weights) ||
+        throw(ArgumentError("a pooling weight lies in (0, 1], got $(weights)"))
     masses = sort!(unique!(reduce(vcat, (curve.A_H for curve in curves); init = Int[])))
     A_H = Int[]
     ratio = Float64[]
@@ -121,15 +136,17 @@ function consensus(curves::Vector{RatioCurve}; label::AbstractString = SYSTEMATI
     for mass in masses
         values = Float64[]
         uncertainties = Union{Missing,Float64}[]
-        for curve in curves
+        factors = Float64[]
+        for (curve, factor) in zip(curves, weights)
             index = findfirst(==(mass), curve.A_H)
             index === nothing && continue
             push!(values, curve.ratio[index])
             push!(uncertainties, curve.σ[index])
+            push!(factors, factor)
         end
         isempty(values) && continue
 
-        combined, spread = _combine(values, uncertainties)
+        combined, spread = _combine(values, uncertainties, factors)
         push!(A_H, mass)
         push!(ratio, combined)
         push!(σ, spread)
@@ -138,14 +155,20 @@ function consensus(curves::Vector{RatioCurve}; label::AbstractString = SYSTEMATI
     return RatioCurve(A_H, ratio, σ, String(label))
 end
 
-function _combine(values::Vector{Float64}, uncertainties::Vector{Union{Missing,Float64}})
+function _combine(
+    values::Vector{Float64},
+    uncertainties::Vector{Union{Missing,Float64}},
+    factors::Vector{Float64} = ones(length(values)),
+)
     k = length(values)
-    k == 1 && return (values[1], uncertainties[1])
+    k == 1 && return (values[1], uncertainties[1] / sqrt(factors[1]))
 
     quoted = .!ismissing.(uncertainties)
     if !any(quoted)
-        μ = mean(values)
-        return (μ, std(values) / sqrt(k))
+        # The weighted mean, and the standard error over the effective number of values.
+        μ = sum(factors .* values) / sum(factors)
+        effective = sum(factors)^2 / sum(factors .^ 2)
+        return (μ, std(values) / sqrt(effective))
     end
 
     σ = Float64[coalesce(u, NaN) for u in uncertainties]
@@ -153,7 +176,7 @@ function _combine(values::Vector{Float64}, uncertainties::Vector{Union{Missing,F
 
     # Fixed-effect combination first, since the between-dataset variance is estimated from its
     # residuals.
-    w₀ = 1 ./ σ .^ 2
+    w₀ = factors ./ σ .^ 2
     total = sum(w₀)
     fixed = sum(w₀ .* values) / total
     Q = sum(w₀ .* (values .- fixed) .^ 2)
@@ -161,6 +184,6 @@ function _combine(values::Vector{Float64}, uncertainties::Vector{Union{Missing,F
     # better than their uncertainties suggest, not that the variance between them is negative.
     τ² = max(0.0, (Q - (k - 1)) / (total - sum(w₀ .^ 2) / total))
 
-    w = 1 ./ (σ .^ 2 .+ τ²)
+    w = factors ./ (σ .^ 2 .+ τ²)
     return (sum(w .* values) / sum(w), 1 / sqrt(sum(w)))
 end
