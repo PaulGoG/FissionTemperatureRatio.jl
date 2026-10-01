@@ -132,7 +132,15 @@ Breakpoints are restricted to abscissae present in the data and searched exhaust
 tractable over a fragment mass range and returns the global optimum. The number of segments is
 chosen by the Bayesian information criterion [Schwarz1978](@cite), which prices both the extra
 slope and the extra breakpoint; the criterion for every order examined is retained, so the choice
-can be audited.
+can be audited. Its sample size and the degrees of freedom are counted in measurements, not in
+points: a dataset interpolated onto the integer masses by its retrieval contributes its measured
+points over its written rows for each of its points, and a point of the combined curve the
+average of its contributors' fractions, weighted as they are combined. Interpolated points share
+their bracketing measurements, and counted as independent they would buy extra segments.
+
+How far a result rests on the selected order is stated with it: the systematic trend is refitted
+with one and two segments more, and its total average at each order is reported beside the
+selected one.
 
 The coefficient covariance ``(X^\mathsf{T} W X)^{-1}`` is scaled by
 ``\max(1, \chi^2/\mathrm{dof})`` where the data quote uncertainties: it is inflated where the

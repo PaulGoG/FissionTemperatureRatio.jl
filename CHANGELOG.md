@@ -48,6 +48,16 @@ Notable changes to FissionTemperatureRatio.jl. The format follows
   `mass_values_non_integer / rows_written` from its retrieval record: neighbouring interpolated
   rows share their bracketing points. `consensus(curves; weights)`, `pooling_weight`, a
   `pooling_weight` column in `dataset_diagnostics.csv`, `pooling_weights` in the run metadata.
+- The segment count is selected with the sample size and the degrees of freedom counted in
+  measurements: `fit_segments(...; measured)` takes the measured fraction of every point, an
+  interpolated dataset's raw points over rows, and a combined point the weighted average of its
+  contributors'. `SegmentedFit` gains `points` and `measured_points`; `dof` is real.
+- The systematic trend is refitted with one and two segments more than selected; its total
+  averages at those orders are the columns `R_T_one_more_segment` and `R_T_two_more_segments` of
+  `total_average_R_T_<run identifier>.csv` and `segment_count_sensitivity` in the run metadata.
+- `[yield] mass_yield_file`, one distribution in place of `subdirectory`: the shipped
+  configurations take Y(A) and ⟨TKE⟩(A) from one primary experiment per system, named by EXFOR
+  accession in the run metadata (`mass_yield_accessions`, `mean_kinetic_energy.accession`).
 - `segmented_curves_<run identifier>.csv`, one row per manifest curve keyed by its label: segments,
   pin, span, pairs, coverage, reduced chi-squared, imputed weights, range mean. `metadata.toml`
   names it under `[outputs]`.

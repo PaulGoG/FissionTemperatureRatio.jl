@@ -280,10 +280,16 @@ and `mean_kinetic_energy_file` weights every fragmentation by its mean total exc
 `Q + E*_CN - ⟨TKE⟩(A_H)`. Where the dataset gives both `A` and `A₀ − A`, the pair takes the mean
 of the two, `⟨TKE⟩` being one value per split; its yield-weighted mean and the offset from the
 energy standard of the system (Gönnenwein's recommendations, as FissionFragmentsDomain.jl records
-them) are logged and written to `metadata.toml`. The approved sets are Göök 2014 for ²⁵²Cf,
-Al-Adili 2016 for ²³⁵U, Wagemans 1984 for ²³⁹Pu and Geltenbort 1985 for ²³³U; the shipped
-configurations name the ²³³U one, the others once their retrievals are staged. Without that key
-the weights are `p(Z, A_H)` alone, and the run says so.
+them) are logged and written to `metadata.toml`. Without that key the weights are `p(Z, A_H)`
+alone, and the run says so.
+
+The shipped configurations take `⟨TKE⟩(A)` and `Y(A)` from one primary experiment per system,
+named by `mean_kinetic_energy_file` and `[yield] mass_yield_file`: Göök 2014 for ²⁵²Cf (Y(A)
+23268003, the mass marginal of 23268002; ⟨TKE⟩ 23268004), Al-Adili 2016 for ²³⁵U (23164005,
+23164007), Wagemans 1984 for ²³⁹Pu (21995028, 21995038) and Geltenbort 1985 for ²³³U (21981005,
+21981008). The run metadata names the accessions used. `[yield] subdirectory` averages over every
+distribution of a directory instead; the published settings do, Surin's ²³³U distribution among
+them.
 `"ratio_of_means"` is the closed form of the published extraction. The published settings are
 reproduced exactly by `ratio_of_means` over the digitised charge tables with
 `zero_polarization_at_symmetry = true`, or over `"mean"` for 233-U; see
