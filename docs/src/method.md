@@ -230,10 +230,16 @@ with inverse-variance weights carrying an additional between-dataset variance ``
 estimated from their dispersion [DerSimonian1986](@cite),
 
 ```math
-w = \frac{1}{\sigma^2 + \tau^2}, \qquad
+w = \frac{f}{\sigma^2 + \tau^2}, \qquad
 \bar{r} = \frac{\sum w\, r}{\sum w}, \qquad
 \sigma_{\bar{r}} = \left(\sum w\right)^{-1/2}.
 ```
+
+``f`` is one for a dataset measured at integer masses. A dataset measured at non-integer masses is
+interpolated onto the integers by the retrieval, and its neighbouring rows then share their
+bracketing points; it enters with ``f`` = measured points / rows written, as recorded in its
+retrieval record, so that it counts by what was measured. An uncertainty written as zero is read as
+not quoted.
 
 The reason is empirical. The datasets of one system disagree by ten to twenty times their quoted
 uncertainties, so ``\tau^2`` dominates ``\sigma^2``, the weights become nearly equal, and the

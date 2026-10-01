@@ -315,8 +315,12 @@ is combine-then-fit, not fit-then-average.
 that hands the result to whichever author quoted the smallest ones, and counts a dataset with many
 points more heavily than one with few. The datasets are combined mass number by mass number with
 an additional between-dataset variance, so the weights become nearly equal and the uncertainty of
-the combination reflects the disagreement instead of hiding it. The combined curve is written out,
-so the trend can be checked against its own input.
+the combination reflects the disagreement instead of hiding it. A dataset whose masses the
+retrieval interpolated onto the integers (`mass_treatment = "interpolated"` in its record) enters
+at the weight of its measured points over its written rows, since neighbouring interpolated rows
+share their bracketing measurements; the factor is the `pooling_weight` column of
+`dataset_diagnostics.csv`. The combined curve is written out, so the trend can be checked against
+its own input.
 
 **Admission.** For the same reason, a dataset cannot be judged by how far it sits from the others
 in units of its own uncertainty: none is consistent with any other, and a reduced chi-squared
@@ -432,7 +436,7 @@ weights_imputed, range_mean_R_T, range_mean_R_T_uncertainty`, all dimensionless.
 R_T_uncertainty_independent_points`, and
 `dataset_diagnostics.csv` the columns `dataset, points, pairs, first_pair, last_pair, coverage,
 outside_physical_range, symmetry_departure, complement_sum, complement_spread,
-without_uncertainties, qualifiers, flagged, pooled, exclusion_reason, segmented_curve`, the last
+without_uncertainties, qualifiers, pooling_weight, flagged, pooled, exclusion_reason, segmented_curve`, the last
 reading "segmented
 curve" or stating why there is none: no complete pair, coverage below the floor, or no fit and the
 reason. The figures are `nu_vs_A.pdf`, `r_nu_vs_A_H.pdf` and `R_T_vs_A_H.pdf`, and

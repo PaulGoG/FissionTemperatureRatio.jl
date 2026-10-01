@@ -43,6 +43,11 @@ Notable changes to FissionTemperatureRatio.jl. The format follows
   measured; `symmetrized_mass_yield`. The published settings keep `false`. It moves `⟨R_T⟩` over
   Göök's ²⁵²Cf distribution by −0.3 % to +0.2 % and over Straede's ²³⁵U one by −0.2 % to −0.5 %;
   the other distributions held are measured on the heavy wing alone and do not move.
+- Where datasets are pooled into the systematic trend, a dataset whose masses the retrieval
+  interpolated onto the integers is weighted by its measured points over its written rows,
+  `mass_values_non_integer / rows_written` from its retrieval record: neighbouring interpolated
+  rows share their bracketing points. `consensus(curves; weights)`, `pooling_weight`, a
+  `pooling_weight` column in `dataset_diagnostics.csv`, `pooling_weights` in the run metadata.
 - `segmented_curves_<run identifier>.csv`, one row per manifest curve keyed by its label: segments,
   pin, span, pairs, coverage, reduced chi-squared, imputed weights, range mean. `metadata.toml`
   names it under `[outputs]`.
