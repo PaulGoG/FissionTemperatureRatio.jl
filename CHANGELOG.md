@@ -67,6 +67,11 @@ Notable changes to FissionTemperatureRatio.jl. The format follows
   numbers of the fragmentation range is read but not averaged over: its average would describe
   those masses, not the fission yield. `mass_yield_coverage`, `ExtractionResult.mass_yield_coverage`,
   and `mass_yield_coverage` and `mass_yields_not_averaged` in the run metadata.
+- The pair-sum scale the retrieval records for a multiplicity read by its complement test is
+  reported: `pair_sum_scale`, the `pair_sum_deviation` and `scale_consistent` columns of
+  `dataset_diagnostics.csv`, `scale_inconsistent_datasets` in the run metadata, and a warning for
+  a dataset off the scale of `ν̄`. Such a dataset is used, not corrected: a uniform scale cancels
+  in `r_ν`.
 - Every total average states its yield fraction, the share of the distribution's yield over the
   fragmentation range that falls at the curve's mass numbers: `yield_fraction`,
   `TotalAverage.yield_fraction`, `TotalAverage(curve, yields, heavy_masses)`, and a

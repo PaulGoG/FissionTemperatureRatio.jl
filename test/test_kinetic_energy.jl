@@ -120,6 +120,24 @@ package_version = "0.1.0"
                 Dict{String,Any}(),
             )
             @test pooling_weight(interpolated) ≈ 52 / 69
+            # The pair-sum scale of a multiplicity read by the complement test, as recorded.
+            @test pair_sum_scale(record) === nothing
+            @test pair_sum_scale(nothing) === nothing
+            record_of(entry...) =
+                RetrievalRecord("r", String[], Dict{String,Any}(entry...), Dict{String,Any}())
+            off = pair_sum_scale(
+                record_of(
+                    "pair_sum_deviation" => -0.1071,
+                    "pair_sum_deviation_uncertainty" => 0.0133,
+                    "scale_consistent" => false,
+                ),
+            )
+            @test off.deviation == -0.1071 &&
+                off.uncertainty == 0.0133 &&
+                off.consistent === false
+            # Without a stated uncertainty the record forms no verdict on the scale.
+            unweighed = pair_sum_scale(record_of("pair_sum_deviation" => -0.0069))
+            @test ismissing(unweighed.uncertainty) && ismissing(unweighed.consistent)
             by_file = retrieval_qualifiers(directory)
             @test by_file["21981008_P.Geltenbort_1985.dat"] == ["MXW", "DERIV"]
             @test isempty(by_file["40112007_V.M.Surin_1972.dat"])

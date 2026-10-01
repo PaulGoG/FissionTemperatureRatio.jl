@@ -106,6 +106,32 @@ function pooling_weight(record::RetrievalRecord)
     return points / rows
 end
 
+"""
+    pair_sum_scale(record) -> Union{NamedTuple,Nothing}
+
+The scale of a multiplicity dataset as the retrieval states it, for one read by the complement
+test: `deviation`, the relative departure of its pair sum `ν(A) + ν(A₀ - A)`, weighted with the
+light-fragment yield, from `ν̄`; its `uncertainty`; and `consistent`, whether the two agree within
+three standard deviations. `uncertainty` and `consistent` are `missing` where the dataset states
+no uncertainty, and the result is `nothing` where the record forms no pair sum.
+
+A uniform scale cancels in `r_ν = ν_H/(ν_L + ν_H)`, so a dataset off the scale of `ν̄` is used
+and flagged, not corrected. A scale error that varies with mass does not cancel, and the pair sum
+cannot detect it; the structural diagnostics of the dataset are what bear on it.
+"""
+pair_sum_scale(::Nothing) = nothing
+function pair_sum_scale(record::RetrievalRecord)
+    deviation = get(record.entry, "pair_sum_deviation", nothing)
+    deviation isa Real || return nothing
+    uncertainty = get(record.entry, "pair_sum_deviation_uncertainty", missing)
+    consistent = get(record.entry, "scale_consistent", missing)
+    return (
+        deviation = Float64(deviation),
+        uncertainty = uncertainty isa Real ? Float64(uncertainty) : missing,
+        consistent = consistent isa Bool ? consistent : missing,
+    )
+end
+
 function _flagged(qualifiers::AbstractVector{<:AbstractString})
     return [q for q in qualifiers if q in FLAGGED_QUALIFIERS]
 end

@@ -312,6 +312,14 @@ function run_metadata(result::ExtractionResult)
                 data.label => w for data in result.datasets for
                 w in (pooling_weight(retrieval_record(data.source)),) if w < 1
             ),
+            # Datasets whose pair sum the retrieval finds off the scale of ν̄: used, not
+            # corrected, since a uniform scale cancels in r_ν. [deviation, uncertainty].
+            "scale_inconsistent_datasets" => Dict{String,Any}(
+                data.label => [s.deviation, coalesce(s.uncertainty, NaN)] for
+                data in result.datasets for
+                s in (pair_sum_scale(retrieval_record(data.source)),) if
+                s !== nothing && s.consistent === false
+            ),
             "flagged_mass_yields" => Dict{String,Any}(
                 label => tags for
                 (label, tags) in _yield_qualifiers(configuration, result.mass_yields) if

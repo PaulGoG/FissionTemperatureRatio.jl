@@ -215,8 +215,13 @@ by the readers, so the run record sits beside the data it describes.
 The run record also lists the reaction-code qualifiers of every dataset. A dataset carrying
 `DERIV` (derived from other data) or `SPA` (averaged over an unspecified neutron spectrum) is used,
 not corrected, and flagged: in the log, in the `qualifiers` and `flagged` columns of
-`dataset_diagnostics.csv`, and in the run metadata. A `⟨TKE⟩(A)` dataset is accepted only if a run
-record beside it lists it, and its record — the parser revision that wrote it, the entry, a
+`dataset_diagnostics.csv`, and in the run metadata. For a multiplicity read by the retrieval's
+complement test the record also states the scale of the reading, the yield-weighted pair sum
+against `ν̄`; a dataset it finds off that scale is used, since a uniform scale cancels in `r_ν`,
+and flagged in the log, in the `pair_sum_deviation` and `scale_consistent` columns and in the run
+metadata. A scale error that varies with mass does not cancel, and the pair sum cannot see one:
+the structural diagnostics of the dataset are what bear on it. A `⟨TKE⟩(A)` dataset is accepted
+only if a run record beside it lists it, and its record — the parser revision that wrote it, the entry, a
 SHA-1 of the whole record — goes into the run metadata.
 
 A multiplicity file is `A nu nu_uncertainty`, or `A nu` where the measurement quotes no
@@ -448,7 +453,8 @@ R_T_one_more_segment, R_T_two_more_segments`, the last two filled for the system
 and
 `dataset_diagnostics.csv` the columns `dataset, points, pairs, first_pair, last_pair, coverage,
 outside_physical_range, symmetry_departure, complement_sum, complement_spread,
-without_uncertainties, qualifiers, pooling_weight, flagged, pooled, exclusion_reason, segmented_curve`, the last
+without_uncertainties, qualifiers, pooling_weight, flagged, pair_sum_deviation, scale_consistent,
+pooled, exclusion_reason, segmented_curve`, the last
 reading "segmented
 curve" or stating why there is none: no complete pair, coverage below the floor, or no fit and the
 reason. The figures are `nu_vs_A.pdf`, `r_nu_vs_A_H.pdf` and `R_T_vs_A_H.pdf`, and

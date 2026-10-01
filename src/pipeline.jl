@@ -253,6 +253,12 @@ function run_pipeline(configuration::Configuration)
         isempty(flagged) ||
             @warn "the retrieval records a qualifier on this dataset; it is used, not \
                    corrected" dataset = data.label qualifiers = flagged
+        scale = pair_sum_scale(retrieval_record(data.source))
+        scale !== nothing &&
+            scale.consistent === false &&
+            @warn "the retrieval records the pair sum of this dataset off the scale of ν̄; a \
+                   uniform scale cancels in r_ν, so it is used, not corrected" dataset =
+                data.label deviation = scale.deviation uncertainty = scale.uncertainty
     end
 
     A₀ = system.compound.A
@@ -484,6 +490,14 @@ function run_pipeline(configuration::Configuration)
         symmetry,
         sensitivity,
     )
+end
+
+# One field of the pair-sum scale the retrieval records for a dataset, or `missing`.
+function _scale_field(data::Multiplicity, field::Symbol, digits::Integer)
+    scale = pair_sum_scale(retrieval_record(data.source))
+    scale === nothing && return missing
+    value = getfield(scale, field)
+    return value isa AbstractFloat ? round(value; sigdigits = digits) : value
 end
 
 # The reaction-code qualifiers of the yield distributions a run read, keyed by label; the record
@@ -922,6 +936,8 @@ function write_results(result::ExtractionResult, directory::AbstractString)
                     sigdigits = digits,
                 ),
                 flagged = !isempty(_flagged(get(result.qualifiers, d.label, String[]))),
+                pair_sum_deviation = _scale_field(result.datasets[i], :deviation, digits),
+                scale_consistent = _scale_field(result.datasets[i], :consistent, digits),
                 pooled = !haskey(excluded, d.label),
                 exclusion_reason = get(excluded, d.label, ""),
                 segmented_curve = get(result.dataset_outcomes, d.label, ""),
