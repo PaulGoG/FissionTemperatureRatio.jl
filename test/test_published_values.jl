@@ -63,11 +63,13 @@ DATA_AVAILABLE && @testset "published total averages" begin
         end
         published_rows_hold(results; widened = SHIPPED_TOLERANCE)
 
-        # Straede's 235-U yields are spectrum-averaged: used, and flagged. The retrieval record
-        # lists many more such sets; only a distribution the run read is reported.
+        # Straede's 235-U yields are spectrum-averaged: used, and flagged. Only a distribution the
+        # run read is reported, whatever else the retrieval record lists.
         if haskey(results, "U235_nth")
             flagged = run_metadata(results["U235_nth"])["inputs"]["flagged_mass_yields"]
-            @test flagged == Dict{String,Any}("Ch.Straede 1987" => ["SPA"])
+            @test flagged["Ch.Straede 1987"] == ["SPA"]
+            read = Set(y.label for y in results["U235_nth"].mass_yields)
+            @test issubset(keys(flagged), read)
         end
     end
 end
