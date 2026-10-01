@@ -6,6 +6,8 @@ Notable changes to FissionTemperatureRatio.jl. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-01
+
 ### Added
 
 - The fragmentation domain is FissionFragmentsDomain.jl's (v0.2.1), shared with the prompt
@@ -451,5 +453,6 @@ branch:
   check so a partially present tree failed, and results were overwritten in place with no run
   identifier, commit or hardware record.
 
-[unreleased]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.1.0...HEAD
+[unreleased]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/releases/tag/v0.1.0
