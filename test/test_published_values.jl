@@ -3,10 +3,12 @@
 #
 # Two runs. The published settings — the ratio of means over the evaluated Gaussian charge tables
 # with ΔZ(A₀/2) = 0, or over the mean values for 233-U — need the digitised tables, which are held
-# locally and not shipped, so that run is skipped without them. The shipped configurations — the
-# charge-resolved inversion on Wahl's 1988 model, weighted by ⟨TXE⟩ where a ⟨TKE⟩(A) dataset is
-# configured, and Y(A) symmetrized to the pre-neutron identity — are held to the same
-# tolerances, two of them widened for the symmetrization (`SHIPPED_TOLERANCE`).
+# locally and not shipped, so that run is skipped without them. The shipped settings — the
+# charge-resolved inversion on Wahl's 1988 model, weighted by the ⟨TXE⟩ of the configured
+# ⟨TKE⟩(A) dataset, and Y(A) symmetrized to the pre-neutron identity — are held to the same
+# tolerances, four of them widened (`SHIPPED_TOLERANCE`). Both runs average over every
+# distribution held: the shipped configurations average over the primary experiment's alone,
+# which for 233-U and 235-U is not one the table names.
 #
 # Both need the measured input, so both are skipped on a bare clone. A row is skipped, not failed,
 # when the local data holds no dataset of that label: what the archive returns for a query changes
@@ -50,16 +52,22 @@ DATA_AVAILABLE && @testset "published total averages" begin
         end
     end
 
-    @testset "with the shipped configurations" begin
+    @testset "with the shipped settings" begin
         results = Dict{String,Any}()
-        for system in filter(has_inputs, PUBLISHED_SYSTEMS)
-            configuration = load_configuration(
-                joinpath(CONFIG_DIRECTORY, "$(system).toml");
-                data_directory = DATA_DIRECTORY,
-            )
-            results[system] = run_pipeline(configuration)
-            @test manifest_domain(results[system]).ratio_averaging == "charge_resolved"
-            @test startswith(manifest_domain(results[system]).charge_model, "Wahl1988(")
+        mktempdir() do directory
+            for system in filter(has_inputs, PUBLISHED_SYSTEMS)
+                configuration = variant_configuration(
+                    system,
+                    directory;
+                    set = Dict("yield" => Dict("subdirectory" => "$(system)/Y_vs_A")),
+                    remove = Dict("yield" => ["mass_yield_file"]),
+                )
+                results[system] = run_pipeline(configuration)
+                domain = manifest_domain(results[system])
+                @test domain.ratio_averaging == "charge_resolved"
+                @test domain.excitation_weighted
+                @test startswith(domain.charge_model, "Wahl1988(")
+            end
         end
         published_rows_hold(results; widened = SHIPPED_TOLERANCE)
 

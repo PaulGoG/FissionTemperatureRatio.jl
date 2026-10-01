@@ -14,13 +14,10 @@ data/
     ├── charge_distribution_vs_A.dat               optional
     ├── nu_vs_A/
     │   ├── retrieval.toml
-    │   └── <accession>_<Author>_<year>.dat
-    ├── Y_vs_A/
-    │   ├── retrieval.toml
-    │   └── <accession>_<Author>_<year>.dat
-    └── TKE_vs_A/
-        ├── retrieval.toml
-        └── <accession>_<Author>_<year>.dat
+    │   ├── <accession>_<Author>_<year>.dat
+    │   └── subentries/                            the archive subentries read, not data
+    ├── Y_vs_A/                                    as nu_vs_A/
+    └── TKE_vs_A/                                  as nu_vs_A/
 ```
 
 The system-independent evaluations are not held here: the atomic mass evaluation, AME2020, and the
@@ -80,7 +77,13 @@ julia scripts/retrieve.jl config/U233_nth_TKE_vs_A.toml /path/to/FissionTemperat
 
 Check that package out at a named commit before retrieving: the `[run]` table of every
 `retrieval.toml` records the revision and version that wrote it, and a run of this package copies
-that table, for every input directory it reads, into its `metadata.toml`.
+that table, for every input directory it reads, into its `metadata.toml`. The results quoted in the
+README rest on the twelve committed configurations of its v0.2.1, `<system>_<observable>.toml`
+for the four systems and `nu_vs_A`, `Y_vs_A`, `TKE_vs_A`.
+
+Masses the archive gives as non-integer values, digitised or binned, are interpolated onto the
+integers by the retrieval, which records `mass_treatment = "interpolated"` and the count of raw
+values. Such a dataset is pooled at the weight of its measured points over its written rows.
 
 A DatasetID has eight digits, or nine where it points within a subentry; the dataset label drops
 the leading digits either way. Two files of one author and year keep their DatasetID in
@@ -91,32 +94,28 @@ retrieval exactly.
 
 ## Selecting prompt multiplicity data: the archive coding is not sufficient
 
-Per-fragment multiplicity is nominally marked by the `FRG` tag of the EXFOR reaction code, and a
-retrieval that asks for it returns only tagged datasets. For 252-Cf that rule is sound in the
-direction it asserts — every tagged dataset checked here is per fragment — but **unsound as an
-exclusion**: of the eight 252-Cf datasets coded `MASS,PR,NU`, without the tag, five are per
-fragment and three are per pair, reporting the total multiplicity of the split at 3 to 5 neutrons
-per fission.
+Per-fragment multiplicity is nominally marked by the `FRG` tag of the EXFOR reaction code, but for
+252-Cf the tag is sound only in the direction it asserts: several datasets coded `MASS,PR,NU`,
+without it, are per fragment, and others are per pair, reporting the total multiplicity of the
+split at 3 to 5 neutrons per fission. The discriminator that works is the data. A per-pair
+quantity is a property of the split, so it is invariant under `A -> A₀ - A`; a per-fragment
+quantity is a sawtooth whose complementary values differ by a factor of four or five and sum to
+about the total multiplicity.
 
-The discriminator that does work is the data. A per-pair quantity is a property of the split, so
-it must be invariant under `A -> A₀ - A`; a per-fragment quantity is a sawtooth whose complementary
-values differ by a factor of four or five and sum to about the total multiplicity. Applied to the
-untagged 252-Cf datasets:
+The retrieval applies that test and records its verdict on each dataset coded without the tag:
 
 | Dataset | Verdict |
 |---|---|
-| 14652004 Britt 1964, 23118006 Zeynalov 2011, 23175008 Budtz-Jørgensen 1988, 23268005 Göök 2014, 41689004 Piksaykin 1977 | per fragment, kept |
-| 23213012 Mehta 1973, 41720003 Basova 1979, 404200022 Zakharova 1979 | per pair, or the tagged subentry of the same measurement is already held; excluded |
+| 23118006 Zeynalov 2011, 23175008 Budtz-Jørgensen 1988, 23268005 Göök 2014 | per fragment, admitted |
+| 23213012 Mehta 1973, 41720003 Basova 1979 | per pair; rejected |
+| 14652004 Britt 1964, 41689004 Piksaykin 1977 | per fragment by the test, not read: the publications could not be consulted |
 
-`Cf252_sf/nu_vs_A/` therefore holds the tagged retrieval plus those five, and carries the run
-record of both queries — `retrieval.toml` for the tagged one and `retrieval_untagged.toml` for the
-other. The second record names the observable it *queried*, `nu_bar_vs_A`, while sitting in the
-`nu_vs_A` directory, because that is what happened: the query asked for the per-pair quantity and
-the five datasets it contributed were verified per fragment before being kept.
-
-This matters beyond tidiness: Budtz-Jørgensen 1988 is the canonical 252-Cf(sf) `ν(A)` reference
-and one of the datasets the published table averages, so a tag-only selection could not reproduce
-it.
+Budtz-Jørgensen 1988 is the canonical 252-Cf(sf) `ν(A)` reference and one of the datasets the
+published table averages, so a tag-only selection could not reproduce it. Both subentries of
+Zakharova 1979, the tagged 404200021 and the untagged 404200022, are refused because their masses
+are provisional: the entry names a companion experiment that applied no correction for neutron
+emission. For 233-U, 22660006 Nishio 1998 and
+41397006 Apalin 1965 are per pair as coded and are rejected in the same way.
 
 ## Known defects
 
@@ -131,10 +130,18 @@ published extraction; the shipped configurations do not read them.
 
 **Qualified datasets are used, not corrected.** A dataset whose retrieval record lists `DERIV` or
 `SPA` among its reaction-code qualifiers is flagged in the log, in `dataset_diagnostics.csv` and in
-the run metadata. Three staged sets carry `SPA`: the 239-Pu `ν(A)` of Basova 1979 and of
-Zamyatnin 1979, and the 235-U `Y(A)` of Straede 1987, over which two rows of the published table
-are averaged. The 233-U `⟨TKE⟩(A)` sets of Geltenbort, Baba and Takamiya carry `MXW`, a
-Maxwellian-averaged thermal spectrum, which is the entrance channel and is not flagged.
+the run metadata. Six staged sets carry `SPA`: the 239-Pu `ν(A)` of Basova 1979 and of
+Zamyatnin 1979, the 239-Pu `Y(A)` of Walter 1964, and the 235-U `Y(A)` of Romano 2010, Bohn 1969
+and Straede 1987, over the last of which two rows of the published table are averaged. Most
+thermal-neutron sets carry `MXW`, a Maxwellian-averaged spectrum, which is the entrance channel and
+is not flagged.
+
+**Several yield distributions are partial.** Britt 1963 (252-Cf), Bohn 1969 (235-U) and Akimov
+1971 (239-Pu) are measured on the light wing alone, Barreau 1985 (23717005) on the far heavy wing
+and Dyachenko 1967 (233-U) over twelve heavy masses. With `symmetrize = true` a light-wing yield
+stands for its heavy complement; a distribution giving a yield at fewer than
+`min_dataset_coverage` of the heavy mass numbers is read but not averaged over, and every total
+average states the fraction of its distribution's yield it takes in.
 
 **Uncertainties are absent from several multiplicity datasets.** An unquoted uncertainty is read
 as `missing`, never as zero; such points take the median weight of the quoted ones and are counted

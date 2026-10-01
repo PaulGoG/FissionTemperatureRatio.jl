@@ -34,22 +34,30 @@ fit gains freedom, and the criterion deciding where each of them stops. The syst
 the same order, which is the point of showing them together.
 
 Points carry the uncertainty propagated from the multiplicity data, where the archive quotes one.
+An order at which no fit stays inside the physical range is shown without one.
 """
 function animate_selection(panels; path, max_segments = 6, hold = 8)
     prepared = map(panels) do panel
-        fits = [
-            fit_segments(
-                panel.curve.A_H,
-                panel.curve.ratio,
-                panel.curve.σ;
-                min_segments = k,
-                max_segments = k,
-                min_points_per_segment = panel.min_points_per_segment,
-                pinned_value = panel.pinned_value,
-                bounds = (0.0, 1.0),
-            ) for k in 1:max_segments
-        ]
-        return (; panel.curve, panel.label, fits, chosen = argmin(fit.bic for fit in fits))
+        fits = map(1:max_segments) do k
+            try
+                fit_segments(
+                    panel.curve.A_H,
+                    panel.curve.ratio,
+                    panel.curve.σ;
+                    min_segments = k,
+                    max_segments = k,
+                    min_points_per_segment = panel.min_points_per_segment,
+                    pinned_value = panel.pinned_value,
+                    bounds = (0.0, 1.0),
+                )
+            catch error
+                error isa InsufficientDataError || rethrow()
+                nothing
+            end
+        end
+        admissible = findall(!isnothing, fits)
+        chosen = admissible[argmin([fits[k].bic for k in admissible])]
+        return (; panel.curve, panel.label, fits, chosen)
     end
     # Each panel settles on its own selected order, so the animation ends on four answers.
     frames = vcat(1:max_segments, fill(0, hold))
@@ -81,6 +89,7 @@ function animate_selection(panels; path, max_segments = 6, hold = 8)
             fit = prep.fits[order]
             selected = order == prep.chosen
             empty!(axis)
+            plural = order == 1 ? "" : "s"
 
             quoted = findall(!ismissing, prep.curve.σ)
             if !isempty(quoted)
@@ -103,6 +112,18 @@ function animate_selection(panels; path, max_segments = 6, hold = 8)
                 markersize = 14,
             )
 
+            if fit === nothing
+                text!(
+                    axis,
+                    0.03,
+                    0.96;
+                    text = "$(prep.label)\n$(order) segment$(plural): none within (0, 1)",
+                    space = :relative,
+                    align = (:left, :top),
+                    fontsize = 21,
+                )
+                continue
+            end
             evaluated = evaluate(fit, first(prep.curve.A_H):last(prep.curve.A_H))
             lines!(
                 axis,
@@ -124,7 +145,7 @@ function animate_selection(panels; path, max_segments = 6, hold = 8)
                 axis,
                 0.03,
                 0.96;
-                text = "$(prep.label)\n$(segments(fit)) segment$(segments(fit) == 1 ? "" : "s")" *
+                text = "$(prep.label)\n$(order) segment$(plural)" *
                        (selected ? "   ← selected" : ""),
                 space = :relative,
                 align = (:left, :top),
@@ -280,7 +301,9 @@ function figure_published_comparison(results)
         titlesize = 26,
         patchsize = (30, 22),
     )
-    ylims!(residual, -2.0, 2.0)
+    # Symmetric about zero, with room above the largest deviation for its marker.
+    bound = max(2.0, ceil(worst + 0.4))
+    ylims!(residual, -bound, bound)
     # Bounded by the comparisons themselves: Fraser's published uncertainty is a quarter of a
     # unit and would otherwise set the scale for everything else.
     xlims!(axis, low, high)
@@ -483,6 +506,21 @@ function figure_level_density_models(bsfg, gc)
     return figure
 end
 
+# A system under its shipped settings, averaged over every yield distribution held rather than the
+# primary experiment's alone: Table 1 names distributions the shipped configurations do not take.
+function every_distribution(system)
+    source = joinpath(dirname(@__DIR__), "config", "$(system).toml")
+    text = replace(
+        read(source, String),
+        r"^mass_yield_file = .*$"m => "subdirectory = \"$(system)/Y_vs_A\"",
+    )
+    return mktempdir() do directory
+        path = joinpath(directory, "$(system).toml")
+        write(path, text)
+        return run_pipeline(load_configuration(path; data_directory = DATA_DIRECTORY))
+    end
+end
+
 function main()
     mkpath(ASSETS)
     systems = ("U233_nth", "U235_nth", "Pu239_nth", "Cf252_sf")
@@ -538,7 +576,14 @@ function main()
 
     with_theme(publication_theme()) do
         for (name, figure) in (
-            ("published_comparison.png", figure_published_comparison(results)),
+            (
+                "published_comparison.png",
+                figure_published_comparison(
+                    Dict(
+                        s => every_distribution(s) for s in ("U233_nth", "U235_nth", "Cf252_sf")
+                    ),
+                ),
+            ),
             ("temperature_ratio.png", figure_temperature_ratio(results["Cf252_sf"])),
             ("method_chain.png", figure_method_chain(results["Cf252_sf"])),
             (

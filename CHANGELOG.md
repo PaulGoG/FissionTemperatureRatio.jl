@@ -159,6 +159,14 @@ Notable changes to FissionTemperatureRatio.jl. The format follows
 
 ### Changed
 
+- **The quoted results rest on inputs retrieved with ExforFissionData.jl v0.2.1**, which
+  interpolates masses the archive gives as non-integer values onto the integers rather than
+  rounding them, reads the uncertainties of the archive subentry, and admits the ²⁵²Cf `ν(A)` of
+  Budtz-Jørgensen 1988, Göök 2014 and Zeynalov 2011, coded without the `FRG` tag, by a complement
+  test. Under the published settings Apalin's ²³³U row of Table 1 moves from +0.60 % to +1.89 %,
+  Fraser's from +1.09 % to −0.41 %, and the ²⁵²Cf Budtz-Jørgensen row from −0.36 % to −0.53 %;
+  the ²³⁹Pu rows over Nishio 1995 `Y(A)` come back to within 0.7 %, where Apalin and Zamyatnin had
+  deviated by 2 %.
 - **The default inversion is `"charge_resolved"`.** Along the systematic trends `R_T` moves by up
   to 3.6 × 10⁻³ from the ratio of means, at the doubly magic heavy fragment, and every `⟨R_T⟩` by
   −0.02 % to −0.06 %. The excitation weight moves ²³³U `⟨R_T⟩` by a further −0.11 % to −0.15 %.
@@ -221,8 +229,8 @@ Notable changes to FissionTemperatureRatio.jl. The format follows
   tabulated points that are not independent. The value is unchanged. **This moves the
   uncertainties**, by a factor of two to five for the shipped systems: ²³³U Nishio 1998 over Surin
   1972 is `1.1822 ± 0.0050`, against `± 0.0020` in the independent-points form and a published
-  `1.1861 ± 0.0021`; Fraser 1966 is `1.396 ± 0.23`, against `± 0.17` and a published
-  `1.381 ± 0.25`. The range mean is propagated the same way.
+  `1.1861 ± 0.0021`; Apalin 1965 is `1.0541 ± 0.0089`, against `± 0.0022` and a published
+  `1.0346 ± 0.0043`. The range mean is propagated the same way.
 - Figures use the standard layout — a 900 × 600 canvas per panel, 1200 wide above eight legend
   entries, 26 pt type, 3 pt data lines, 14 pt markers with a darker edge — in place of the
   journal-column sizing. Error bars are drawn without caps. `plot_ratio` gains `fit_label`,

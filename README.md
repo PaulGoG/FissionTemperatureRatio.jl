@@ -132,9 +132,9 @@ julia docs/assets.jl
 The method, its conventions and its equation numbering are those of *Eur. Phys. J. A* **60**, 190
 (2024), [doi:10.1140/epja/s10050-024-01375-7](https://doi.org/10.1140/epja/s10050-024-01375-7),
 and this package reproduces the results published there: with the published settings, the total
-average temperature ratios of its Tables 1 and 2 come back to within 1.1 % for ²³³U(nth,f),
-²⁵²Cf(sf) and ²³⁵U(nth,f), and with the shipped configurations, which invert charge by charge on
-Wahl's charge model, Table 1 comes back to within 1.4 %.
+average temperature ratios of its Table 1 come back to within 1.0 % for ²³³U(nth,f), ²⁵²Cf(sf)
+and ²³⁵U(nth,f), Apalin's ²³³U measurement aside at 1.9 %, and with the shipped settings, which
+invert charge by charge on Wahl's charge model, to within 1.4 %, Apalin aside at 2.1 %.
 The [validation status](#validation-status) below states exactly what has been checked against the
 paper and what has not.
 
@@ -619,37 +619,45 @@ Verified:
 - The shape of the result. The segmented `r_ν(A_H)` reproduces the published systematic
   behaviour — one half at the symmetric split, a minimum near the heavy magic fragment, one half
   again near the most probable fragmentation, and a near-linear rise above it.
-- **The published total averages, to within 1.1 %.** The `⟨R_T⟩` of Table 1 of the
-  paper, per `ν(A)` dataset and per `Y(A)` distribution, comes back from independently retrieved
-  archive data with the published settings — the ratio of means over the digitised Gaussian charge
-  tables, or the mean values for ²³³U, on the shared fragmentation domain:
+- **The published total averages, to within 1.0 %, one measurement aside.** The `⟨R_T⟩` of
+  Table 1 of the paper, per `ν(A)` dataset and per `Y(A)` distribution, comes back from
+  independently retrieved archive data (ExforFissionData.jl v0.2.1) with the published settings —
+  the ratio of means over the digitised Gaussian charge tables, or the mean values for ²³³U, on the
+  shared fragmentation domain:
 
-  | System | `Y(A)` | Datasets compared | Largest deviation, published settings | Largest deviation, shipped configuration |
+  | System | `Y(A)` | Datasets compared | Largest deviation, published settings | Largest deviation, shipped settings |
   |---|---|---|---|---|
-  | ²³³U(nth,f) | Surin | 3 of 3 | 1.09 % | 1.36 % |
-  | ²⁵²Cf(sf) | Göök | 4 of 5 | 0.55 % | 0.51 % |
-  | ²³⁵U(nth,f) | Al-Adili, Straede | 2 of 3 | 1.00 % | 1.01 % |
+  | ²³³U(nth,f) | Surin | 3 of 3 | 1.89 % (Apalin; others 0.41 %) | 2.07 % (Apalin; others 0.21 %) |
+  | ²⁵²Cf(sf) | Göök | 4 of 5 | 0.54 % | 0.79 % |
+  | ²³⁵U(nth,f) | Al-Adili, Straede | 2 of 3 | 1.00 % | 1.34 % |
 
   ![Published comparison](docs/src/assets/published_comparison.png)
 
-  The figure shows the shipped configurations.
+  The figure shows the shipped settings over the distributions the table names; the shipped
+  configurations average over one primary experiment's `Y(A)` per system, which for ²³³U and ²³⁵U
+  is not among them.
 
-  The 1.09 % is Fraser's 233-U set, which quotes no uncertainties, has fifteen usable fragment
-  pairs, and carries ±0.25 in the published table; the other two 233-U rows are within 0.60 %.
-  The shipped configurations — Wahl's 1988 charge model and the charge-resolved inversion, weighted
-  by Geltenbort's `⟨TKE⟩(A)` for ²³³U — hold every row to the same tolerances, to within 1.36 % (Fraser)
-  and 1.01 % for the rest. Wahl's model moves the ²³³U rows by +0.28 % to +0.43 % from the mean
-  values the paper used there, and the rows of the other systems by less than 0.1 %.
+  Apalin's ²³³U masses are given as non-integer values, 52 of them, which the retrieval
+  interpolates onto 69 integers; rounded instead, as an earlier retrieval did, they paired only
+  part of the yield, and the row came back to 0.60 %. The shipped settings — Wahl's 1988 charge
+  model, the charge-resolved inversion weighted by the `⟨TXE⟩` of the configured `⟨TKE⟩(A)`
+  dataset, and `Y(A)` symmetrized — hold every other row to within 1.34 %. Wahl's model moves the
+  ²³³U rows by +0.29 % to +0.37 % from the mean values the paper used there, and the rows of the
+  other systems by less than 0.1 %; the excitation weight moves every row by −0.04 % to −0.15 %;
+  the symmetrization moves those over Göök's and Straede's distributions, the two measured on both
+  wings, by −0.1 % to −0.7 %.
 
-  Table 2 reproduces too: the Gilbert-Cameron variant to 0.21 %, and the one-charge-per-mass
-  variant to 0.80 %. The remaining datasets could not be compared because the archive query did
-  not return the `ν(A)` measurement the table names.
+  Table 2 reproduces too for Nishio's ²³³U measurement, the Gilbert-Cameron variant to 0.20 % and
+  the one-charge-per-mass variant to 0.60 %; Apalin's rows move with the interpolation, to 1.25 %
+  and 2.08 %. The remaining datasets could not be compared because the archive query did not return
+  the `ν(A)` measurement the table names.
 - The uncertainty of the total average. The independent-points uncertainty reproduces the
   published one, ±0.0020 against ±0.0021 for ²³³U Nishio over Surin, and the
   covariance-propagated uncertainty is ±0.0050, two and a half times larger, because the tabulated
-  points of a fitted curve are not independent. For the sparse Fraser ²³³U set the
-  covariance-propagated ±0.23 matches the published ±0.25, where the independent-points ±0.17 does
-  not.
+  points of a fitted curve are not independent. Fraser's sparse ²³³U set carries ±0.25 in the
+  published table; read without uncertainties, as it was retrieved before, it gave ±0.23 here. The
+  retrieval now reads the uncertainties its archive entry quotes at 16 of its 33 masses, and with
+  them the covariance-propagated uncertainty is ±0.059, the independent-points one ±0.019.
 - The suite passes on the declared Julia floor and on the current release.
 - The level density models, against their papers: the back-shifted Fermi gas coefficients, shell
   correction, pairing term and liquid-drop coefficients of Phys. Rev. C **72**, 044311 (2005) and
@@ -661,15 +669,12 @@ Verified:
 
 Not verified:
 
-- **²³⁹Pu(nth,f) is reproduced only in part.** The published table averages over a yield
-  distribution its caption does not name, and over a second that is calculated and cannot be
-  retrieved. With the Nishio 1995 `Y(A)`, the Nishio `ν(A)` row comes back to 0.09 % and Fraser to
-  0.7 %, but Apalin and Zamyatnin deviate by 2.0 % and 2.1 %, so the identification of the yield
-  distribution stays open.
-- The excitation weight in the shipped runs of ²⁵²Cf, ²³⁵U and ²³⁹Pu. Their `⟨TKE⟩(A)` retrievals
-  are not yet staged, so those runs weight by `p(Z, A_H)` alone. With the approved sets the weight
-  moves `R_T` by 7 × 10⁻³ to 1.1 × 10⁻² at `A_H = 130` in all four systems, and `⟨R_T⟩` by −0.03 %
-  to −0.15 %, every Table 1 row staying within its tolerance.
+- **²³⁹Pu(nth,f) is compared, but against a yield distribution the paper does not name.** The
+  published table averages over an experimental distribution its caption does not identify, and
+  over a second that is calculated and cannot be retrieved. With the Nishio 1995 `Y(A)` and the
+  published settings, the Nishio, Apalin and Zamyatnin `ν(A)` rows come back to within 0.12 % and
+  Fraser to 0.68 %, which identifies that distribution, or one close to it, without confirming it.
+  These rows are not asserted by the tests.
 - The effect of neglecting the back-shift. The level density parameter is taken from a systematic
   that fits it jointly with a back-shift `E1`, while the extraction rests on the un-shifted
   `E* = a T²` the method is published under. `E1` differs between the two fragments, so it does not

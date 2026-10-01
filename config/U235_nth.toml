@@ -19,13 +19,13 @@ mass_excess_file = "ame2020"                  # "ame2020", the evaluation Fissio
 shell_correction_file = "gilbert_cameron_1965"  # "gilbert_cameron_1965", Table III as FissionFragmentsDomain ships it, or a table relative to data/; read by "GC"
 deformed_branch = true                        # "GC" only: true takes c = 0.120 for deformed nuclei (eq. 21), false c = 0.142 throughout (eq. 20)
 ratio_averaging = "charge_resolved"           # one of: "charge_resolved" | "ratio_of_means" | "mean_of_ratios"
-# mean_kinetic_energy_file: pre-neutron <TKE>(A) in MeV, relative to data/; "charge_resolved" only; optional
+mean_kinetic_energy_file = "U235_nth/TKE_vs_A/23164007_A.Al-adili_2016.dat"  # pre-neutron <TKE>(A) in MeV, relative to data/; "charge_resolved" only; optional
 
 [multiplicity]
 subdirectory = "U235_nth/nu_vs_A"             # under data/; whitespace-separated A nu nu_uncertainty
 
 [yield]
-subdirectory = "U235_nth/Y_vs_A"              # under data/; pre-neutron mass yields A Y Y_uncertainty; optional
+mass_yield_file = "U235_nth/Y_vs_A/23164005_A.Al-adili_2016.dat"  # one pre-neutron Y(A), A Y Y_uncertainty, relative to data/; or subdirectory = every distribution under data/
 symmetrize = true                             # Y(A) and Y(A0 - A) averaged where both are measured (pre-neutron identity)
 
 [segments]
