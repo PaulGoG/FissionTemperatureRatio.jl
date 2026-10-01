@@ -346,14 +346,22 @@ end
 
 function _offset_record(energies, distribution, system)
     offset = mean_kinetic_energy_offset(energies, distribution, system)
-    offset.standard === nothing && return Dict{String,Any}(
-        "mean_MeV" => offset.mean, "standard" => "none recorded for this system"
-    )
-    return Dict{String,Any}(
+    # The heavy masses the distribution gives: a partial one biases the mean towards its own.
+    record = Dict{String,Any}(
+        "heavy_masses" => length(offset.masses),
+        "first_A_H" => first(offset.masses),
+        "last_A_H" => last(offset.masses),
         "mean_MeV" => offset.mean,
-        "standard_MeV" => offset.standard,
-        "standard_uncertainty_MeV" => offset.standard_uncertainty,
-        "offset_MeV" => offset.offset,
+    )
+    offset.standard === nothing &&
+        return merge(record, Dict{String,Any}("standard" => "none recorded for this system"))
+    return merge(
+        record,
+        Dict{String,Any}(
+            "standard_MeV" => offset.standard,
+            "standard_uncertainty_MeV" => offset.standard_uncertainty,
+            "offset_MeV" => offset.offset,
+        ),
     )
 end
 

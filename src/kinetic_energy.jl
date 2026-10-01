@@ -212,33 +212,40 @@ The yield-weighted mean of a `⟨TKE⟩(A_H)` dataset over the heavy masses it w
 standard FissionFragmentsDomain records for `system` (Gönnenwein's recommendations as tabulated by
 Bertsch et al., J. Phys. G 42, 077001 (2015), doi:10.1088/0954-3899/42/7/077001). Double-energy
 measurements differ in their pulse-height-defect calibration by several MeV, so the offset says
-how far the input sits from the scale the literature normalises to. All in MeV:
-`(mean, standard, standard_uncertainty, offset)`, the last three `nothing` where no standard
-exists. Throws where `yields` covers none of the masses.
+how far the input sits from the scale the literature normalises to, provided `yields` spans the
+heavy peak: a distribution measured over part of it weights the mean towards its own masses. All
+energies in MeV: `(mean, standard, standard_uncertainty, offset, masses)`, the standard, its
+uncertainty and the offset `nothing` where no standard exists, `masses` the heavy mass numbers
+`yields` gives, over which the mean was taken. Throws where `yields` covers none of the masses.
 """
 function mean_kinetic_energy_offset(
     energies::MeanKineticEnergy, yields::MassYield, system::FissioningSystem
 )
     numerator = 0.0
     total = 0.0
+    masses = Int[]
     for (A_H, TKE) in energies.values
         entry = mass_yield(yields, A_H)
         entry === nothing && continue
         numerator += entry[1] * TKE
         total += entry[1]
+        push!(masses, A_H)
     end
+    sort!(masses)
     total > 0 || throw(
         ArgumentError("the yield distribution $(repr(yields.label)) covers no heavy mass of \
              $(repr(energies.label))"),
     )
     mean = numerator / total
     standard = recommended_mean_total_kinetic_energy(system)
-    standard === nothing &&
-        return (; mean, standard = nothing, standard_uncertainty = nothing, offset = nothing)
+    standard === nothing && return (;
+        mean, standard = nothing, standard_uncertainty = nothing, offset = nothing, masses
+    )
     return (;
         mean,
         standard = value(standard),
         standard_uncertainty = uncertainty(standard),
         offset = mean - value(standard),
+        masses,
     )
 end

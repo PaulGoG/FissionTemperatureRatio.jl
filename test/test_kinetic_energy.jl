@@ -65,6 +65,7 @@ package_version = "0.1.0"
             standard = recommended_mean_total_kinetic_energy(system)
             @test offset.standard == Measurements.value(standard) == 170.1
             @test offset.offset ≈ offset.mean - 170.1
+            @test offset.masses == [130, 140]
             # A system without a recorded standard still gets its mean.
             resonance = neutron_induced_fission(Nuclide(92, 233), 1.0, "nres")
             @test mean_kinetic_energy_offset(energies, yields, resonance).offset === nothing

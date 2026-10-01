@@ -8,7 +8,7 @@ Notable changes to FissionTemperatureRatio.jl. The format follows
 
 ### Added
 
-- The fragmentation domain is FissionFragmentsDomain.jl's (v0.2.0), shared with the prompt
+- The fragmentation domain is FissionFragmentsDomain.jl's (v0.2.1), shared with the prompt
   emission codes that read `R_T(A_H)`: nuclides and systems, the shipped AME2020 mass table and
   Gilbert-Cameron shell corrections, Wahl's charge model, the fragmentation domain, the level density models, and the relation
   between `R_T` and `E*_H/TXE` with its inverse and slope. Every environment takes the package
@@ -25,7 +25,8 @@ Notable changes to FissionTemperatureRatio.jl. The format follows
   interpolated, and masses beyond the measured span take the nearest measured value. All are listed
   in `metadata.toml` with the retrieval record, its parser revision and its SHA-1, and with the
   yield-weighted mean `⟨TKE⟩` and its offset from the energy standard of the system,
-  `recommended_mean_total_kinetic_energy`, over every yield distribution read. The 233-U
+  `recommended_mean_total_kinetic_energy`, over every yield distribution read, with the heavy
+  masses that distribution covers: a partial one biases the mean towards its own masses. The 233-U
   configuration names Geltenbort 1985. `MeanKineticEnergy`, `read_mean_kinetic_energy`,
   `mean_kinetic_energy_offset`.
 - Reaction-code qualifiers from the retrieval records. `DERIV` and `SPA` datasets are used and
