@@ -53,9 +53,10 @@ written to disk by [`write_results`](@ref).
   for why this is not the total average.
 - `mass_yields`: the fragment mass yield distributions read, symmetrized where the configuration
   says so, empty when it names none.
-- `mass_yield_coverage`: for each of them, by label, the fraction of the heavy mass numbers of the
-  fragmentation range it gives a yield at, [`mass_yield_coverage`](@ref). A distribution below
-  `min_dataset_coverage` is read and reported but not averaged over.
+- `mass_yield_coverage`: for each of them, by label, the share of the heavy-fragment yield of the
+  primary distribution at the masses it holds, [`mass_yield_coverage`](@ref). A distribution
+  below `min_dataset_coverage`, or excluded by the configuration, is read and reported but not
+  averaged over.
 - `total_average_R_T`: the quantity the literature quotes, `⟨R_T⟩` over each yield distribution
   that reaches the coverage floor, keyed by curve label and then by yield label. Empty when no
   yields were given.
@@ -387,17 +388,25 @@ function run_pipeline(configuration::Configuration)
         @warn message
     end
 
-    mass_yields = if configuration.yield_file !== nothing
+    # The primary distribution of the system: averaged over alone, or, beside a directory of
+    # distributions, the reference their coverage is measured against.
+    reference = if configuration.yield_file === nothing
+        nothing
+    else
         file = configuration.yield_file
-        [read_mass_yield(file; label = _dataset_label(basename(file)))]
-    elseif configuration.yield_directory !== nothing
+        read_mass_yield(file; label = _dataset_label(basename(file)))
+    end
+    mass_yields = if configuration.yield_directory !== nothing
         read_mass_yield_directory(configuration.yield_directory)
+    elseif reference !== nothing
+        [reference]
     else
         MassYield[]
     end
     if configuration.symmetrize_yields && !isempty(mass_yields)
         # Before the qualifiers are looked up by file: the source and label are unchanged.
         mass_yields = [symmetrized_mass_yield(y, A₀) for y in mass_yields]
+        reference = symmetrized_mass_yield(reference, A₀)
         @info "mass yields symmetrized: Y(A) and Y(A₀ - A) averaged where both are measured, \
                one wing standing for the other where it alone is"
     end
@@ -415,13 +424,29 @@ function run_pipeline(configuration::Configuration)
                 offset.standard offset_MeV = offset.offset
         end
     end
-    # A distribution measured at a few heavy masses would give the ratio averaged over those
-    # masses, not over the fission yield.
+    # Coverage in yield, against the primary distribution: a set's own yields cannot measure it.
+    # One below the floor, or excluded by the configuration, is reported but not averaged over.
     yield_coverage = Dict(
-        y.label => mass_yield_coverage(y, domain.heavy_masses) for y in mass_yields
+        y.label => mass_yield_coverage(y, reference, domain.heavy_masses) for y in mass_yields
     )
+    excluded_yields = if configuration.yield_directory === nothing
+        Dict{String,String}()
+    else
+        configuration.excluded_mass_yields
+    end
+    for (label, reason) in excluded_yields
+        any(y.label == label for y in mass_yields) ||
+            @warn "configuration excludes a yield distribution that was not read" yield = label reason
+    end
     averaged_yields = filter(mass_yields) do distribution
         coverage = yield_coverage[distribution.label]
+        @info "yield coverage against the primary distribution" yield = distribution.label coverage reference =
+            reference.label
+        if haskey(excluded_yields, distribution.label)
+            @info "no total average over this yield distribution: excluded by configuration" yield =
+                distribution.label reason = excluded_yields[distribution.label]
+            return false
+        end
         coverage >= segments_settings.min_dataset_coverage && return true
         @warn "no total average over this yield distribution" yield = distribution.label coverage floor =
             segments_settings.min_dataset_coverage

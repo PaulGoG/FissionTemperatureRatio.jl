@@ -293,8 +293,10 @@ named by `mean_kinetic_energy_file` and `[yield] mass_yield_file`: Göök 2014 f
 23268003, the mass marginal of 23268002; ⟨TKE⟩ 23268004), Al-Adili 2016 for ²³⁵U (23164005,
 23164007), Wagemans 1984 for ²³⁹Pu (21995028, 21995038) and Geltenbort 1985 for ²³³U (21981005,
 21981008). The run metadata names the accessions used. `[yield] subdirectory` averages over every
-distribution of a directory instead; the published settings do, Surin's ²³³U distribution among
-them.
+distribution of a directory instead, with the primary distribution as the reference their coverage
+is measured against; the published settings do, Surin's ²³³U distribution among them.
+`[yield] exclude` keeps distributions of that directory out of every average, each with its
+reason, as `[multiplicity] exclude` does for the pooling; they are still read and reported.
 `"ratio_of_means"` is the closed form of the published extraction. The published settings are
 reproduced exactly by `ratio_of_means` over the digitised charge tables with
 `zero_polarization_at_symmetry = true`, or over `"mean"` for 233-U; see
@@ -380,8 +382,8 @@ there is one — the minimum at the heavy magic fragment, `A_H` near 130, fixed 
 `N = 82` shell closure — and `windows_apply_to_datasets` extends that from the trend curve to every
 dataset.
 
-The `[yield]` section is optional. Given a directory of pre-neutron mass yield distributions, the
-run also reports the total average `⟨R_T⟩ = Σ Y(A_H) R_T(A_H) / Σ Y(A_H)` for every combination of
+The `[yield]` section is optional. Given the primary pre-neutron mass yield distribution, or a
+directory of them beside it, the run also reports the total average `⟨R_T⟩ = Σ Y(A_H) R_T(A_H) / Σ Y(A_H)` for every combination of
 segmented curve and distribution — the quantity the literature tabulates, and the one a prompt
 emission code takes when it uses a single temperature ratio for all fragmentations. Each carries
 two uncertainties: the fit covariance propagated through the average, and beside it the
@@ -393,10 +395,14 @@ cancels. `symmetrize = true`, the default, imposes the pre-neutron identity `Y(A
 before averaging: the two fragments of a split are one event, so where a distribution is measured
 on both wings each mass takes the mean of the two, and where it is measured on one wing alone that
 value stands for the other. The published averages took the distributions as measured,
-`symmetrize = false`. A distribution giving a yield at fewer than `min_dataset_coverage` of the
-heavy mass numbers is read but not averaged over, since its average would describe those masses
-and not the fission yield, and every average states the fraction of its distribution's yield the
-curve takes in, which is below one where a dataset's pairs stop short of the distribution.
+`symmetrize = false`. The coverage of a distribution is measured in yield, against the primary:
+the primary's heavy-fragment yield at the masses the distribution holds, over its yield across the
+heavy masses of the fragmentation range. A distribution's own yields cannot measure it, since a
+sparse digitisation normalised over the masses it holds sums to as much as a complete one. One
+below `min_dataset_coverage` is read and reported but not averaged over, since its average would
+describe those masses and not the fission yield, and every average states the fraction of its
+distribution's yield the curve takes in, which is below one where a dataset's pairs stop short of
+the distribution.
 
 Two level density models are available. The back-shifted Fermi gas is the default; setting
 `model = "GC"` selects Gilbert-Cameron, which for fission fragments returns markedly larger

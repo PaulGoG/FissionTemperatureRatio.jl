@@ -66,16 +66,38 @@ function symmetrized_mass_yield(yields::MassYield, compound_mass::Integer)
 end
 
 """
-    mass_yield_coverage(yields, heavy_masses) -> Float64
+    mass_yield_coverage(yields, reference, heavy_masses) -> Float64
 
-The fraction of the heavy mass numbers `heavy_masses` at which `yields` gives a value, on the same
-footing as the coverage of a multiplicity dataset. A run takes no total average over a
-distribution below `min_dataset_coverage`: averaged over a few heavy masses, `⟨R_T⟩` describes
-those masses and not the fission yield. Throws an `ArgumentError` for an empty range.
+The share of the heavy-fragment yield that `yields` covers, measured against `reference`, the
+primary distribution of the system: the sum of the reference yields at the heavy mass numbers of
+`heavy_masses` where `yields` gives a value, over their sum at every heavy mass number of the
+range.
+
+A distribution's own yields cannot measure its coverage, since a sparse digitisation normalised
+over the masses it holds sums to as much as a complete one. A run takes no total average over a
+distribution below `min_dataset_coverage`. Both arguments are taken as the run uses them,
+symmetrized where it symmetrizes, so a distribution measured on the light wing covers the heavy
+masses its complements stand for. Throws an `ArgumentError` when the reference carries no positive
+yield over the range.
 """
-function mass_yield_coverage(yields::MassYield, heavy_masses::AbstractUnitRange{<:Integer})
-    isempty(heavy_masses) && throw(ArgumentError("the heavy mass range is empty"))
-    return count(A -> mass_yield(yields, A) !== nothing, heavy_masses) / length(heavy_masses)
+function mass_yield_coverage(
+    yields::MassYield, reference::MassYield, heavy_masses::AbstractUnitRange{<:Integer}
+)
+    total = 0.0
+    covered = 0.0
+    for A in heavy_masses
+        entry = mass_yield(reference, A)
+        entry === nothing && continue
+        total += entry[1]
+        mass_yield(yields, A) === nothing || (covered += entry[1])
+    end
+    total > 0 || throw(
+        ArgumentError(
+            "the reference yield distribution \"$(reference.label)\" carries no positive \
+             yield over $(first(heavy_masses)):$(last(heavy_masses))"
+        ),
+    )
+    return covered / total
 end
 
 """

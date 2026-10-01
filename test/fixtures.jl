@@ -104,9 +104,7 @@ function published_settings(label::AbstractString)
             # Every distribution held, among them those the published table averages over.
             "yield" => Dict("symmetrize" => false, "subdirectory" => "$(label)/Y_vs_A"),
         ),
-        remove = Dict(
-            "level_density" => ["mean_kinetic_energy_file"], "yield" => ["mass_yield_file"]
-        ),
+        remove = Dict("level_density" => ["mean_kinetic_energy_file"]),
     )
 end
 

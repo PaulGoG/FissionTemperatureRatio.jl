@@ -113,7 +113,7 @@ function run_parameters(configuration::Configuration)
             level_density.mean_kinetic_energy_file, configuration
         ),
         "multiplicity.exclude" => _hash_token(_canonical(configuration.excluded_datasets)),
-        "yield.subdirectory" => _input_token(configuration.yield_directory, configuration),
+        "yield.subdirectory" => _yield_source_token(configuration),
         "yield.mass_yield_file" => _input_token(configuration.yield_file, configuration),
         "yield.symmetrize" => configuration.symmetrize_yields,
         "segments.max_segments" => segments.max_segments,
@@ -127,9 +127,16 @@ function run_parameters(configuration::Configuration)
     parameters = Dict{String,Any}()
     for (key, value) in entries
         !gilbert_cameron && key in GILBERT_CAMERON_KEYS && continue
-        # The yield source is a directory or one file; the token names the one configured.
-        key == "yield.subdirectory" && configuration.yield_file !== nothing && continue
-        key == "yield.mass_yield_file" && configuration.yield_file === nothing && continue
+        # The primary distribution alone carries `Yf`; a directory carries `Y`, one hash of the
+        # directory, the primary that is its coverage reference and the exclusions.
+        directory = configuration.yield_directory !== nothing
+        key == "yield.subdirectory" &&
+            !directory &&
+            configuration.yield_file !== nothing &&
+            continue
+        key == "yield.mass_yield_file" &&
+            (directory || configuration.yield_file === nothing) &&
+            continue
         haskey(RUN_IDENTIFIER_ABBREVIATIONS, key) || throw(
             ArgumentError("no entry in RUN_IDENTIFIER_ABBREVIATIONS for the key $(repr(key))"),
         )
@@ -156,6 +163,50 @@ function _input_value(value::AbstractString, configuration::Configuration)
     return _relative_input(value, configuration)
 end
 
+# A directory of yield distributions enters the identifier together with the primary that is its
+# coverage reference and the distributions excluded from it: three tokens would overrun the
+# 255 bytes a file name may take.
+function _yield_source_value(configuration::Configuration)
+    configuration.yield_directory === nothing &&
+        return _input_value(configuration.yield_directory, configuration)
+    return Dict{String,Any}(
+        "subdirectory" => _input_value(configuration.yield_directory, configuration),
+        "mass_yield_file" => _input_value(configuration.yield_file, configuration),
+        "exclude" => sort!(collect(keys(configuration.excluded_mass_yields))),
+    )
+end
+
+function _yield_source_token(configuration::Configuration)
+    configuration.yield_directory === nothing &&
+        return _input_token(configuration.yield_directory, configuration)
+    directory = _input_value(configuration.yield_directory, configuration)
+    primary = _input_value(configuration.yield_file, configuration)
+    excluded = join(sort!(collect(keys(configuration.excluded_mass_yields))), "\n")
+    return _hash_token(
+        "subdirectory=$(directory)\nmass_yield_file=$(primary)\nexclude=$(excluded)"
+    )
+end
+
+# The yield distributions a run read but took no total average over, each with the reason.
+function _not_averaged(result::ExtractionResult)
+    configuration = result.configuration
+    floor = configuration.segments.min_dataset_coverage
+    excluded = if configuration.yield_directory === nothing
+        Dict{String,String}()
+    else
+        configuration.excluded_mass_yields
+    end
+    reasons = Dict{String,Any}()
+    for (label, coverage) in result.mass_yield_coverage
+        if haskey(excluded, label)
+            reasons[label] = "excluded by configuration: $(excluded[label])"
+        elseif coverage < floor
+            reasons[label] = "coverage $(round(coverage; digits = 3)) below the floor $(floor)"
+        end
+    end
+    return reasons
+end
+
 # The values behind every hashed token, in full, for the run metadata.
 function _hashed_values(configuration::Configuration)
     level_density = configuration.level_density
@@ -171,8 +222,7 @@ function _hashed_values(configuration::Configuration)
             _input_value(level_density.mean_kinetic_energy_file, configuration),
         abbreviation("multiplicity.exclude") =>
             Dict{String,Any}(configuration.excluded_datasets),
-        abbreviation("yield.subdirectory") =>
-            _input_value(configuration.yield_directory, configuration),
+        abbreviation("yield.subdirectory") => _yield_source_value(configuration),
         abbreviation("yield.mass_yield_file") =>
             _input_value(configuration.yield_file, configuration),
         abbreviation("segments.required_windows") =>
@@ -261,6 +311,7 @@ function run_metadata(result::ExtractionResult)
             "mean_kinetic_energy_file" =>
                 _input_value(level_density.mean_kinetic_energy_file, configuration),
             "excluded_datasets" => Dict{String,Any}(configuration.excluded_datasets),
+            "excluded_mass_yields" => Dict{String,Any}(configuration.excluded_mass_yields),
             "max_segments" => segments.max_segments,
             "min_points_per_segment" => segments.min_points_per_segment,
             "min_segment_span" => segments.min_segment_span,
@@ -335,13 +386,10 @@ function run_metadata(result::ExtractionResult)
         "result" => Dict{String,Any}(
             "segmented_curves" => curves,
             "dataset_outcomes" => Dict{String,Any}(result.dataset_outcomes),
-            # The fraction of the heavy mass numbers each yield distribution covers; one below
-            # min_dataset_coverage is not averaged over.
+            # The share of the primary distribution's heavy-fragment yield each distribution
+            # covers, and the ones not averaged over, with the reason.
             "mass_yield_coverage" => Dict{String,Any}(result.mass_yield_coverage),
-            "mass_yields_not_averaged" => sort!([
-                label for (label, coverage) in result.mass_yield_coverage if
-                coverage < result.configuration.segments.min_dataset_coverage
-            ]),
+            "mass_yields_not_averaged" => _not_averaged(result),
             # ⟨R_T⟩ of the systematic trend at the selected number of segments and one and two
             # more, per yield distribution: [segments, ⟨R_T⟩].
             "segment_count_sensitivity" => Dict{String,Any}(

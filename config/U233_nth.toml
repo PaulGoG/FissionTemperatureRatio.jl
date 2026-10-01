@@ -25,7 +25,9 @@ mean_kinetic_energy_file = "U233_nth/TKE_vs_A/21981008_P.Geltenbort_1985.dat"  #
 subdirectory = "U233_nth/nu_vs_A"             # under data/; whitespace-separated A nu nu_uncertainty
 
 [yield]
-mass_yield_file = "U233_nth/Y_vs_A/21981005_P.Geltenbort_1985.dat"  # one pre-neutron Y(A), A Y Y_uncertainty, relative to data/; or subdirectory = every distribution under data/
+mass_yield_file = "U233_nth/Y_vs_A/21981005_P.Geltenbort_1985.dat"  # primary pre-neutron Y(A), A Y Y_uncertainty, relative to data/; averaged over alone, or the coverage reference of subdirectory
+# subdirectory: every Y(A) under data/ to average over in place of the primary alone; optional
+# exclude: Y(A) under subdirectory kept out of every average, as [{ dataset = label, reason = text }]; optional
 symmetrize = true                             # Y(A) and Y(A0 - A) averaged where both are measured (pre-neutron identity)
 
 [segments]

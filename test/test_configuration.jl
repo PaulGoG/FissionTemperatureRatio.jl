@@ -416,7 +416,7 @@ end
         end
     end
 
-    @testset "the yield is one distribution or a directory of them" begin
+    @testset "the primary yield, alone or as the reference of a directory" begin
         with_configuration(MINIMAL_CONFIGURATION) do path, directory
             mkpath(joinpath(directory, "Y_vs_A"))
             write(joinpath(directory, "Y_vs_A", "1_A.Author_2000.dat"), "A Y\n130 5.0\n")
@@ -431,12 +431,40 @@ end
             @test configuration.yield_directory === nothing
             tokens = run_parameters(configuration)
             @test haskey(tokens, "Yf") && !haskey(tokens, "Y")
+            # An exclusion changes nothing where no directory is read, and carries no token.
+            excluding = write_beside(
+                path,
+                MINIMAL_CONFIGURATION *
+                "\n[yield]\nmass_yield_file = \"Y_vs_A/1_A.Author_2000.dat\"\nexclude = [{ dataset = \"B. Other 2001\", reason = \"partial\" }]\n",
+            )
+            excluding = load_configuration(excluding; data_directory = directory)
+            @test excluding.excluded_mass_yields == Dict("B. Other 2001" => "partial")
+            @test run_parameters(excluding) == tokens
+            # A directory is averaged over with the primary as its coverage reference.
             both = write_beside(
+                path,
+                MINIMAL_CONFIGURATION *
+                "\n[yield]\nsubdirectory = \"Y_vs_A\"\nmass_yield_file = \"Y_vs_A/1_A.Author_2000.dat\"\nexclude = [{ dataset = \"B. Other 2001\", reason = \"partial\" }]\n",
+            )
+            both = load_configuration(both; data_directory = directory)
+            @test both.yield_directory == joinpath(directory, "Y_vs_A")
+            @test both.yield_file == configuration.yield_file
+            # One token for the directory, its reference and its exclusions.
+            @test haskey(run_parameters(both), "Y") && !haskey(run_parameters(both), "Yf")
+            unexcluded = write_beside(
                 path,
                 MINIMAL_CONFIGURATION *
                 "\n[yield]\nsubdirectory = \"Y_vs_A\"\nmass_yield_file = \"Y_vs_A/1_A.Author_2000.dat\"\n",
             )
-            @test_throws ArgumentError load_configuration(both; data_directory = directory)
+            @test run_parameters(both)["Y"] !=
+                run_parameters(load_configuration(unexcluded; data_directory = directory))["Y"]
+            # A directory without its reference has nothing to measure coverage against.
+            directory_alone = write_beside(
+                path, MINIMAL_CONFIGURATION * "\n[yield]\nsubdirectory = \"Y_vs_A\"\n"
+            )
+            @test_throws ArgumentError load_configuration(
+                directory_alone; data_directory = directory
+            )
             neither = write_beside(
                 path, MINIMAL_CONFIGURATION * "\n[yield]\nsymmetrize = true\n"
             )
@@ -473,9 +501,16 @@ end
         # And every shipped configuration, under either level density model.
         if DATA_AVAILABLE
             mktempdir() do directory
-                for system in SHIPPED_SYSTEMS, model in ("BSFG", "GC")
+                for system in SHIPPED_SYSTEMS,
+                    model in ("BSFG", "GC"),
+                    yields in (Dict(), Dict("subdirectory" => "$(system)/Y_vs_A"))
+
                     configuration = variant_configuration(
-                        system, directory; set = Dict("level_density" => Dict("model" => model))
+                        system,
+                        directory;
+                        set = Dict(
+                            "level_density" => Dict("model" => model), "yield" => yields
+                        ),
                     )
                     identifier = run_identifier(configuration)
                     @test ncodeunits("total_average_R_T_$(identifier).csv") <= 255

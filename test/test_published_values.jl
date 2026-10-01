@@ -60,7 +60,6 @@ DATA_AVAILABLE && @testset "published total averages" begin
                     system,
                     directory;
                     set = Dict("yield" => Dict("subdirectory" => "$(system)/Y_vs_A")),
-                    remove = Dict("yield" => ["mass_yield_file"]),
                 )
                 results[system] = run_pipeline(configuration)
                 domain = manifest_domain(results[system])

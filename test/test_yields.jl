@@ -126,10 +126,20 @@
     end
 
     @testset "coverage of the fragmentation range and fraction of the yield" begin
+        # Coverage is measured in the reference's yield, not the set's own: three tail masses
+        # normalised to one another cover what the reference holds there.
+        reference = MassYield(
+            collect(126:174),
+            [A < 160 ? 2.0 : 0.5 for A in 126:174],
+            fill(missing, 49),
+            "ref",
+            "",
+        )
         tail = MassYield([170, 171, 172], [1.0, 1.0, 1.0], fill(missing, 3), "tail", "")
-        @test mass_yield_coverage(tail, 126:174) ≈ 3 / 49
-        @test mass_yield_coverage(tail, 170:172) == 1.0
-        @test_throws ArgumentError mass_yield_coverage(tail, 1:0)
+        @test mass_yield_coverage(tail, reference, 126:174) ≈ 1.5 / (34 * 2.0 + 15 * 0.5)
+        @test mass_yield_coverage(tail, reference, 170:172) == 1.0
+        @test mass_yield_coverage(reference, reference, 126:174) == 1.0
+        @test_throws ArgumentError mass_yield_coverage(tail, reference, 180:190)
 
         yields = MassYield([130, 132, 134], [1.0, 2.0, 1.0], fill(missing, 3), "y", "")
         @test yield_fraction(

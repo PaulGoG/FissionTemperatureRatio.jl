@@ -63,10 +63,18 @@ Notable changes to FissionTemperatureRatio.jl. The format follows
   accession in the run metadata (`mass_yield_accessions`, `mean_kinetic_energy.accession`):
   Göök 2014 for ²⁵²Cf, Al-Adili 2016 for ²³⁵U, Wagemans 1984 for ²³⁹Pu and Geltenbort 1985 for
   ²³³U.
-- A yield distribution giving a yield at fewer than `min_dataset_coverage` of the heavy mass
-  numbers of the fragmentation range is read but not averaged over: its average would describe
-  those masses, not the fission yield. `mass_yield_coverage`, `ExtractionResult.mass_yield_coverage`,
-  and `mass_yield_coverage` and `mass_yields_not_averaged` in the run metadata.
+- The coverage of a yield distribution is measured in yield, against the primary distribution of
+  the system: the primary's heavy-fragment yield at the masses the distribution holds, over its
+  yield across the fragmentation range. A distribution below `min_dataset_coverage` is read but
+  not averaged over: its average would describe those masses, not the fission yield.
+  `mass_yield_coverage(yields, reference, heavy_masses)`, `ExtractionResult.mass_yield_coverage`,
+  and `mass_yield_coverage` and `mass_yields_not_averaged`, with the reason, in the run metadata.
+- `[yield] mass_yield_file` is the primary distribution and is required in `[yield]`: averaged
+  over alone, or beside `[yield] subdirectory` the reference of every distribution's coverage. A
+  directory enters the run identifier as one token, `Y`, hashed together with its reference and
+  its exclusions.
+- `[yield] exclude`, distributions of the directory kept out of every average, each with its
+  reason; they are still read and reported.
 - The pair-sum scale the retrieval records for a multiplicity read by its complement test is
   reported: `pair_sum_scale`, the `pair_sum_deviation` and `scale_consistent` columns of
   `dataset_diagnostics.csv`, `scale_inconsistent_datasets` in the run metadata, and a warning for

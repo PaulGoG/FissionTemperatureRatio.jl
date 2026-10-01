@@ -205,9 +205,12 @@ wing alone gives the yield of its complement. The published averages took the di
 measured.
 
 A distribution measured over part of the heavy wing gives the ratio averaged over that part, which
-is not a property of the fission yield. A distribution giving a yield at fewer than
-`min_dataset_coverage` of the heavy mass numbers of the fragmentation range is therefore read but
-not averaged over, and every average states its yield fraction, the share of the distribution's
+is not a property of the fission yield. Coverage is measured in yield, against the primary
+distribution of the system: the share of its heavy-fragment yield over the fragmentation range at
+the masses the distribution holds. The distribution's own yields cannot measure it, since a sparse
+digitisation normalised over the masses it holds sums to as much as a complete one. A distribution
+below `min_dataset_coverage` is therefore read but not averaged over, and every average states its
+yield fraction, the share of the distribution's
 yield over the range that falls at the mass numbers of the curve: one for a curve spanning the
 range, less for a dataset whose complete pairs stop short of it.
 

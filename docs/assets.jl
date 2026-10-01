@@ -507,12 +507,14 @@ function figure_level_density_models(bsfg, gc)
 end
 
 # A system under its shipped settings, averaged over every yield distribution held rather than the
-# primary experiment's alone: Table 1 names distributions the shipped configurations do not take.
+# primary experiment's alone, which stays the coverage reference: Table 1 names distributions the
+# shipped configurations do not take.
 function every_distribution(system)
     source = joinpath(dirname(@__DIR__), "config", "$(system).toml")
     text = replace(
         read(source, String),
-        r"^mass_yield_file = .*$"m => "subdirectory = \"$(system)/Y_vs_A\"",
+        r"^(mass_yield_file = .*)$"m =>
+            SubstitutionString("\\1\nsubdirectory = \"$(system)/Y_vs_A\""),
     )
     return mktempdir() do directory
         path = joinpath(directory, "$(system).toml")

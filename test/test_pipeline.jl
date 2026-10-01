@@ -192,12 +192,18 @@ end
             # Three heavy masses of fifteen: below the coverage floor of 0.3.
             write_yield("10000003_C.Tail_2000.dat", 138:140)
             path = joinpath(directory, "with_yields.toml")
-            write(path, PIPELINE_CONFIGURATION * "\n[yield]\nsubdirectory = \"yields\"\n")
+            write(
+                path,
+                PIPELINE_CONFIGURATION *
+                "\n[yield]\nsubdirectory = \"yields\"\nmass_yield_file = \"yields/10000001_A.Both_2000.dat\"\n",
+            )
             with_yields = run_pipeline(load_configuration(path; data_directory = directory))
 
             @test with_yields.mass_yield_coverage["A. Both 2000"] == 1.0
             @test with_yields.mass_yield_coverage["B. Light 2000"] == 1.0
-            @test with_yields.mass_yield_coverage["C. Tail 2000"] ≈ 3 / 15
+            # Coverage in the reference's yield: three tail masses hold a tenth of it.
+            @test with_yields.mass_yield_coverage["C. Tail 2000"] ≈
+                sum(peak, 138:140) / sum(peak, 126:140)
             trend = with_yields.total_average_R_T[SYSTEMATIC_TREND_LABEL]
             @test !haskey(trend, "C. Tail 2000")
             # The light wing measured alone gives the same heavy-fragment yields as both wings.
@@ -207,14 +213,31 @@ end
             partial = with_yields.total_average_R_T["partial"]["A. Both 2000"]
             @test partial.yield_fraction ≈ sum(peak, 131:140) / sum(peak, 126:140)
             metadata = run_metadata(with_yields)
-            @test metadata["result"]["mass_yields_not_averaged"] == ["C. Tail 2000"]
-            @test metadata["result"]["mass_yield_coverage"]["C. Tail 2000"] ≈ 0.2
+            @test collect(keys(metadata["result"]["mass_yields_not_averaged"])) ==
+                ["C. Tail 2000"]
+            @test startswith(
+                metadata["result"]["mass_yields_not_averaged"]["C. Tail 2000"], "coverage"
+            )
             table = CSV.read(
                 write_results(with_yields, joinpath(directory, "output", "yields"))["total_average_R_T"],
                 DataFrame,
             )
             @test !("C. Tail 2000" in table.mass_yield)
             @test all(0 .< table.yield_fraction .<= 1)
+
+            # A distribution excluded by configuration is read and reported, never averaged.
+            write(
+                path,
+                PIPELINE_CONFIGURATION *
+                "\n[yield]\nsubdirectory = \"yields\"\nmass_yield_file = \"yields/10000001_A.Both_2000.dat\"\nexclude = [{ dataset = \"B. Light 2000\", reason = \"not inclusive\" }]\n",
+            )
+            excluding = run_pipeline(load_configuration(path; data_directory = directory))
+            @test haskey(excluding.mass_yield_coverage, "B. Light 2000")
+            @test !any(
+                haskey(per, "B. Light 2000") for per in values(excluding.total_average_R_T)
+            )
+            @test run_metadata(excluding)["result"]["mass_yields_not_averaged"]["B. Light 2000"] ==
+                "excluded by configuration: not inclusive"
         end
     end
 end

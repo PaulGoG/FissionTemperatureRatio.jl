@@ -126,9 +126,9 @@ at which a dataset must provide a complete pair. Below it the dataset is read, d
 pooled, but no segmented curve is fitted to it alone: with pairs at few mass numbers the
 breakpoint search cannot place the minimum where the data do not reach, and the curve it returns
 asserts structure between the measurements that a consuming code could not tell from a measured
-feature. A yield distribution must give a yield at the same fraction of the heavy mass numbers
-to be averaged over; below it the total average would describe those masses, not the fission
-yield.
+feature. A yield distribution must cover the same fraction of the primary distribution's
+heavy-fragment yield to be averaged over; below it the total average would describe those
+masses, not the fission yield.
 """
 struct SegmentSettings
     max_segments::Int
@@ -163,9 +163,11 @@ than directly, so that the constraints documented in the TOML file are enforced.
 metadata spell input paths relative to it, so that a run made on another machine names the same
 inputs.
 
-`yield_file`, when given in place of `yield_directory`, is the one mass yield distribution the
-total average is taken over: the primary experiment of the system rather than every distribution
-a retrieval returned.
+`yield_file` is the primary mass yield distribution of the system. Alone, it is the one the total
+average is taken over; with `yield_directory`, every distribution of the directory is averaged
+over and `yield_file` is the reference their coverage is measured against
+([`mass_yield_coverage`](@ref)). `excluded_mass_yields` names distributions of the directory kept
+out of every average, each with its reason; they are still read and reported.
 
 `symmetrize_yields` imposes the pre-neutron identity `Y(A) = Y(A₀ - A)` on every mass yield
 distribution before the total average: where both complements are measured each takes their mean.
@@ -179,6 +181,7 @@ struct Configuration
     excluded_datasets::Dict{String,String}
     yield_directory::Union{String,Nothing}
     yield_file::Union{String,Nothing}
+    excluded_mass_yields::Dict{String,String}
     symmetrize_yields::Bool
     segments::SegmentSettings
     output::OutputSettings
@@ -271,7 +274,7 @@ const LEVEL_DENSITY_KEYS = (
     "mean_kinetic_energy_file",
 )
 const MULTIPLICITY_KEYS = ("subdirectory", "exclude")
-const YIELD_KEYS = ("subdirectory", "mass_yield_file", "symmetrize")
+const YIELD_KEYS = ("subdirectory", "mass_yield_file", "exclude", "symmetrize")
 const SEGMENT_KEYS = (
     "max_segments",
     "min_points_per_segment",
@@ -636,22 +639,26 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
     # the total average over each yield distribution, which is the quantity the literature quotes.
     yield_directory = nothing
     yield_file = nothing
+    excluded_mass_yields = Dict{String,String}()
     if haskey(document, "yield")
         yield_section = _section(document, "yield", source)
         _refuse_unknown(yield_section, YIELD_KEYS, "[yield]")
-        # One distribution, or every distribution of a directory; not both.
-        count(k -> haskey(yield_section, k), ("subdirectory", "mass_yield_file")) == 1 || throw(
+        # The primary distribution is always named: averaged over alone, or the reference the
+        # coverage of every distribution of a directory is measured against.
+        haskey(yield_section, "mass_yield_file") || throw(
             ArgumentError(
-                "[yield] takes exactly one of yield.subdirectory and yield.mass_yield_file"
+                "[yield] needs yield.mass_yield_file, the primary Y(A) of the system: it is \
+                 averaged over alone, or with yield.subdirectory is the reference every \
+                 distribution's coverage is measured against",
             ),
+        )
+        yield_file = _input_file(
+            yield_section, "mass_yield_file", "yield.mass_yield_file", data_directory
         )
         if haskey(yield_section, "subdirectory")
             yield_directory = _subdirectory(yield_section, "yield.subdirectory", data_directory)
-        else
-            yield_file = _input_file(
-                yield_section, "mass_yield_file", "yield.mass_yield_file", data_directory
-            )
         end
+        excluded_mass_yields = _exclusions(yield_section, "yield.exclude")
     end
     symmetrize_yields = if haskey(document, "yield")
         _value(document["yield"], "symmetrize", Bool, "yield.symmetrize", true)
@@ -776,6 +783,7 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
         excluded_datasets,
         yield_directory,
         yield_file,
+        excluded_mass_yields,
         symmetrize_yields,
         SegmentSettings(
             max_segments, min_points, min_span, pin, windows, windows_apply, min_coverage
