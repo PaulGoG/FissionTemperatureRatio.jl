@@ -115,7 +115,7 @@ julia docs/assets.jl
 
 | Component | State |
 |---|---|
-| Mass table, shell corrections, charge distribution, fragmentation domain, level density parameters | FissionFragmentsDomain.jl v0.2.0 |
+| Mass table, shell corrections, charge distribution, fragmentation domain, level density parameters | FissionFragmentsDomain.jl v0.2.1 |
 | Multiplicity ratio | complete |
 | Temperature ratio: charge-resolved inversion, excitation-weighted by `⟨TKE⟩(A)` | complete; `⟨TKE⟩(A)` staged for ²³³U |
 | Temperature ratio: ratio of means, mean of ratios | complete |
@@ -490,7 +490,7 @@ excitation_weighted = true
 charges_per_mass = 5
 charge_model = "Wahl1988(U233T, Z_F = 92, A_F = 234)"
 mass_table = "mass_excess_ame2020.dat"
-package_version = "0.2.0"
+package_version = "0.2.1"
 
 [[segmented_curve]]
 label = "K. Nishio 1998"

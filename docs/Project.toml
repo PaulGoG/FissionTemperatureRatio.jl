@@ -7,7 +7,7 @@ FissionTemperatureRatio = "59d20cd3-813a-4745-b3df-4e6739f766a3"
 LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
 
 [sources]
-FissionFragmentsDomain = {url = "https://github.com/PaulGoG/FissionFragmentsDomain.jl", rev = "v0.2.0"}
+FissionFragmentsDomain = {url = "https://github.com/PaulGoG/FissionFragmentsDomain.jl", rev = "v0.2.1"}
 FissionTemperatureRatio = {path = ".."}
 
 [compat]
