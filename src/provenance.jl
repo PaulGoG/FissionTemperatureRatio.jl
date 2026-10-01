@@ -29,6 +29,7 @@ const RUN_IDENTIFIER_ABBREVIATIONS = Dict(
     "level_density.mean_kinetic_energy_file" => "TKE",
     "multiplicity.exclude" => "excl",
     "yield.subdirectory" => "Y",
+    "yield.mass_yield_file" => "Yf",
     "yield.symmetrize" => "Ysym",
     "segments.max_segments" => "nseg",
     "segments.min_points_per_segment" => "npts",
@@ -113,6 +114,7 @@ function run_parameters(configuration::Configuration)
         ),
         "multiplicity.exclude" => _hash_token(_canonical(configuration.excluded_datasets)),
         "yield.subdirectory" => _input_token(configuration.yield_directory, configuration),
+        "yield.mass_yield_file" => _input_token(configuration.yield_file, configuration),
         "yield.symmetrize" => configuration.symmetrize_yields,
         "segments.max_segments" => segments.max_segments,
         "segments.min_points_per_segment" => segments.min_points_per_segment,
@@ -125,6 +127,9 @@ function run_parameters(configuration::Configuration)
     parameters = Dict{String,Any}()
     for (key, value) in entries
         !gilbert_cameron && key in GILBERT_CAMERON_KEYS && continue
+        # The yield source is a directory or one file; the token names the one configured.
+        key == "yield.subdirectory" && configuration.yield_file !== nothing && continue
+        key == "yield.mass_yield_file" && configuration.yield_file === nothing && continue
         haskey(RUN_IDENTIFIER_ABBREVIATIONS, key) || throw(
             ArgumentError("no entry in RUN_IDENTIFIER_ABBREVIATIONS for the key $(repr(key))"),
         )
@@ -168,6 +173,8 @@ function _hashed_values(configuration::Configuration)
             Dict{String,Any}(configuration.excluded_datasets),
         abbreviation("yield.subdirectory") =>
             _input_value(configuration.yield_directory, configuration),
+        abbreviation("yield.mass_yield_file") =>
+            _input_value(configuration.yield_file, configuration),
         abbreviation("segments.required_windows") =>
             [[first(w), last(w)] for w in configuration.segments.required_windows],
     )
@@ -225,6 +232,8 @@ function run_metadata(result::ExtractionResult)
             "bic" => curve.fit.bic,
             "bic_by_order" => [[order, value] for (order, value) in curve.fit.selection],
             "weights_imputed" => curve.fit.weights_imputed,
+            "points" => curve.fit.points,
+            "measured_points" => curve.fit.measured_points,
             "pairs" => curve.pairs,
             "coverage" => curve.coverage,
             "range_mean_R_T" => collect(result.range_mean_R_T[curve.label]),
@@ -289,6 +298,12 @@ function run_metadata(result::ExtractionResult)
                 _input_value(fragmentation.charge_distribution, configuration),
             "multiplicity_directory" => relative(configuration.multiplicity_directory),
             "yield_directory" => relative(configuration.yield_directory),
+            "mass_yield_file" => relative(configuration.yield_file),
+            # The EXFOR accession of every yield distribution averaged over, from its retrieval
+            # record.
+            "mass_yield_accessions" => Dict{String,Any}(
+                y.label => _accession_of(y.source) for y in result.mass_yields
+            ),
             "datasets" => [basename(data.source) for data in result.datasets],
             "mass_yields" => [basename(data.source) for data in result.mass_yields],
             "flagged_datasets" => flagged,
@@ -312,6 +327,12 @@ function run_metadata(result::ExtractionResult)
         "result" => Dict{String,Any}(
             "segmented_curves" => curves,
             "dataset_outcomes" => Dict{String,Any}(result.dataset_outcomes),
+            # ⟨R_T⟩ of the systematic trend at the selected number of segments and one and two
+            # more, per yield distribution: [segments, ⟨R_T⟩].
+            "segment_count_sensitivity" => Dict{String,Any}(
+                label => [[k, value] for (k, value) in entries] for
+                (label, entries) in result.segment_count_sensitivity
+            ),
             "symmetry" => Dict{String,Any}(
                 "charge_set_invariant" => if symmetry.charge_set_invariant === missing
                     "not applicable"
@@ -337,6 +358,7 @@ function _retrieval_runs(configuration::Configuration)
     for directory in (
         configuration.multiplicity_directory,
         configuration.yield_directory,
+        _parent(configuration.yield_file),
         _parent(configuration.level_density.mean_kinetic_energy_file),
     )
         directory === nothing && continue
@@ -371,6 +393,12 @@ function _offset_record(energies, distribution, system)
 end
 
 _parent(::Nothing) = nothing
+
+function _accession_of(path::AbstractString)
+    record = retrieval_record(path)
+    record === nothing && return _accession(basename(path))
+    return string(get(record.entry, "identifier", _accession(basename(path))))
+end
 _parent(path::AbstractString) = dirname(path)
 
 # The ⟨TKE⟩(A) dataset that weighted the inversion: the file, its retrieval record entry, the
@@ -393,6 +421,7 @@ function _kinetic_energy_record(result::ExtractionResult)
     entry = Dict{String,Any}(
         "excitation_weighted" => weighted,
         "file" => _relative_input(energies.source, configuration),
+        "accession" => _accession_of(energies.source),
         "label" => energies.label,
         "unit" => "MeV",
         "measured" => energies.measured,

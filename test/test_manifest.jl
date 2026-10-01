@@ -105,7 +105,21 @@ DATA_AVAILABLE && @testset "the handoff to a consuming code" begin
                 "R_T",
                 "R_T_uncertainty",
                 "R_T_uncertainty_independent_points",
+                "R_T_one_more_segment",
+                "R_T_two_more_segments",
             ]
+            # One distribution, the primary experiment's; the trend row carries ⟨R_T⟩ at one and
+            # two segments more than selected.
+            @test Set(averages.mass_yield) == Set(["P. Geltenbort 1985"])
+            trend_row = only(
+                filter(r -> r.segmented_curve == SYSTEMATIC_TREND_LABEL, eachrow(averages))
+            )
+            @test !ismissing(trend_row.R_T_one_more_segment)
+            @test !ismissing(trend_row.R_T_two_more_segments)
+            @test all(
+                ismissing,
+                filter(r -> r.segmented_curve != SYSTEMATIC_TREND_LABEL, averages).R_T_one_more_segment,
+            )
             @test all(averages.R_T_uncertainty .≥ 0)
             # The token is on the directory, the manifest and these two tables; the per-curve
             # ratio tables are named by quantity and dataset, and found through the manifest.
@@ -130,6 +144,12 @@ DATA_AVAILABLE && @testset "the handoff to a consuming code" begin
             record = metadata["mean_kinetic_energy"]
             @test record["excitation_weighted"]
             @test record["file"] == "U233_nth/TKE_vs_A/21981008_P.Geltenbort_1985.dat"
+            @test record["accession"] == "21981008"
+            @test metadata["inputs"]["mass_yield_accessions"] ==
+                Dict{String,Any}("P. Geltenbort 1985" => "21981005")
+            sensitivity = metadata["result"]["segment_count_sensitivity"]["P. Geltenbort 1985"]
+            selected = segments(systematic_trend(result).fit)
+            @test first.(sensitivity) == [selected, selected + 1, selected + 2]
             @test haskey(record["retrieval_run"], "package_revision")
             @test length(record["retrieval_record_sha1"]) == 40
             # Geltenbort tabulates A_H to 158; the range reaches 159.

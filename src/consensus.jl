@@ -123,6 +123,15 @@ function consensus(
     label::AbstractString = SYSTEMATIC_TREND_LABEL,
     weights::AbstractVector{<:Real} = ones(length(curves)),
 )
+    return first(_consensus(curves, label, weights))
+end
+
+# The combined curve and the measured fraction of each of its points: the pooling weights of the
+# values combined there, averaged with the weights they were combined with. A point resting on
+# measured values counts as one measurement; one resting on interpolated values, as their share.
+function _consensus(
+    curves::Vector{RatioCurve}, label::AbstractString, weights::AbstractVector{<:Real}
+)
     length(weights) == length(curves) || throw(
         DimensionMismatch("one weight per curve: $(length(weights)) for $(length(curves))")
     )
@@ -132,6 +141,7 @@ function consensus(
     A_H = Int[]
     ratio = Float64[]
     σ = Union{Missing,Float64}[]
+    measured = Float64[]
 
     for mass in masses
         values = Float64[]
@@ -146,13 +156,14 @@ function consensus(
         end
         isempty(values) && continue
 
-        combined, spread = _combine(values, uncertainties, factors)
+        combined, spread, fraction = _combine(values, uncertainties, factors)
         push!(A_H, mass)
         push!(ratio, combined)
         push!(σ, spread)
+        push!(measured, fraction)
     end
 
-    return RatioCurve(A_H, ratio, σ, String(label))
+    return RatioCurve(A_H, ratio, σ, String(label)), measured
 end
 
 function _combine(
@@ -161,14 +172,14 @@ function _combine(
     factors::Vector{Float64} = ones(length(values)),
 )
     k = length(values)
-    k == 1 && return (values[1], uncertainties[1] / sqrt(factors[1]))
+    k == 1 && return (values[1], uncertainties[1] / sqrt(factors[1]), factors[1])
 
     quoted = .!ismissing.(uncertainties)
     if !any(quoted)
         # The weighted mean, and the standard error over the effective number of values.
         μ = sum(factors .* values) / sum(factors)
         effective = sum(factors)^2 / sum(factors .^ 2)
-        return (μ, std(values) / sqrt(effective))
+        return (μ, std(values) / sqrt(effective), sum(factors .^ 2) / sum(factors))
     end
 
     σ = Float64[coalesce(u, NaN) for u in uncertainties]
@@ -185,5 +196,5 @@ function _combine(
     τ² = max(0.0, (Q - (k - 1)) / (total - sum(w₀ .^ 2) / total))
 
     w = factors ./ (σ .^ 2 .+ τ²)
-    return (sum(w .* values) / sum(w), 1 / sqrt(sum(w)))
+    return (sum(w .* values) / sum(w), 1 / sqrt(sum(w)), sum(w .* factors) / sum(w))
 end

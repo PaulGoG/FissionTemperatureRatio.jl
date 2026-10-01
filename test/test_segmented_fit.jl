@@ -123,6 +123,37 @@ using LinearAlgebra: LinearAlgebra
         @test all(≥(-1e-12), LinearAlgebra.eigvals(LinearAlgebra.Symmetric(Σ)))
     end
 
+    @testset "interpolated points count for their measurements" begin
+        masses = collect(126:150)
+        ratio = [a ≤ 130 ? 0.5 - 0.03 * (a - 126) : 0.38 + 0.0125 * (a - 130) for a in masses]
+        ratio .+= 0.003 .* iseven.(masses)
+        spread = fill(0.004, length(masses))
+        full = fit_segments(masses, ratio, spread; min_segments = 2, max_segments = 2)
+        @test full.points == full.measured_points == length(masses)
+        @test full.dof == length(masses) - (length(full.coefficients) + 1)
+        f = 52 / 69
+        thin = fit_segments(
+            masses,
+            ratio,
+            spread;
+            min_segments = 2,
+            max_segments = 2,
+            measured = fill(f, length(masses)),
+        )
+        # The same coefficients; χ², sample size and degrees of freedom in measurements.
+        @test thin.coefficients ≈ full.coefficients
+        @test thin.measured_points ≈ f * length(masses)
+        @test thin.wrss ≈ f * full.wrss
+        @test thin.dof ≈ f * length(masses) - (length(thin.coefficients) + 1)
+        p = length(thin.coefficients) + 1
+        n = thin.measured_points
+        @test thin.bic ≈ n * log(thin.wrss / n) + p * log(n)
+        @test_throws DimensionMismatch fit_segments(masses, ratio, spread; measured = [1.0])
+        @test_throws ArgumentError fit_segments(
+            masses, ratio, spread; measured = fill(1.5, length(masses))
+        )
+    end
+
     @testset "invalid arguments are rejected" begin
         @test_throws DimensionMismatch fit_segments([1, 2], [1.0], [1.0])
         @test_throws ArgumentError fit_segments(A_H, noisy, σ; max_segments = 0)

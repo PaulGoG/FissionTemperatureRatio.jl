@@ -161,6 +161,10 @@ than directly, so that the constraints documented in the TOML file are enforced.
 metadata spell input paths relative to it, so that a run made on another machine names the same
 inputs.
 
+`yield_file`, when given in place of `yield_directory`, is the one mass yield distribution the
+total average is taken over: the primary experiment of the system rather than every distribution
+a retrieval returned.
+
 `symmetrize_yields` imposes the pre-neutron identity `Y(A) = Y(A₀ - A)` on every mass yield
 distribution before the total average: where both complements are measured each takes their mean.
 The published extraction averaged over the distributions as measured.
@@ -172,6 +176,7 @@ struct Configuration
     multiplicity_directory::String
     excluded_datasets::Dict{String,String}
     yield_directory::Union{String,Nothing}
+    yield_file::Union{String,Nothing}
     symmetrize_yields::Bool
     segments::SegmentSettings
     output::OutputSettings
@@ -264,7 +269,7 @@ const LEVEL_DENSITY_KEYS = (
     "mean_kinetic_energy_file",
 )
 const MULTIPLICITY_KEYS = ("subdirectory", "exclude")
-const YIELD_KEYS = ("subdirectory", "symmetrize")
+const YIELD_KEYS = ("subdirectory", "mass_yield_file", "symmetrize")
 const SEGMENT_KEYS = (
     "max_segments",
     "min_points_per_segment",
@@ -627,11 +632,24 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
 
     # Optional. Without it the run reports the mean over the fragment mass range only; with it,
     # the total average over each yield distribution, which is the quantity the literature quotes.
-    yield_directory = if haskey(document, "yield")
-        _refuse_unknown(_section(document, "yield", source), YIELD_KEYS, "[yield]")
-        _subdirectory(document["yield"], "yield.subdirectory", data_directory)
-    else
-        nothing
+    yield_directory = nothing
+    yield_file = nothing
+    if haskey(document, "yield")
+        yield_section = _section(document, "yield", source)
+        _refuse_unknown(yield_section, YIELD_KEYS, "[yield]")
+        # One distribution, or every distribution of a directory; not both.
+        count(k -> haskey(yield_section, k), ("subdirectory", "mass_yield_file")) == 1 || throw(
+            ArgumentError(
+                "[yield] takes exactly one of yield.subdirectory and yield.mass_yield_file"
+            ),
+        )
+        if haskey(yield_section, "subdirectory")
+            yield_directory = _subdirectory(yield_section, "yield.subdirectory", data_directory)
+        else
+            yield_file = _input_file(
+                yield_section, "mass_yield_file", "yield.mass_yield_file", data_directory
+            )
+        end
     end
     symmetrize_yields = if haskey(document, "yield")
         _value(document["yield"], "symmetrize", Bool, "yield.symmetrize", true)
@@ -755,6 +773,7 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
         multiplicity_directory,
         excluded_datasets,
         yield_directory,
+        yield_file,
         symmetrize_yields,
         SegmentSettings(
             max_segments, min_points, min_span, pin, windows, windows_apply, min_coverage

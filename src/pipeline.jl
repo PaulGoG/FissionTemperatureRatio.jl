@@ -60,6 +60,9 @@ written to disk by [`write_results`](@ref).
 - `dataset_diagnostics`: one record per multiplicity dataset read, in the order read.
 - `dataset_outcomes`: for every dataset, whether it offers a segmented curve and, if not, why.
 - `symmetry`: the identities at the symmetric split, checked.
+- `segment_count_sensitivity`: for each yield distribution, `(segments, ⟨R_T⟩)` of the
+  systematic trend at the selected number of segments and at one and two more, where the
+  constraints admit them.
 """
 struct ExtractionResult
     configuration::Configuration
@@ -81,6 +84,7 @@ struct ExtractionResult
     dataset_diagnostics::Vector{DatasetDiagnostics}
     dataset_outcomes::Dict{String,String}
     symmetry::SymmetryDiagnostics
+    segment_count_sensitivity::Dict{String,Vector{Tuple{Int,Float64}}}
 end
 
 """
@@ -277,7 +281,17 @@ function run_pipeline(configuration::Configuration)
         else
             UnitRange{Int}[]
         end
-        segmented = _segment(curve, relation, segments_settings, curve.label, windows, A₀)
+        # Counted in measurements: an interpolated dataset's points count for raw over written.
+        fraction = pooling_weight(retrieval_record(data.source))
+        segmented = _segment(
+            curve,
+            relation,
+            segments_settings,
+            curve.label,
+            windows,
+            A₀;
+            measured = fill(fraction, length(curve)),
+        )
         if segmented isa ExtractedCurve
             push!(segmented_curves, segmented)
             outcomes[data.label] = "segmented curve"
@@ -316,14 +330,29 @@ function run_pipeline(configuration::Configuration)
             @info "interpolated dataset pooled at reduced weight" dataset = datasets[i].label weight =
                 w
     end
-    pooled = consensus(r_ν[admitted]; label = SYSTEMATIC_TREND_LABEL, weights = weights)
+    pooled, measured = _consensus(r_ν[admitted], SYSTEMATIC_TREND_LABEL, weights)
     windows = segments_settings.required_windows
-    trend = _segment(pooled, relation, segments_settings, SYSTEMATIC_TREND_LABEL, windows, A₀)
+    trend = _segment(
+        pooled,
+        relation,
+        segments_settings,
+        SYSTEMATIC_TREND_LABEL,
+        windows,
+        A₀;
+        measured = measured,
+    )
     if !(trend isa ExtractedCurve) && !isempty(windows)
         @warn "no segmented curve satisfies the required windows; the systematic-trend curve \
                was fitted without them" windows reason = trend
+        windows = UnitRange{Int}[]
         trend = _segment(
-            pooled, relation, segments_settings, SYSTEMATIC_TREND_LABEL, UnitRange{Int}[], A₀
+            pooled,
+            relation,
+            segments_settings,
+            SYSTEMATIC_TREND_LABEL,
+            windows,
+            A₀;
+            measured = measured,
         )
     end
     trend isa ExtractedCurve && push!(segmented_curves, trend)
@@ -342,10 +371,13 @@ function run_pipeline(configuration::Configuration)
         @warn message
     end
 
-    mass_yields = if configuration.yield_directory === nothing
-        MassYield[]
-    else
+    mass_yields = if configuration.yield_file !== nothing
+        file = configuration.yield_file
+        [read_mass_yield(file; label = _dataset_label(basename(file)))]
+    elseif configuration.yield_directory !== nothing
         read_mass_yield_directory(configuration.yield_directory)
+    else
+        MassYield[]
     end
     if configuration.symmetrize_yields && !isempty(mass_yields)
         # Before the qualifiers are looked up by file: the source and label are unchanged.
@@ -378,6 +410,34 @@ function run_pipeline(configuration::Configuration)
         end
     end
 
+    # The trend refitted with one and two segments more than selected: how far ⟨R_T⟩ rests on the
+    # selected order.
+    sensitivity = Dict{String,Vector{Tuple{Int,Float64}}}()
+    if trend isa ExtractedCurve && !isempty(mass_yields)
+        selected = segments(trend.fit)
+        alternatives = ExtractedCurve[trend]
+        for extra in 1:2
+            refit = _segment(
+                pooled,
+                relation,
+                segments_settings,
+                SYSTEMATIC_TREND_LABEL,
+                windows,
+                A₀;
+                measured = measured,
+                order = selected + extra,
+            )
+            refit isa ExtractedCurve && push!(alternatives, refit)
+        end
+        for distribution in mass_yields
+            _overlaps(trend.R_T, distribution) || continue
+            sensitivity[distribution.label] = [
+                (segments(c.fit), first(total_average(c, distribution))) for c in alternatives
+            ]
+            @info "trend ⟨R_T⟩ against the number of segments" yield = distribution.label values = sensitivity[distribution.label]
+        end
+    end
+
     return ExtractionResult(
         configuration,
         datasets,
@@ -398,15 +458,18 @@ function run_pipeline(configuration::Configuration)
         diagnostics,
         outcomes,
         symmetry,
+        sensitivity,
     )
 end
 
 # The reaction-code qualifiers of the yield distributions a run read, keyed by label; the record
 # lists every dataset its query accepted, most of which need not be staged.
 function _yield_qualifiers(configuration::Configuration, mass_yields::Vector{MassYield})
-    directory = configuration.yield_directory
-    directory === nothing && return Dict{String,Vector{String}}()
-    by_file = retrieval_qualifiers(directory)
+    isempty(mass_yields) && return Dict{String,Vector{String}}()
+    by_file = Dict{String,Vector{String}}()
+    for directory in unique(dirname(y.source) for y in mass_yields)
+        merge!(by_file, retrieval_qualifiers(directory))
+    end
     return Dict(
         distribution.label => get(by_file, basename(distribution.source), String[]) for
         distribution in mass_yields
@@ -482,7 +545,9 @@ function _segment(
     settings::SegmentSettings,
     label::AbstractString,
     windows::Vector{UnitRange{Int}},
-    A₀::Integer,
+    A₀::Integer;
+    measured::AbstractVector{<:Real} = ones(length(curve)),
+    order::Union{Integer,Nothing} = nothing,
 )
     pinned = settings.pin_symmetric_split && !isempty(curve) && 2 * first(curve.A_H) == A₀
     fit = try
@@ -490,7 +555,9 @@ function _segment(
             curve.A_H,
             curve.ratio,
             curve.σ;
-            max_segments = settings.max_segments,
+            max_segments = order === nothing ? settings.max_segments : order,
+            min_segments = order === nothing ? 1 : order,
+            measured = measured,
             min_points_per_segment = settings.min_points_per_segment,
             min_segment_span = settings.min_segment_span,
             pinned_value = pinned ? 0.5 : nothing,
@@ -499,7 +566,9 @@ function _segment(
         )
     catch exception
         exception isa InsufficientDataError || rethrow()
-        @warn "no segmented curve for this dataset" dataset = label reason = exception.msg
+        order === nothing &&
+            @warn "no segmented curve for this dataset" dataset = label reason =
+                exception.msg
         return exception.msg
     end
     return ExtractedCurve(label, fit, curve, relation...)
@@ -718,6 +787,7 @@ function write_results(result::ExtractionResult, directory::AbstractString)
             first_A_H = first(curve.R_T.A_H),
             last_A_H = last(curve.R_T.A_H),
             pairs = curve.pairs,
+            measured_points = round(curve.fit.measured_points; sigdigits = digits),
             coverage = round(curve.coverage; sigdigits = digits),
             reduced_chi_squared = round(curve.fit.wrss / curve.fit.dof; sigdigits = digits),
             weights_imputed = curve.fit.weights_imputed,
@@ -735,7 +805,8 @@ function write_results(result::ExtractionResult, directory::AbstractString)
 
     # The total average over each yield distribution: one row per segmented curve and
     # distribution, which is how the literature tabulates it. The covariance-propagated
-    # uncertainty first; the independent-points one, the published approximation, beside it.
+    # uncertainty first; the independent-points one, the published approximation, beside it. For
+    # the systematic trend, ⟨R_T⟩ refitted with one and two segments more than selected.
     if !isempty(result.total_average_R_T)
         rows = NamedTuple{
             (
@@ -744,8 +815,18 @@ function write_results(result::ExtractionResult, directory::AbstractString)
                 :R_T,
                 :R_T_uncertainty,
                 :R_T_uncertainty_independent_points,
+                :R_T_one_more_segment,
+                :R_T_two_more_segments,
             ),
-            Tuple{String,String,Float64,Float64,Float64},
+            Tuple{
+                String,
+                String,
+                Float64,
+                Float64,
+                Float64,
+                Union{Missing,Float64},
+                Union{Missing,Float64},
+            },
         }[]
         for curve in result.segmented_curves
             per_distribution = get(result.total_average_R_T, curve.label, nothing)
@@ -753,6 +834,15 @@ function write_results(result::ExtractionResult, directory::AbstractString)
             for distribution in result.mass_yields
                 entry = get(per_distribution, distribution.label, nothing)
                 entry === nothing && continue
+                more = if curve.kind == "systematic_trend"
+                    get(result.segment_count_sensitivity, distribution.label, Tuple{Int,Float64}[])
+                else
+                    Tuple{Int,Float64}[]
+                end
+                alternative(extra) = begin
+                    found = findfirst(t -> t[1] == segments(curve.fit) + extra, more)
+                    found === nothing ? missing : round(more[found][2]; sigdigits = digits)
+                end
                 push!(
                     rows,
                     (
@@ -763,6 +853,8 @@ function write_results(result::ExtractionResult, directory::AbstractString)
                         R_T_uncertainty_independent_points = round(
                             entry.uncertainty_independent_points; sigdigits = digits
                         ),
+                        R_T_one_more_segment = alternative(1),
+                        R_T_two_more_segments = alternative(2),
                     ),
                 )
             end

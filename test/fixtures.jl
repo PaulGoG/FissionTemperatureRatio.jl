@@ -101,9 +101,12 @@ function published_settings(label::AbstractString)
                 "zero_polarization_at_symmetry" => true,
             ),
             "level_density" => Dict("ratio_averaging" => "ratio_of_means"),
-            "yield" => Dict("symmetrize" => false),
+            # Every distribution held, among them those the published table averages over.
+            "yield" => Dict("symmetrize" => false, "subdirectory" => "$(label)/Y_vs_A"),
         ),
-        remove = Dict("level_density" => ["mean_kinetic_energy_file"]),
+        remove = Dict(
+            "level_density" => ["mean_kinetic_energy_file"], "yield" => ["mass_yield_file"]
+        ),
     )
 end
 

@@ -371,15 +371,18 @@ end
         with_configuration(MINIMAL_CONFIGURATION) do path, directory
             configuration = load_configuration(path; data_directory = directory)
             tokens = run_parameters(configuration)
-            # The Gilbert-Cameron keys change a Gilbert-Cameron result only.
+            # The Gilbert-Cameron keys change a Gilbert-Cameron result only, and the yield source
+            # is a directory or one file.
             gilbert_cameron = Set(["sc", "def"])
-            @test Set(keys(tokens)) ==
-                setdiff(Set(values(RUN_IDENTIFIER_ABBREVIATIONS)), gilbert_cameron)
+            @test Set(keys(tokens)) == setdiff(
+                Set(values(RUN_IDENTIFIER_ABBREVIATIONS)), gilbert_cameron, Set(["Yf"])
+            )
             other = write_beside(
                 path, replace(MINIMAL_CONFIGURATION, "model = \"BSFG\"" => "model = \"GC\"")
             )
             gc_tokens = run_parameters(load_configuration(other; data_directory = directory))
-            @test Set(keys(gc_tokens)) == Set(values(RUN_IDENTIFIER_ABBREVIATIONS))
+            @test Set(keys(gc_tokens)) ==
+                setdiff(Set(values(RUN_IDENTIFIER_ABBREVIATIONS)), Set(["Yf"]))
             @test gc_tokens["sc"] == "gc1965"
             @test allunique(values(RUN_IDENTIFIER_ABBREVIATIONS))
             identifier = run_identifier(configuration)
@@ -410,6 +413,34 @@ end
             write(copy, MINIMAL_CONFIGURATION)
             @test run_identifier(load_configuration(copy; data_directory = elsewhere)) ==
                 identifier
+        end
+    end
+
+    @testset "the yield is one distribution or a directory of them" begin
+        with_configuration(MINIMAL_CONFIGURATION) do path, directory
+            mkpath(joinpath(directory, "Y_vs_A"))
+            write(joinpath(directory, "Y_vs_A", "1_A.Author_2000.dat"), "A Y\n130 5.0\n")
+            file = write_beside(
+                path,
+                MINIMAL_CONFIGURATION *
+                "\n[yield]\nmass_yield_file = \"Y_vs_A/1_A.Author_2000.dat\"\n",
+            )
+            configuration = load_configuration(file; data_directory = directory)
+            @test configuration.yield_file ==
+                joinpath(directory, "Y_vs_A", "1_A.Author_2000.dat")
+            @test configuration.yield_directory === nothing
+            tokens = run_parameters(configuration)
+            @test haskey(tokens, "Yf") && !haskey(tokens, "Y")
+            both = write_beside(
+                path,
+                MINIMAL_CONFIGURATION *
+                "\n[yield]\nsubdirectory = \"Y_vs_A\"\nmass_yield_file = \"Y_vs_A/1_A.Author_2000.dat\"\n",
+            )
+            @test_throws ArgumentError load_configuration(both; data_directory = directory)
+            neither = write_beside(
+                path, MINIMAL_CONFIGURATION * "\n[yield]\nsymmetrize = true\n"
+            )
+            @test_throws ArgumentError load_configuration(neither; data_directory = directory)
         end
     end
 

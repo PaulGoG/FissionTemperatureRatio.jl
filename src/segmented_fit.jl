@@ -30,9 +30,12 @@ A continuous piecewise-linear fit with breakpoints selected from the data.
 - `covariance`: covariance of `coefficients`, scaled by `max(1, χ²/dof)` where the data quote
   uncertainties and by `χ²/dof` alone where none does; see [`fit_segments`](@ref).
 - `pinned_value`: the value the fit was pinned to at `x₀`, or `nothing`.
-- `wrss`, `dof`, `bic`: weighted residual sum of squares, degrees of freedom, and the
-  selection criterion. `wrss/dof` is a reduced chi-squared to the extent that the quoted
-  uncertainties are trustworthy in absolute scale.
+- `points`, `measured_points`: the points fitted, and how many measurements they amount to,
+  `Σ f` over the measured fractions `f` of the points; equal unless the data were interpolated.
+- `wrss`, `dof`, `bic`: weighted residual sum of squares `Σ f w r²`, degrees of freedom
+  `measured_points − parameters`, and the selection criterion, all counted in measurements.
+  `wrss/dof` is a reduced chi-squared to the extent that the quoted uncertainties are trustworthy
+  in absolute scale.
 - `selection`: `(segments, bic)` for every order examined, in ascending order of segment count,
   so that the chosen order can be audited.
 - `weights_imputed`: number of points that carried no uncertainty and were given the median
@@ -45,8 +48,10 @@ struct SegmentedFit
     coefficients::Vector{Float64}
     covariance::Matrix{Float64}
     pinned_value::Union{Float64,Nothing}
+    points::Int
+    measured_points::Float64
     wrss::Float64
-    dof::Int
+    dof::Float64
     bic::Float64
     selection::Vector{Tuple{Int,Float64}}
     weights_imputed::Int
@@ -150,7 +155,7 @@ end
 # alone where they do not, since shrinking it below the quoted scale would claim a precision the
 # data do not carry. Where no point quotes an uncertainty the weights are uniform and carry no
 # scale at all; the noise is then estimated from the residuals, which is ordinary least squares.
-function _covariance_scale(wrss::Float64, dof::Int, imputed::Int, n::Int)
+function _covariance_scale(wrss::Float64, dof::Real, imputed::Int, n::Int)
     imputed == n && return wrss / dof
     return max(1.0, wrss / dof)
 end
@@ -168,7 +173,7 @@ function _within_bounds(
 )
     bounds === nothing && return true
     lower, upper = bounds
-    offset = pinned ? Float64(pinned_value) : 0.0
+    offset = pinned_value === nothing ? 0.0 : Float64(pinned_value)
     for x in Iterators.flatten((first(xs):first(xs), ψ, last(xs):last(xs)))
         value = offset
         index = 1
@@ -186,7 +191,7 @@ function _within_bounds(
     return true
 end
 
-function _bic(wrss::Float64, n::Int, parameters::Int)
+function _bic(wrss::Float64, n::Real, parameters::Int)
     # Gaussian likelihood with the noise scale estimated from the residuals, plus the Schwarz
     # penalty, Ann. Stat. 6, 461 (1978), doi:10.1214/aos/1176344136. The breakpoints are counted
     # as parameters: they are fitted, and a criterion that ignored them would always prefer more
@@ -289,6 +294,13 @@ weights carry no scale and the noise must then be estimated from the residuals.
   symmetric split, where the two fragments are identical and the ratio is one half.
 - `required_windows`: mass-number windows each of which must contain a breakpoint, for imposing
   a known feature such as the minimum at the heavy magic fragment.
+- `measured`: the measured fraction of every point, in `(0, 1]`, all ones by default. A point
+  interpolated from measurements at non-integer abscissae shares them with its neighbours and
+  counts for less than one measurement: the sample size of the criterion and the degrees of
+  freedom are `Σ measured`, not the number of points, and each point's residual enters `χ²` with
+  its fraction. The coefficients are those of the weighted solve, which the fractions do not
+  change for a single dataset. Without this, correlated interpolated points would buy extra
+  segments.
 - `bounds`: open interval the fitted function must remain within over the whole range. For a
   ratio of the form `ν_H/(ν_L + ν_H)` the physical range is `(0, 1)`, and a fit leaving it would
   make the temperature ratio relation undefined; candidates that do are rejected outright rather
@@ -345,6 +357,7 @@ function fit_segments(
     pinned_value::Union{Real,Nothing} = nothing,
     required_windows::Vector{UnitRange{Int}} = UnitRange{Int}[],
     bounds::Union{Tuple{Real,Real},Nothing} = nothing,
+    measured::Union{AbstractVector{<:Real},Nothing} = nothing,
 )
     length(x) == length(y) == length(σ) ||
         throw(DimensionMismatch("x, y and σ must have equal lengths, got \
@@ -365,6 +378,12 @@ function fit_segments(
     issorted(x) || throw(ArgumentError("x must be sorted in ascending order"))
 
     n = length(x)
+    fraction = measured === nothing ? ones(n) : collect(Float64, measured)
+    length(fraction) == n || throw(
+        DimensionMismatch("one measured fraction per point: $(length(fraction)) for $(n)")
+    )
+    all(f -> 0 < f <= 1, fraction) || throw(ArgumentError("a measured fraction lies in (0, 1]"))
+    n_measured = sum(fraction)
     pinned = pinned_value !== nothing
     n ≥ min_points_per_segment + (pinned ? 0 : 1) ||
         throw(InsufficientDataError("$(n) points are too few for a single segment with \
@@ -407,12 +426,14 @@ function fit_segments(
             X = _design_matrix(xs, first(xs), ψ, pinned)
             solved = _solve(X, ys, w)
             solved === nothing && return nothing
-            β, wrss, gram = solved
+            β, _, gram = solved
             parameters = length(β) + length(ψ)
-            dof = n - parameters
+            # Counted in measurements: an interpolated point contributes its fraction.
+            wrss = sum(fraction .* w .* (ys .- X * β) .^ 2)
+            dof = n_measured - parameters
             dof > 0 || return nothing
             _within_bounds(bounds, xs, ψ, β, pinned, pinned_value) || return nothing
-            criterion = _bic(wrss, n, parameters)
+            criterion = _bic(wrss, n_measured, parameters)
             if best_for_order === nothing || criterion < best_for_order.bic
                 covariance = Symmetric(inv(gram)) * _covariance_scale(wrss, dof, imputed, n)
                 best_for_order = (
@@ -451,6 +472,8 @@ function fit_segments(
         best.β,
         best.covariance,
         pinned ? Float64(pinned_value) : nothing,
+        n,
+        n_measured,
         best.wrss,
         best.dof,
         best.bic,

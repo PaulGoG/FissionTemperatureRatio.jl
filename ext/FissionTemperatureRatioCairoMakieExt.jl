@@ -379,8 +379,7 @@ end
 function _fit_annotation(curve)
     fit = curve.fit
     count = FissionTemperatureRatio.segments(fit)
-    points = fit.dof + length(fit.coefficients) + length(fit.breakpoints)
-    quality = if fit.weights_imputed == points
+    quality = if fit.weights_imputed == fit.points
         LaTeXString("no quoted uncertainties")
     else
         reduced = @sprintf("%.2f", fit.wrss / fit.dof)
