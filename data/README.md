@@ -78,7 +78,7 @@ julia scripts/retrieve.jl config/U233_nth_TKE_vs_A.toml /path/to/FissionTemperat
 Check that package out at a named commit before retrieving: the `[run]` table of every
 `retrieval.toml` records the revision and version that wrote it, and a run of this package copies
 that table, for every input directory it reads, into its `metadata.toml`. The results quoted in the
-README rest on the twelve committed configurations of its v0.2.1, `<system>_<observable>.toml`
+README rest on the twelve committed configurations of its v0.2.3, `<system>_<observable>.toml`
 for the four systems and `nu_vs_A`, `Y_vs_A`, `TKE_vs_A`.
 
 Masses the archive gives as non-integer values, digitised or binned, are interpolated onto the
@@ -102,13 +102,14 @@ quantity is a property of the split, so it is invariant under `A -> A₀ - A`; a
 quantity is a sawtooth whose complementary values differ by a factor of four or five and sum to
 about the total multiplicity.
 
-The retrieval applies that test and records its verdict on each dataset coded without the tag:
+The retrieval applies that test and records its verdict on each dataset coded without the tag,
+with the scale of the reading: the pair sum weighted with the light-fragment yield, against `ν̄`.
 
 | Dataset | Verdict |
 |---|---|
-| 23118006 Zeynalov 2011, 23175008 Budtz-Jørgensen 1988, 23268005 Göök 2014 | per fragment, admitted |
-| 23213012 Mehta 1973, 41720003 Basova 1979 | per pair; rejected |
-| 14652004 Britt 1964, 41689004 Piksaykin 1977 | per fragment by the test, not read: the publications could not be consulted |
+| 252-Cf: 23118006 Zeynalov 2011, 23175008 Budtz-Jørgensen 1988, 23268005 Göök 2014, 14652004 Britt 1964, 41689004 Piksaykin 1977 | per fragment, admitted |
+| 239-Pu: 22650004 Tsuchiya 2000, 41502006 Batenkov 2004; 235-U: 41502005 Batenkov 2004 | per fragment, admitted |
+| 252-Cf: 23213012 Mehta 1973, 41720003 Basova 1979 | per pair; rejected |
 
 Budtz-Jørgensen 1988 is the canonical 252-Cf(sf) `ν(A)` reference and one of the datasets the
 published table averages, so a tag-only selection could not reproduce it. Both subentries of
@@ -137,11 +138,31 @@ thermal-neutron sets carry `MXW`, a Maxwellian-averaged spectrum, which is the e
 is not flagged.
 
 **Several yield distributions are partial.** Britt 1963 (252-Cf), Bohn 1969 (235-U) and Akimov
-1971 (239-Pu) are measured on the light wing alone, Barreau 1985 (23717005) on the far heavy wing
-and Dyachenko 1967 (233-U) over twelve heavy masses. With `symmetrize = true` a light-wing yield
-stands for its heavy complement; a distribution giving a yield at fewer than
-`min_dataset_coverage` of the heavy mass numbers is read but not averaged over, and every total
-average states the fraction of its distribution's yield it takes in.
+1971 (239-Pu) are measured on the light wing alone, Barreau 1985 (23717005) on the far heavy wing,
+Dyachenko 1967 (233-U) over twelve heavy masses, and Dyachenko 1967 (235-U, 41713004) is a sparse
+digitisation of one figure that misses the heavy peak. With `symmetrize = true` a light-wing yield
+stands for its heavy complement. Coverage is measured against the primary distribution of the
+system, the share of its heavy-fragment yield at the masses a distribution holds; one below
+`min_dataset_coverage` is read but not averaged over, and every total average states the fraction
+of its distribution's yield it takes in.
+
+**Two 252-Cf yield distributions are not held.** The retrieval refuses Vorobiev 2001, 41425015
+and 41425016, coded as the inclusive pre-neutron yield: the subentries place them on Fig. 11a
+(`NUt = 0`) of Dushin et al., *Nucl. Instrum. Methods A* **516**, 539 (2004),
+doi:10.1016/j.nima.2003.09.029, and their mean heavy mass, 146.7 and 146.2 u, lies about 3 u above
+the 142.9 to 143.6 u of every inclusive measurement. The `ν(A)` of 41425014, from the same
+measurement, has its sawtooth minimum where the others do and is held.
+
+**Two 239-Pu multiplicity datasets are off the scale of ν̄.** Tsuchiya 2000 (22650004) and
+Batenkov 2004 (41502006) are read per fragment, with pair sums 3.9 ± 0.6 % above and 10.7 ± 1.3 %
+below `ν̄`, and their records state `scale_consistent = false`; the run flags them. A uniform scale
+cancels in `r_ν`, so both are used. A scale error that varies with mass would not cancel, and the
+pair sum cannot see one; by the structural diagnostics of the run, Tsuchiya's pair sums over
+`A_H` = 126 to 152 lie within the spread of the other 239-Pu sets, and its larger spread overall
+comes from the heavy tail above 154. Tsuchiya's subentry heads its values in percent per fission,
+a miscoding the record states as `unit_miscoded`; they are written as tabulated, in neutrons per
+fragment. Batenkov's datasets for 239-Pu and 235-U lie on a 4-u grid of odd masses, on which no
+mass has its complement at `A₀ = 240` or 236, so neither enters a curve.
 
 **Uncertainties are absent from several multiplicity datasets.** An unquoted uncertainty is read
 as `missing`, never as zero; such points take the median weight of the quoted ones and are counted

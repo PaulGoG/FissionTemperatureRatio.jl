@@ -136,6 +136,13 @@ const PUBLISHED_TOTAL_AVERAGES = [
     ("U235_nth", "K. Nishio 1998", "Ch.Straede 1987", 1.1644, 0.012),
     ("U235_nth", "A.S. Vorobyev 2010", "A. Al-adili 2020", 1.1186, 0.010),
     ("U235_nth", "A.S. Vorobyev 2010", "Ch.Straede 1987", 1.1221, 0.006),
+    # 239-Pu, over a yield distribution inferred by agreement: the table's caption does not name
+    # its experimental Y(A), and Nishio 1995 brings every row below back to within 0.7 %. The
+    # tolerances follow the rule above.
+    ("Pu239_nth", "K. Nishio 1995", "K. Nishio 1995", 0.9493, 0.0010527),
+    ("Pu239_nth", "V.F. Apalin 1965", "K. Nishio 1995", 1.0009, 0.0020500),
+    ("Pu239_nth", "Yu.S. Zamyatnin 1979", "K. Nishio 1995", 1.1588, 0.0010431),
+    ("Pu239_nth", "J.S. Fraser 1966", "K. Nishio 1995", 1.1072, 0.0070452),
 ]
 
 # Widened for the shipped settings only, by the rule above. Apalin moves by +0.36 % on Wahl's
@@ -147,4 +154,10 @@ const SHIPPED_TOLERANCE = Dict(
     ("U233_nth", "V.F. Apalin 1965", "V.M. Surin 1972") => 0.0210483,
     ("Cf252_sf", "C. Budtz-jorgensen 1988", "A. Goeoek 2014") => 0.0080456,
     ("U235_nth", "K. Nishio 1998", "Ch.Straede 1987") => 0.0140429,
+    # 239-Pu over Nishio 1995 (inferred by agreement): the charge-resolved inversion moves these
+    # rows by −0.04 % to −0.06 % and the excitation weight of Wagemans's ⟨TKE⟩(A) by −0.11 %, to
+    # −0.24 % (Apalin), −0.20 % (Zamyatnin) and −0.80 % (Fraser).
+    ("Pu239_nth", "V.F. Apalin 1965", "K. Nishio 1995") => 0.0030500,
+    ("Pu239_nth", "Yu.S. Zamyatnin 1979", "K. Nishio 1995") => 0.0030431,
+    ("Pu239_nth", "J.S. Fraser 1966", "K. Nishio 1995") => 0.0080452,
 )

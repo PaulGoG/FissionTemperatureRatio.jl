@@ -158,8 +158,8 @@ function animate_selection(panels; path, max_segments = 6, hold = 8)
 end
 
 # Table 1 of Eur. Phys. J. A 60, 190 (2024), for the comparisons this package can
-# make: the data sets and yield distributions it holds. 239-Pu is excluded because the table
-# averages over a yield distribution its caption does not name.
+# make: the data sets and yield distributions it holds. The 239-Pu caption does not name its
+# yield distribution; Nishio 1995 is inferred by agreement, and the legend says so.
 const PUBLISHED = [
     ("U233_nth", "K. Nishio 1998", "V.M. Surin 1972", 1.1861, 0.0021),
     ("U233_nth", "V.F. Apalin 1965", "V.M. Surin 1972", 1.0346, 0.0043),
@@ -172,18 +172,31 @@ const PUBLISHED = [
     ("U235_nth", "K. Nishio 1998", "Ch.Straede 1987", 1.1644, 0.0072),
     ("U235_nth", "A.S. Vorobyev 2010", "A. Al-adili 2020", 1.1186, 0.0031),
     ("U235_nth", "A.S. Vorobyev 2010", "Ch.Straede 1987", 1.1221, 0.0031),
+    ("Pu239_nth", "K. Nishio 1995", "K. Nishio 1995", 0.9493, 0.0001),
+    ("Pu239_nth", "V.F. Apalin 1965", "K. Nishio 1995", 1.0009, 0.0045),
+    ("Pu239_nth", "Yu.S. Zamyatnin 1979", "K. Nishio 1995", 1.1588, 0.0146),
+    ("Pu239_nth", "J.S. Fraser 1966", "K. Nishio 1995", 1.1072, 0.0149),
 ]
 
 const SYSTEM_COLOR = Dict(
     "U233_nth" => RGBf(0.0, 0.447, 0.698),
     "Cf252_sf" => RGBf(0.835, 0.369, 0.0),
     "U235_nth" => RGBf(0.0, 0.62, 0.451),
+    "Pu239_nth" => RGBf(0.8, 0.475, 0.655),
 )
-const SYSTEM_MARKER = Dict("U233_nth" => :circle, "Cf252_sf" => :rect, "U235_nth" => :utriangle)
+const SYSTEM_MARKER = Dict(
+    "U233_nth" => :circle,
+    "Cf252_sf" => :rect,
+    "U235_nth" => :utriangle,
+    "Pu239_nth" => :diamond,
+)
 const SYSTEM_NOTATION = Dict(
     "U233_nth" => system_notation(neutron_induced_fission(Nuclide(92, 233), 2.53e-8, "nth")),
     "Cf252_sf" => system_notation(spontaneous_fission(Nuclide(98, 252))),
     "U235_nth" => system_notation(neutron_induced_fission(Nuclide(92, 235), 2.53e-8, "nth")),
+    "Pu239_nth" =>
+        system_notation(neutron_induced_fission(Nuclide(94, 239), 2.53e-8, "nth")) *
+        ", Y(A) inferred",
 )
 
 save_asset(name, figure) = save(joinpath(ASSETS, name), figure; px_per_unit = 4)
@@ -242,7 +255,7 @@ function figure_published_comparison(results)
     # The one-per-cent band the comparison is judged against.
     band!(residual, [low, high], [-1.0, -1.0], [1.0, 1.0]; color = (:grey, 0.18))
 
-    for system in ("U233_nth", "Cf252_sf", "U235_nth")
+    for system in ("U233_nth", "Cf252_sf", "U235_nth", "Pu239_nth")
         selected = filter(p -> p.system == system, points)
         isempty(selected) && continue
         x = [p.published for p in selected]
@@ -582,7 +595,8 @@ function main()
                 "published_comparison.png",
                 figure_published_comparison(
                     Dict(
-                        s => every_distribution(s) for s in ("U233_nth", "U235_nth", "Cf252_sf")
+                        s => every_distribution(s) for
+                        s in ("U233_nth", "U235_nth", "Cf252_sf", "Pu239_nth")
                     ),
                 ),
             ),

@@ -124,7 +124,7 @@ julia docs/assets.jl
 | Pipeline, tabulated output, figures, provenance | complete |
 | Per-dataset and systematic-trend curves | complete |
 | Averaging over a fragment mass yield distribution | complete |
-| Reproduction of published total averages | complete for 233-U, 252-Cf and 235-U; see the validation status |
+| Reproduction of published total averages | complete for 233-U, 252-Cf and 235-U, and for 239-Pu over an inferred Y(A); see the validation status |
 | Run record with the fragmentation domain, for the consuming code | complete |
 
 ## Results at a glance
@@ -132,9 +132,10 @@ julia docs/assets.jl
 The method, its conventions and its equation numbering are those of *Eur. Phys. J. A* **60**, 190
 (2024), [doi:10.1140/epja/s10050-024-01375-7](https://doi.org/10.1140/epja/s10050-024-01375-7),
 and this package reproduces the results published there: with the published settings, the total
-average temperature ratios of its Table 1 come back to within 1.0 % for ²³³U(nth,f), ²⁵²Cf(sf)
-and ²³⁵U(nth,f), Apalin's ²³³U measurement aside at 1.9 %, and with the shipped settings, which
-invert charge by charge on Wahl's charge model, to within 1.4 %, Apalin aside at 2.1 %.
+average temperature ratios of its Table 1 come back to within 1.0 % for ²³³U(nth,f), ²⁵²Cf(sf),
+²³⁵U(nth,f) and ²³⁹Pu(nth,f), Apalin's ²³³U measurement aside at 1.9 %, and with the shipped
+settings, which invert charge by charge on Wahl's charge model, to within 1.4 %, Apalin aside at
+2.1 %. For ²³⁹Pu the yield distribution is inferred by agreement, the table's caption naming none.
 The [validation status](#validation-status) below states exactly what has been checked against the
 paper and what has not.
 
@@ -633,7 +634,7 @@ Verified:
   again near the most probable fragmentation, and a near-linear rise above it.
 - **The published total averages, to within 1.0 %, one measurement aside.** The `⟨R_T⟩` of
   Table 1 of the paper, per `ν(A)` dataset and per `Y(A)` distribution, comes back from
-  independently retrieved archive data (ExforFissionData.jl v0.2.1) with the published settings —
+  independently retrieved archive data (ExforFissionData.jl v0.2.3) with the published settings —
   the ratio of means over the digitised Gaussian charge tables, or the mean values for ²³³U, on the
   shared fragmentation domain:
 
@@ -642,12 +643,21 @@ Verified:
   | ²³³U(nth,f) | Surin | 3 of 3 | 1.89 % (Apalin; others 0.41 %) | 2.07 % (Apalin; others 0.21 %) |
   | ²⁵²Cf(sf) | Göök | 4 of 5 | 0.54 % | 0.79 % |
   | ²³⁵U(nth,f) | Al-Adili, Straede | 2 of 3 | 1.00 % | 1.34 % |
+  | ²³⁹Pu(nth,f) | Nishio 1995, inferred by agreement | 4 of 5 | 0.68 % | 0.80 % |
 
   ![Published comparison](docs/src/assets/published_comparison.png)
 
   The figure shows the shipped settings over the distributions the table names; the shipped
-  configurations average over one primary experiment's `Y(A)` per system, which for ²³³U and ²³⁵U
-  is not among them.
+  configurations average over one primary experiment's `Y(A)` per system, which for ²³³U, ²³⁵U
+  and ²³⁹Pu is not among them.
+
+  The ²³⁹Pu rows are averaged over a distribution inferred by agreement. The published table
+  averages over an experimental distribution its caption does not identify, and over a second that
+  is calculated and cannot be retrieved; over Nishio 1995 the Nishio, Apalin and Zamyatnin `ν(A)`
+  rows come back to within 0.12 % and Fraser to 0.68 %, which identifies that distribution, or one
+  close to it, without confirming it. The fifth row, Tsuchiya 2000, comes back to 0.20 % but is
+  not asserted: the retrieval records its scale as off that of `ν̄` by 3.9 %, which cancels in
+  `r_ν`.
 
   Apalin's ²³³U masses are given as non-integer values, 52 of them, which the retrieval
   interpolates onto 69 integers; rounded instead, as an earlier retrieval did, they paired only
@@ -681,12 +691,8 @@ Verified:
 
 Not verified:
 
-- **²³⁹Pu(nth,f) is compared, but against a yield distribution the paper does not name.** The
-  published table averages over an experimental distribution its caption does not identify, and
-  over a second that is calculated and cannot be retrieved. With the Nishio 1995 `Y(A)` and the
-  published settings, the Nishio, Apalin and Zamyatnin `ν(A)` rows come back to within 0.12 % and
-  Fraser to 0.68 %, which identifies that distribution, or one close to it, without confirming it.
-  These rows are not asserted by the tests.
+- The yield distribution of the ²³⁹Pu rows of Table 1, Nishio 1995, which is inferred by
+  agreement rather than named by the paper.
 - The effect of neglecting the back-shift. The level density parameter is taken from a systematic
   that fits it jointly with a back-shift `E1`, while the extraction rests on the un-shifted
   `E* = a T²` the method is published under. `E1` differs between the two fragments, so it does not

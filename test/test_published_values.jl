@@ -6,9 +6,11 @@
 # locally and not shipped, so that run is skipped without them. The shipped settings — the
 # charge-resolved inversion on Wahl's 1988 model, weighted by the ⟨TXE⟩ of the configured
 # ⟨TKE⟩(A) dataset, and Y(A) symmetrized to the pre-neutron identity — are held to the same
-# tolerances, four of them widened (`SHIPPED_TOLERANCE`). Both runs average over every
-# distribution held: the shipped configurations average over the primary experiment's alone,
-# which for 233-U and 235-U is not one the table names.
+# tolerances, seven of them widened (`SHIPPED_TOLERANCE`). Both runs average over every
+# distribution held, with the primary experiment's as the coverage reference: the shipped
+# configurations average over the primary alone, which for 233-U, 235-U and 239-Pu is not one the
+# table names. The 239-Pu rows are compared over Nishio 1995, a yield distribution inferred by
+# agreement, since the table's caption names none.
 #
 # Both need the measured input, so both are skipped on a bare clone. A row is skipped, not failed,
 # when the local data holds no dataset of that label: what the archive returns for a query changes

@@ -174,14 +174,17 @@ Notable changes to FissionTemperatureRatio.jl. The format follows
 
 ### Changed
 
-- **The quoted results rest on inputs retrieved with ExforFissionData.jl v0.2.1**, which
+- **The quoted results rest on inputs retrieved with ExforFissionData.jl v0.2.3**, which
   interpolates masses the archive gives as non-integer values onto the integers rather than
-  rounding them, reads the uncertainties of the archive subentry, and admits the ²⁵²Cf `ν(A)` of
-  Budtz-Jørgensen 1988, Göök 2014 and Zeynalov 2011, coded without the `FRG` tag, by a complement
-  test. Under the published settings Apalin's ²³³U row of Table 1 moves from +0.60 % to +1.89 %,
-  Fraser's from +1.09 % to −0.41 %, and the ²⁵²Cf Budtz-Jørgensen row from −0.36 % to −0.53 %;
-  the ²³⁹Pu rows over Nishio 1995 `Y(A)` come back to within 0.7 %, where Apalin and Zamyatnin had
-  deviated by 2 %.
+  rounding them, reads the uncertainties of the archive subentry, admits multiplicities coded
+  without the `FRG` tag by a complement test on their data — for ²⁵²Cf Budtz-Jørgensen 1988,
+  Göök 2014, Zeynalov 2011, Britt 1964 and Piksaykin 1977, for ²³⁹Pu Tsuchiya 2000 and Batenkov
+  2004, for ²³⁵U Batenkov 2004 — and refuses the ²⁵²Cf `Y(A)` of Vorobiev 2001, which is not the
+  inclusive yield. Under the published settings Apalin's ²³³U row of Table 1 moves from +0.60 %
+  to +1.89 %, Fraser's from +1.09 % to −0.41 %, and the ²⁵²Cf Budtz-Jørgensen row from −0.36 % to
+  −0.53 %; the ²³⁹Pu rows over Nishio 1995 `Y(A)` come back to within 0.7 %, where Apalin and
+  Zamyatnin had deviated by 2 %, and are now asserted, the yield distribution inferred by
+  agreement.
 - **The default inversion is `"charge_resolved"`.** Along the systematic trends `R_T` moves by up
   to 3.6 × 10⁻³ from the ratio of means, at the doubly magic heavy fragment, and every `⟨R_T⟩` by
   −0.02 % to −0.06 %. The excitation weight moves ²³³U `⟨R_T⟩` by a further −0.11 % to −0.15 %.
