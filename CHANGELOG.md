@@ -283,6 +283,10 @@ names while refusing old keys is worse to debug than a clean break.
   `pinned_at_symmetric_split`. Against Table 1 of the paper the 239-Pu Nishio row moves from
   2.0 % to 0.09 %, 235-U Nishio from 0.78 % and 1.05 % to 0.56 % and 1.00 %, and 233-U Fraser from
   0.27 % to 1.09 %.
+- Two yield distributions of one author and year shared a label, and the total averages are keyed
+  by label, so the second replaced the first: over the 252-Cf distributions of Barreau 1985 the
+  far-wing subentry 23717005 stood in for the full 23717003. Each now carries its archive
+  identifier in parentheses, as the multiplicity datasets do.
 - The published total averages are now asserted by the test suite, where the input data is
   present, instead of being compared by the documentation script only.
 - The charge distribution tables are cited to *At. Data Nucl. Data Tables* **39**, 1 (1988); the

@@ -130,14 +130,9 @@ function read_multiplicity_directory(directory::AbstractString)
     files = _data_files(directory)
     isempty(files) &&
         throw(ArgumentError("multiplicity directory holds no data files: $(directory)"))
-    labels = _dataset_label.(files)
-    for (index, file) in enumerate(files)
-        count(==(labels[index]), labels) == 1 && continue
-        labels[index] = "$(labels[index]) ($(_accession(file)))"
-    end
     return [
         read_multiplicity(joinpath(directory, file); label = label) for
-        (file, label) in zip(files, labels)
+        (file, label) in zip(files, _unique_labels(files))
     ]
 end
 
@@ -159,6 +154,16 @@ end
 function _accession(file::AbstractString)
     found = match(r"^([0-9]+)_", file)
     return found === nothing ? splitext(file)[1] : found.captures[1]
+end
+
+# The labels of the data files of one directory, the archive identifier in parentheses after each
+# label two files share.
+function _unique_labels(files::AbstractVector{<:AbstractString})
+    labels = _dataset_label.(files)
+    return [
+        count(==(label), labels) == 1 ? label : "$(label) ($(_accession(file)))" for
+        (file, label) in zip(files, labels)
+    ]
 end
 
 """

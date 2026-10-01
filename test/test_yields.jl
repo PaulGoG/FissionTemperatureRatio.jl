@@ -17,6 +17,21 @@
             @test mass_yield(data, 132) == (0.061, 0.002)
             @test mass_yield(data, 131) === nothing
 
+            # Two distributions of one author and year keep their identifiers: total averages are
+            # keyed by label, and a shared one would let the second replace the first.
+            for identifier in ("23717003", "23717005")
+                write(
+                    joinpath(directory, "$(identifier)_G.Barreau_1985.dat"),
+                    "A Y Y_uncertainty\n140 1.0 0.1\n",
+                )
+            end
+            @test [y.label for y in read_mass_yield_directory(directory)] == [
+                "G. Barreau 1985 (23717003)", "G. Barreau 1985 (23717005)", "V.M. Surin 1972"
+            ]
+            for identifier in ("23717003", "23717005")
+                rm(joinpath(directory, "$(identifier)_G.Barreau_1985.dat"))
+            end
+
             @test_throws ArgumentError read_mass_yield_directory(joinpath(directory, "absent"))
             empty = joinpath(directory, "empty")
             mkpath(empty)

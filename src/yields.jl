@@ -13,15 +13,17 @@ Read every `.dat` file in `directory`, sorted by name so that output rows are or
 reproducibly. Other files are ignored, so a run record can sit beside the data it describes.
 
 The label of each distribution is its file name stripped of the leading archive identifier and the
-extension, with underscores replaced by spaces.
+extension, with underscores replaced by spaces. Two files of one author and year carry their
+archive identifier in parentheses instead, as the multiplicity datasets do: total averages are
+keyed by label, and a shared one would let the second distribution replace the first.
 """
 function read_mass_yield_directory(directory::AbstractString)
     isdir(directory) || throw(ArgumentError("yield directory not found: $(directory)"))
     files = _data_files(directory)
     isempty(files) && throw(ArgumentError("yield directory holds no data files: $(directory)"))
     return [
-        read_mass_yield(joinpath(directory, file); label = _dataset_label(file)) for
-        file in files
+        read_mass_yield(joinpath(directory, file); label = label) for
+        (file, label) in zip(files, _unique_labels(files))
     ]
 end
 
