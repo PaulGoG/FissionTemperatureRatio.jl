@@ -200,8 +200,16 @@ function of the primary heavy-fragment mass number, so a post-neutron distributi
 each ratio by the yield of a different fragmentation. The normalization of ``Y`` cancels. The two fragments of a split are counted in one event, so pre-neutron
 ``Y(A) = Y(A_0 - A)`` exactly; by default each mass of a distribution measured on both wings takes
 the mean of the two before the average, so that a difference between the wings — a backing loss
-on one side of a double-energy measurement — enters once and alike. The published averages took
-the distributions as measured.
+on one side of a double-energy measurement — enters once and alike, and a mass measured on one
+wing alone gives the yield of its complement. The published averages took the distributions as
+measured.
+
+A distribution measured over part of the heavy wing gives the ratio averaged over that part, which
+is not a property of the fission yield. A distribution giving a yield at fewer than
+`min_dataset_coverage` of the heavy mass numbers of the fragmentation range is therefore read but
+not averaged over, and every average states its yield fraction, the share of the distribution's
+yield over the range that falls at the mass numbers of the curve: one for a curve spanning the
+range, less for a dataset whose complete pairs stop short of it.
 
 This is the quantity the literature tabulates, and it is not the mean over the fragment mass
 range. That mean weights every mass number equally, so the far-asymmetric tail, where the yield is

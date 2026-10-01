@@ -40,7 +40,8 @@
     end
 
     @testset "symmetrized to the pre-neutron identity" begin
-        # A₀ = 236: 118 is its own complement, 130 ↔ 106 both measured, 140 has no partner.
+        # A₀ = 236: 118 is its own complement, 130 ↔ 106 both measured, 140 has no partner and
+        # stands for its complement 96.
         yields = MassYield(
             [106, 118, 130, 140],
             [2.0, 0.5, 4.0, 6.0],
@@ -49,14 +50,27 @@
             "source.dat",
         )
         symmetric = symmetrized_mass_yield(yields, 236)
-        @test symmetric.A == yields.A
-        @test symmetric.Y ≈ [3.0, 0.5, 3.0, 6.0]
-        @test symmetric.σY[1] ≈ sqrt(0.3^2 + 0.4^2) / 2
-        @test symmetric.σY[3] ≈ symmetric.σY[1]
-        @test ismissing(symmetric.σY[2])
-        @test symmetric.σY[4] == 0.2
-        @test sum(symmetric.Y) ≈ sum(yields.Y)
+        @test symmetric.A == [96, 106, 118, 130, 140]
+        @test symmetric.Y ≈ [6.0, 3.0, 0.5, 3.0, 6.0]
+        @test symmetric.σY[2] ≈ sqrt(0.3^2 + 0.4^2) / 2
+        @test symmetric.σY[4] ≈ symmetric.σY[2]
+        @test ismissing(symmetric.σY[3])
+        @test symmetric.σY[1] == symmetric.σY[5] == 0.2
+        # The identity holds at every mass, and imposing it twice changes nothing.
+        @test all(
+            isequal(mass_yield(symmetric, A), mass_yield(symmetric, 236 - A)) for
+            A in symmetric.A
+        )
+        twice = symmetrized_mass_yield(symmetric, 236)
+        @test twice.A == symmetric.A && twice.Y ≈ symmetric.Y
         @test (symmetric.label, symmetric.source) == (yields.label, yields.source)
+        # A distribution measured on the light wing alone gives the heavy-fragment yields.
+        light = MassYield([100, 106, 110], [1.0, 2.0, 1.5], [0.1, 0.2, missing], "light", "")
+        heavy = symmetrized_mass_yield(light, 236)
+        @test isequal(
+            [mass_yield(heavy, A) for A in (126, 130, 136)],
+            [(1.5, missing), (2.0, 0.2), (1.0, 0.1)],
+        )
         # One quoted uncertainty of a pair: the other contributes nothing.
         partial = MassYield([106, 130], [2.0, 4.0], [missing, 0.4], "p", "")
         @test symmetrized_mass_yield(partial, 236).σY == [0.2, 0.2]
@@ -108,6 +122,28 @@
         )
         @test_throws ArgumentError total_average(
             curve, MassYield([130, 132], [0.0, 0.0], [missing, missing], "empty", "")
+        )
+    end
+
+    @testset "coverage of the fragmentation range and fraction of the yield" begin
+        tail = MassYield([170, 171, 172], [1.0, 1.0, 1.0], fill(missing, 3), "tail", "")
+        @test mass_yield_coverage(tail, 126:174) ≈ 3 / 49
+        @test mass_yield_coverage(tail, 170:172) == 1.0
+        @test_throws ArgumentError mass_yield_coverage(tail, 1:0)
+
+        yields = MassYield([130, 132, 134], [1.0, 2.0, 1.0], fill(missing, 3), "y", "")
+        @test yield_fraction(
+            RatioCurve([130, 132], [1.0, 1.0], [missing, missing], "c"), yields, 126:140
+        ) ≈ 0.75
+        @test yield_fraction(
+            RatioCurve(collect(126:140), ones(15), fill(missing, 15), "c"), yields, 126:140
+        ) == 1.0
+        # Yield outside the range is not counted against the curve.
+        @test yield_fraction(
+            RatioCurve([130, 132], [1.0, 1.0], [missing, missing], "c"), yields, 130:132
+        ) == 1.0
+        @test_throws ArgumentError yield_fraction(
+            RatioCurve([130], [1.0], [missing], "c"), yields, 140:150
         )
     end
 

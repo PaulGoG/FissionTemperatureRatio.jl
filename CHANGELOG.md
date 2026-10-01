@@ -40,9 +40,10 @@ Notable changes to FissionTemperatureRatio.jl. The format follows
   nuclei beside eq. (20); `false` applies eq. (20) throughout, the published Table 2 setting.
 - `yield.symmetrize`, default `true`: the total average is taken over `Y(A)` with the pre-neutron
   identity `Y(A) = Y(A₀ − A)` imposed, each mass taking the mean of the two wings where both are
-  measured; `symmetrized_mass_yield`. The published settings keep `false`. It moves `⟨R_T⟩` over
-  Göök's ²⁵²Cf distribution by −0.3 % to +0.2 % and over Straede's ²³⁵U one by −0.2 % to −0.5 %;
-  the other distributions held are measured on the heavy wing alone and do not move.
+  measured and a mass measured on one wing alone standing for its complement;
+  `symmetrized_mass_yield`. The published settings keep `false`. Over the distributions measured
+  on both wings it moves `⟨R_T⟩` by −2.5 % to +1.2 %: over Göök's ²⁵²Cf distribution, which the
+  ²⁵²Cf configuration takes, by −0.1 % to −0.3 %, and over Straede's ²³⁵U one by −0.2 % to −1.0 %.
 - Where datasets are pooled into the systematic trend, a dataset whose masses the retrieval
   interpolated onto the integers is weighted by its measured points over its written rows,
   `mass_values_non_integer / rows_written` from its retrieval record: neighbouring interpolated
@@ -57,7 +58,17 @@ Notable changes to FissionTemperatureRatio.jl. The format follows
   `total_average_R_T_<run identifier>.csv` and `segment_count_sensitivity` in the run metadata.
 - `[yield] mass_yield_file`, one distribution in place of `subdirectory`: the shipped
   configurations take Y(A) and ⟨TKE⟩(A) from one primary experiment per system, named by EXFOR
-  accession in the run metadata (`mass_yield_accessions`, `mean_kinetic_energy.accession`).
+  accession in the run metadata (`mass_yield_accessions`, `mean_kinetic_energy.accession`):
+  Göök 2014 for ²⁵²Cf, Al-Adili 2016 for ²³⁵U, Wagemans 1984 for ²³⁹Pu and Geltenbort 1985 for
+  ²³³U.
+- A yield distribution giving a yield at fewer than `min_dataset_coverage` of the heavy mass
+  numbers of the fragmentation range is read but not averaged over: its average would describe
+  those masses, not the fission yield. `mass_yield_coverage`, `ExtractionResult.mass_yield_coverage`,
+  and `mass_yield_coverage` and `mass_yields_not_averaged` in the run metadata.
+- Every total average states its yield fraction, the share of the distribution's yield over the
+  fragmentation range that falls at the curve's mass numbers: `yield_fraction`,
+  `TotalAverage.yield_fraction`, `TotalAverage(curve, yields, heavy_masses)`, and a
+  `yield_fraction` column of `total_average_R_T_<run identifier>.csv`.
 - `segmented_curves_<run identifier>.csv`, one row per manifest curve keyed by its label: segments,
   pin, span, pairs, coverage, reduced chi-squared, imputed weights, range mean. `metadata.toml`
   names it under `[outputs]`.

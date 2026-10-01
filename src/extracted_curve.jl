@@ -154,16 +154,31 @@ end
     TotalAverage
 
 The total average of one segmented curve over one yield distribution: the value, its uncertainty
-with the fit covariance propagated, and the uncertainty of the independent-points form, which is
-the approximation the published tables use and is kept for comparison with them.
+with the fit covariance propagated, the uncertainty of the independent-points form, which is the
+approximation the published tables use and is kept for comparison with them, and the fraction of
+the distribution's yield over the fragmentation range that the curve takes in,
+[`yield_fraction`](@ref).
+
+    TotalAverage(curve, yields, heavy_masses)
+
+The total average of `curve` over `yields`, `heavy_masses` being the heavy mass numbers of the
+fragmentation range.
 """
 struct TotalAverage
     value::Float64
     uncertainty::Float64
     uncertainty_independent_points::Float64
+    yield_fraction::Float64
 end
 
-function TotalAverage(curve::ExtractedCurve, yields::MassYield)
+function TotalAverage(
+    curve::ExtractedCurve, yields::MassYield, heavy_masses::AbstractUnitRange{<:Integer}
+)
     value, uncertainty = total_average(curve, yields)
-    return TotalAverage(value, uncertainty, last(total_average(curve.R_T, yields)))
+    return TotalAverage(
+        value,
+        uncertainty,
+        last(total_average(curve.R_T, yields)),
+        yield_fraction(curve.R_T, yields, heavy_masses),
+    )
 end

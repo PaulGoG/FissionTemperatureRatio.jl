@@ -245,7 +245,7 @@ curve or dataset, nothing more:
 | `R_T_vs_A_H_segmented_<label>.csv` | the temperature ratio from the fitted ratio |
 | `r_nu_vs_A_H_pivots_<label>.csv` | the fit as its joined points |
 | `segmented_curves_<run>.csv` | per manifest curve, keyed by its label: segments, pin, span, pairs, coverage, reduced chi-squared, range mean |
-| `total_average_R_T_<run>.csv` | ⟨R_T⟩ over each yield distribution |
+| `total_average_R_T_<run>.csv` | ⟨R_T⟩ over each yield distribution reaching the coverage floor, with the yield fraction the curve takes in |
 | `dataset_diagnostics.csv` | one row per dataset read, with the qualifiers its retrieval recorded |
 | `manifest_<run>.toml` | what the run produced, for a consuming code |
 | `metadata.toml` | how it was produced: configuration, commit, machine |

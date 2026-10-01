@@ -126,7 +126,9 @@ at which a dataset must provide a complete pair. Below it the dataset is read, d
 pooled, but no segmented curve is fitted to it alone: with pairs at few mass numbers the
 breakpoint search cannot place the minimum where the data do not reach, and the curve it returns
 asserts structure between the measurements that a consuming code could not tell from a measured
-feature.
+feature. A yield distribution must give a yield at the same fraction of the heavy mass numbers
+to be averaged over; below it the total average would describe those masses, not the fission
+yield.
 """
 struct SegmentSettings
     max_segments::Int

@@ -105,6 +105,7 @@ DATA_AVAILABLE && @testset "the handoff to a consuming code" begin
                 "R_T",
                 "R_T_uncertainty",
                 "R_T_uncertainty_independent_points",
+                "yield_fraction",
                 "R_T_one_more_segment",
                 "R_T_two_more_segments",
             ]
@@ -121,6 +122,8 @@ DATA_AVAILABLE && @testset "the handoff to a consuming code" begin
                 filter(r -> r.segmented_curve != SYSTEMATIC_TREND_LABEL, averages).R_T_one_more_segment,
             )
             @test all(averages.R_T_uncertainty .≥ 0)
+            @test all(0 .< averages.yield_fraction .<= 1)
+            @test trend_row.yield_fraction ≈ 1
             # The token is on the directory, the manifest and these two tables; the per-curve
             # ratio tables are named by quantity and dataset, and found through the manifest.
             @test count(contains(identifier), readdir(directory)) == 3

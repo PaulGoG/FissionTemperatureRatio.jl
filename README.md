@@ -386,8 +386,12 @@ mean over the fragment mass range, with the covariance propagated likewise; it w
 number equally and is therefore dominated by the far-asymmetric tail. The normalization of `Y`
 cancels. `symmetrize = true`, the default, imposes the pre-neutron identity `Y(A) = Y(A₀ − A)`
 before averaging: the two fragments of a split are one event, so where a distribution is measured
-on both wings each mass takes the mean of the two. The published averages took the distributions as
-measured, `symmetrize = false`.
+on both wings each mass takes the mean of the two, and where it is measured on one wing alone that
+value stands for the other. The published averages took the distributions as measured,
+`symmetrize = false`. A distribution giving a yield at fewer than `min_dataset_coverage` of the
+heavy mass numbers is read but not averaged over, since its average would describe those masses
+and not the fission yield, and every average states the fraction of its distribution's yield the
+curve takes in, which is below one where a dataset's pairs stop short of the distribution.
 
 Two level density models are available. The back-shifted Fermi gas is the default; setting
 `model = "GC"` selects Gilbert-Cameron, which for fission fragments returns markedly larger
@@ -436,10 +440,12 @@ the 255 bytes a file system admits. The ratio tables have the headers `A_H,r_nu,
 and `A_H,R_T,R_T_uncertainty`, the pivot table included; in the point-by-point tables an
 uncertainty the measurement does not quote is an empty field, never zero.
 `segmented_curves_<run identifier>.csv` has the columns `label, kind, pooled, segments,
-pinned_at_symmetric_split, first_A_H, last_A_H, pairs, coverage, reduced_chi_squared,
-weights_imputed, range_mean_R_T, range_mean_R_T_uncertainty`, all dimensionless.
-`total_average_R_T_<run identifier>.csv` has the columns `segmented_curve, mass_yield, R_T, R_T_uncertainty,
-R_T_uncertainty_independent_points`, and
+pinned_at_symmetric_split, first_A_H, last_A_H, pairs, measured_points, coverage,
+reduced_chi_squared, weights_imputed, range_mean_R_T, range_mean_R_T_uncertainty`, all
+dimensionless. `total_average_R_T_<run identifier>.csv` has the columns `segmented_curve,
+mass_yield, R_T, R_T_uncertainty, R_T_uncertainty_independent_points, yield_fraction,
+R_T_one_more_segment, R_T_two_more_segments`, the last two filled for the systematic trend only,
+and
 `dataset_diagnostics.csv` the columns `dataset, points, pairs, first_pair, last_pair, coverage,
 outside_physical_range, symmetry_departure, complement_sum, complement_spread,
 without_uncertainties, qualifiers, pooling_weight, flagged, pooled, exclusion_reason, segmented_curve`, the last

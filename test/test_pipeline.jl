@@ -174,5 +174,47 @@ end
                     1e-12
             end
         end
+
+        @testset "yield distributions: one wing stands for the other, partial ones are not averaged" begin
+            yields = joinpath(directory, "yields")
+            mkpath(yields)
+            peak(A_H) = exp(-((A_H - 134) / 4)^2)
+            function write_yield(name, masses)
+                open(joinpath(yields, name), "w") do io
+                    println(io, "A Y Y_uncertainty")
+                    for A in masses
+                        println(io, A, " ", peak(max(A, 252 - A)), " 0.001")
+                    end
+                end
+            end
+            write_yield("10000001_A.Both_2000.dat", vcat(112:126, 127:140))
+            write_yield("10000002_B.Light_2000.dat", 112:126)
+            # Three heavy masses of fifteen: below the coverage floor of 0.3.
+            write_yield("10000003_C.Tail_2000.dat", 138:140)
+            path = joinpath(directory, "with_yields.toml")
+            write(path, PIPELINE_CONFIGURATION * "\n[yield]\nsubdirectory = \"yields\"\n")
+            with_yields = run_pipeline(load_configuration(path; data_directory = directory))
+
+            @test with_yields.mass_yield_coverage["A. Both 2000"] == 1.0
+            @test with_yields.mass_yield_coverage["B. Light 2000"] == 1.0
+            @test with_yields.mass_yield_coverage["C. Tail 2000"] ≈ 3 / 15
+            trend = with_yields.total_average_R_T[SYSTEMATIC_TREND_LABEL]
+            @test !haskey(trend, "C. Tail 2000")
+            # The light wing measured alone gives the same heavy-fragment yields as both wings.
+            @test trend["B. Light 2000"].value ≈ trend["A. Both 2000"].value rtol = 1e-12
+            @test trend["A. Both 2000"].yield_fraction ≈ 1
+            # A curve whose pairs begin at 131 takes in only the yield from there.
+            partial = with_yields.total_average_R_T["partial"]["A. Both 2000"]
+            @test partial.yield_fraction ≈ sum(peak, 131:140) / sum(peak, 126:140)
+            metadata = run_metadata(with_yields)
+            @test metadata["result"]["mass_yields_not_averaged"] == ["C. Tail 2000"]
+            @test metadata["result"]["mass_yield_coverage"]["C. Tail 2000"] ≈ 0.2
+            table = CSV.read(
+                write_results(with_yields, joinpath(directory, "output", "yields"))["total_average_R_T"],
+                DataFrame,
+            )
+            @test !("C. Tail 2000" in table.mass_yield)
+            @test all(0 .< table.yield_fraction .<= 1)
+        end
     end
 end

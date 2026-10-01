@@ -327,6 +327,13 @@ function run_metadata(result::ExtractionResult)
         "result" => Dict{String,Any}(
             "segmented_curves" => curves,
             "dataset_outcomes" => Dict{String,Any}(result.dataset_outcomes),
+            # The fraction of the heavy mass numbers each yield distribution covers; one below
+            # min_dataset_coverage is not averaged over.
+            "mass_yield_coverage" => Dict{String,Any}(result.mass_yield_coverage),
+            "mass_yields_not_averaged" => sort!([
+                label for (label, coverage) in result.mass_yield_coverage if
+                coverage < result.configuration.segments.min_dataset_coverage
+            ]),
             # ⟨R_T⟩ of the systematic trend at the selected number of segments and one and two
             # more, per yield distribution: [segments, ⟨R_T⟩].
             "segment_count_sensitivity" => Dict{String,Any}(

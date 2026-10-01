@@ -159,10 +159,12 @@ end
         # Same value; the covariance form carries the correlation the independent form drops.
         @test value_cov ≈ value_ind
         @test σ_cov > σ_ind
-        record = TotalAverage(curve, yields)
+        record = TotalAverage(curve, yields, domain.heavy_masses)
         @test record.value == value_cov
         @test record.uncertainty == σ_cov
         @test record.uncertainty_independent_points == σ_ind
+        # The yields are given at the curve's masses only, so the curve takes in all of them.
+        @test record.yield_fraction == 1.0
 
         mean, σ = range_mean(curve)
         @test mean ≈ sum(curve.R_T.ratio) / length(A_H)

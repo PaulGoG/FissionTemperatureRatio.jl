@@ -51,10 +51,14 @@ written to disk by [`write_results`](@ref).
 - `range_mean_R_T`: for each segmented curve, the mean of its temperature ratio over its mass
   range with the uncertainty propagated through the curve's covariance; see [`range_mean`](@ref)
   for why this is not the total average.
-- `mass_yields`: the fragment mass yield distributions read, empty when the configuration names
-  none.
-- `total_average_R_T`: the quantity the literature quotes, `⟨R_T⟩` over each yield distribution,
-  keyed by curve label and then by yield label. Empty when no yields were given.
+- `mass_yields`: the fragment mass yield distributions read, symmetrized where the configuration
+  says so, empty when it names none.
+- `mass_yield_coverage`: for each of them, by label, the fraction of the heavy mass numbers of the
+  fragmentation range it gives a yield at, [`mass_yield_coverage`](@ref). A distribution below
+  `min_dataset_coverage` is read and reported but not averaged over.
+- `total_average_R_T`: the quantity the literature quotes, `⟨R_T⟩` over each yield distribution
+  that reaches the coverage floor, keyed by curve label and then by yield label. Empty when no
+  yields were given.
 - `consensus_r_ν`: the combined multiplicity ratio the systematic-trend curve was fitted to, so
   that the trend can be checked against its own input rather than taken on trust.
 - `dataset_diagnostics`: one record per multiplicity dataset read, in the order read.
@@ -79,6 +83,7 @@ struct ExtractionResult
     segmented_curves::Vector{ExtractedCurve}
     range_mean_R_T::Dict{String,Tuple{Float64,Float64}}
     mass_yields::Vector{MassYield}
+    mass_yield_coverage::Dict{String,Float64}
     total_average_R_T::Dict{String,Dict{String,TotalAverage}}
     consensus_r_ν::RatioCurve
     dataset_diagnostics::Vector{DatasetDiagnostics}
@@ -387,7 +392,8 @@ function run_pipeline(configuration::Configuration)
     if configuration.symmetrize_yields && !isempty(mass_yields)
         # Before the qualifiers are looked up by file: the source and label are unchanged.
         mass_yields = [symmetrized_mass_yield(y, A₀) for y in mass_yields]
-        @info "mass yields symmetrized: Y(A) and Y(A₀ - A) averaged where both are measured"
+        @info "mass yields symmetrized: Y(A) and Y(A₀ - A) averaged where both are measured, \
+               one wing standing for the other where it alone is"
     end
     for (distribution, tags) in _yield_qualifiers(configuration, mass_yields)
         flagged = _flagged(tags)
@@ -403,9 +409,21 @@ function run_pipeline(configuration::Configuration)
                 offset.standard offset_MeV = offset.offset
         end
     end
-    total_average_R_T = _total_averages(segmented_curves, mass_yields)
+    # A distribution measured at a few heavy masses would give the ratio averaged over those
+    # masses, not over the fission yield.
+    yield_coverage = Dict(
+        y.label => mass_yield_coverage(y, domain.heavy_masses) for y in mass_yields
+    )
+    averaged_yields = filter(mass_yields) do distribution
+        coverage = yield_coverage[distribution.label]
+        coverage >= segments_settings.min_dataset_coverage && return true
+        @warn "no total average over this yield distribution" yield = distribution.label coverage floor =
+            segments_settings.min_dataset_coverage
+        return false
+    end
+    total_average_R_T = _total_averages(segmented_curves, averaged_yields, domain.heavy_masses)
     for curve in segmented_curves
-        for distribution in mass_yields
+        for distribution in averaged_yields
             entry = get(
                 get(total_average_R_T, curve.label, Dict()), distribution.label, nothing
             )
@@ -418,7 +436,7 @@ function run_pipeline(configuration::Configuration)
     # The trend refitted with one and two segments more than selected: how far ⟨R_T⟩ rests on the
     # selected order.
     sensitivity = Dict{String,Vector{Tuple{Int,Float64}}}()
-    if trend isa ExtractedCurve && !isempty(mass_yields)
+    if trend isa ExtractedCurve && !isempty(averaged_yields)
         selected = segments(trend.fit)
         alternatives = ExtractedCurve[trend]
         for extra in 1:2
@@ -434,7 +452,7 @@ function run_pipeline(configuration::Configuration)
             )
             refit isa ExtractedCurve && push!(alternatives, refit)
         end
-        for distribution in mass_yields
+        for distribution in averaged_yields
             _overlaps(trend.R_T, distribution) || continue
             sensitivity[distribution.label] = [
                 (segments(c.fit), first(total_average(c, distribution))) for c in alternatives
@@ -458,6 +476,7 @@ function run_pipeline(configuration::Configuration)
         segmented_curves,
         Dict(c.label => range_mean(c) for c in segmented_curves),
         mass_yields,
+        yield_coverage,
         total_average_R_T,
         pooled,
         diagnostics,
@@ -520,14 +539,20 @@ end
 # The total average of every segmented curve over every yield distribution. A pair that shares no
 # mass number is omitted rather than reported as zero: a distribution covering only the light wing
 # says nothing about a ratio defined on the heavy one.
-function _total_averages(curves::Vector{ExtractedCurve}, mass_yields::Vector{MassYield})
+function _total_averages(
+    curves::Vector{ExtractedCurve},
+    mass_yields::Vector{MassYield},
+    heavy_masses::AbstractUnitRange{<:Integer},
+)
     averages = Dict{String,Dict{String,TotalAverage}}()
     isempty(mass_yields) && return averages
     for curve in curves
         per_distribution = Dict{String,TotalAverage}()
         for distribution in mass_yields
             if _overlaps(curve.R_T, distribution)
-                per_distribution[distribution.label] = TotalAverage(curve, distribution)
+                per_distribution[distribution.label] = TotalAverage(
+                    curve, distribution, heavy_masses
+                )
             else
                 @warn "no total average" dataset = curve.label yield = distribution.label reason = "no mass number in common carries a positive yield"
             end
@@ -810,8 +835,9 @@ function write_results(result::ExtractionResult, directory::AbstractString)
 
     # The total average over each yield distribution: one row per segmented curve and
     # distribution, which is how the literature tabulates it. The covariance-propagated
-    # uncertainty first; the independent-points one, the published approximation, beside it. For
-    # the systematic trend, ⟨R_T⟩ refitted with one and two segments more than selected.
+    # uncertainty first; the independent-points one, the published approximation, beside it; then
+    # the fraction of the distribution's yield the curve takes in. For the systematic trend,
+    # ⟨R_T⟩ refitted with one and two segments more than selected.
     if !isempty(result.total_average_R_T)
         rows = NamedTuple{
             (
@@ -820,12 +846,14 @@ function write_results(result::ExtractionResult, directory::AbstractString)
                 :R_T,
                 :R_T_uncertainty,
                 :R_T_uncertainty_independent_points,
+                :yield_fraction,
                 :R_T_one_more_segment,
                 :R_T_two_more_segments,
             ),
             Tuple{
                 String,
                 String,
+                Float64,
                 Float64,
                 Float64,
                 Float64,
@@ -858,6 +886,7 @@ function write_results(result::ExtractionResult, directory::AbstractString)
                         R_T_uncertainty_independent_points = round(
                             entry.uncertainty_independent_points; sigdigits = digits
                         ),
+                        yield_fraction = round(entry.yield_fraction; sigdigits = digits),
                         R_T_one_more_segment = alternative(1),
                         R_T_two_more_segments = alternative(2),
                     ),

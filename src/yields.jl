@@ -34,22 +34,78 @@ end
 two fragments of a split are counted in one event, so their masses have one yield. Where both
 complements are measured each takes their mean, with the uncertainty of the mean of two
 independent values, `√(σ_A² + σ_{A₀-A}²)/2`; an unquoted one contributes nothing to it, and where
-neither is quoted the result quotes none. A mass whose complement is not measured is kept as it is.
-The sum over both wings is unchanged. The rule is that of FissionFragmentsDomain's
-`symmetrized_yield` for a joint `Y(A, TKE)`, applied to the marginal.
+neither is quoted the result quotes none. A mass whose complement is not measured stands for it:
+the complement is added with the same yield and uncertainty, so a distribution measured on the
+light wing alone gives the heavy-fragment yields a total average is taken over. The result is
+ascending in `A`. Where one wing alone was measured its split is counted on both, which an average
+does not see, since it divides by the weights it used.
+
+FissionFragmentsDomain's `symmetrized_yield` for a joint `Y(A, TKE)` takes the mean of two measured
+complements in the same way, but keeps a cell whose complement is not measured as it is.
 """
 function symmetrized_mass_yield(yields::MassYield, compound_mass::Integer)
+    A₀ = Int(compound_mass)
     index = Dict(A => i for (i, A) in enumerate(yields.A))
-    Y = copy(yields.Y)
-    σY = copy(yields.σY)
-    for (i, A) in enumerate(yields.A)
-        j = get(index, Int(compound_mass) - A, nothing)
-        (j === nothing || j == i) && continue
-        Y[i] = (yields.Y[i] + yields.Y[j]) / 2
-        σ = (yields.σY[i], yields.σY[j])
-        σY[i] = all(ismissing, σ) ? missing : sqrt(sum(abs2, skipmissing(σ))) / 2
+    masses = sort!(union(yields.A, [A₀ - A for A in yields.A if A < A₀]))
+    Y = Vector{Float64}(undef, length(masses))
+    σY = Vector{Union{Missing,Float64}}(undef, length(masses))
+    for (k, A) in enumerate(masses)
+        i = get(index, A, nothing)
+        j = get(index, A₀ - A, nothing)
+        if i === nothing || j === nothing || i == j
+            measured = something(i, j)
+            Y[k] = yields.Y[measured]
+            σY[k] = yields.σY[measured]
+        else
+            Y[k] = (yields.Y[i] + yields.Y[j]) / 2
+            σ = (yields.σY[i], yields.σY[j])
+            σY[k] = all(ismissing, σ) ? missing : sqrt(sum(abs2, skipmissing(σ))) / 2
+        end
     end
-    return MassYield(copy(yields.A), Y, σY, yields.label, yields.source)
+    return MassYield(masses, Y, σY, yields.label, yields.source)
+end
+
+"""
+    mass_yield_coverage(yields, heavy_masses) -> Float64
+
+The fraction of the heavy mass numbers `heavy_masses` at which `yields` gives a value, on the same
+footing as the coverage of a multiplicity dataset. A run takes no total average over a
+distribution below `min_dataset_coverage`: averaged over a few heavy masses, `⟨R_T⟩` describes
+those masses and not the fission yield. Throws an `ArgumentError` for an empty range.
+"""
+function mass_yield_coverage(yields::MassYield, heavy_masses::AbstractUnitRange{<:Integer})
+    isempty(heavy_masses) && throw(ArgumentError("the heavy mass range is empty"))
+    return count(A -> mass_yield(yields, A) !== nothing, heavy_masses) / length(heavy_masses)
+end
+
+"""
+    yield_fraction(curve, yields, heavy_masses) -> Float64
+
+The fraction of the yield of `yields` over the heavy mass numbers `heavy_masses` that falls at the
+mass numbers of `curve`: how much of the distribution a total average over that curve takes in.
+One for a curve spanning every mass the distribution covers, less for a dataset whose complete
+pairs stop short of them. Throws an `ArgumentError` when the distribution carries no positive
+yield in the range.
+"""
+function yield_fraction(
+    curve::RatioCurve, yields::MassYield, heavy_masses::AbstractUnitRange{<:Integer}
+)
+    on_curve = Set(curve.A_H)
+    total = 0.0
+    taken = 0.0
+    for A in heavy_masses
+        entry = mass_yield(yields, A)
+        entry === nothing && continue
+        total += entry[1]
+        A in on_curve && (taken += entry[1])
+    end
+    total > 0 || throw(
+        ArgumentError(
+            "the yield distribution \"$(yields.label)\" carries no positive yield over \
+             $(first(heavy_masses)):$(last(heavy_masses))"
+        ),
+    )
+    return taken / total
 end
 
 """
