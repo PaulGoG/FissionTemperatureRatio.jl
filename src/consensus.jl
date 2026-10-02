@@ -117,6 +117,11 @@ fixed-effect stage and in the combination alike: `w = f/(σ² + τ²)`. A datase
 interpolated onto the integers has rows that share their bracketing points and so are not
 independent; [`pooling_weight`](@ref) gives it the factor raw points over rows. A curve alone at a
 mass number passes through with its uncertainty divided by `√f`.
+
+The uncertainty of the curve returned is the standard error of each combined value, factor
+included. A fit to it must not weight a point by its measured fraction a second time; the
+systematic trend is fitted to the same values at the uncertainty of one measurement, with the
+fraction as [`fit_segments`](@ref)'s `measured`, which applies it once.
 """
 function consensus(
     curves::Vector{RatioCurve};
@@ -126,9 +131,13 @@ function consensus(
     return first(_consensus(curves, label, weights))
 end
 
-# The combined curve and the measured fraction of each of its points: the pooling weights of the
-# values combined there, averaged with the weights they were combined with. A point resting on
-# measured values counts as one measurement; one resting on interpolated values, as their share.
+# The combined curve, the measured fraction of each of its points, and the uncertainty each point
+# has as one measurement. The fraction is the pooling weights of the values combined there,
+# averaged with the weights they were combined with: a point resting on measured values counts as
+# one measurement; one resting on interpolated values, as their share. The standard error of the
+# curve already carries that fraction, as `σ/√f`; the uncertainty of one measurement is the same
+# quantity with the fraction taken out, so that `f/σ²` is the weight of the point however it is
+# split between the two, and a fit that takes both applies the fraction once.
 function _consensus(
     curves::Vector{RatioCurve}, label::AbstractString, weights::AbstractVector{<:Real}
 )
@@ -142,6 +151,7 @@ function _consensus(
     ratio = Float64[]
     σ = Union{Missing,Float64}[]
     measured = Float64[]
+    σ_measurement = Union{Missing,Float64}[]
 
     for mass in masses
         values = Float64[]
@@ -156,14 +166,15 @@ function _consensus(
         end
         isempty(values) && continue
 
-        combined, spread, fraction = _combine(values, uncertainties, factors)
+        combined, spread, fraction, single = _combine(values, uncertainties, factors)
         push!(A_H, mass)
         push!(ratio, combined)
         push!(σ, spread)
         push!(measured, fraction)
+        push!(σ_measurement, single)
     end
 
-    return RatioCurve(A_H, ratio, σ, String(label)), measured
+    return RatioCurve(A_H, ratio, σ, String(label)), measured, σ_measurement
 end
 
 function _combine(
@@ -172,14 +183,18 @@ function _combine(
     factors::Vector{Float64} = ones(length(values)),
 )
     k = length(values)
-    k == 1 && return (values[1], uncertainties[1] / sqrt(factors[1]), factors[1])
+    # One value: its own uncertainty is that of one measurement, exactly.
+    k == 1 &&
+        return (values[1], uncertainties[1] / sqrt(factors[1]), factors[1], uncertainties[1])
 
     quoted = .!ismissing.(uncertainties)
     if !any(quoted)
         # The weighted mean, and the standard error over the effective number of values.
         μ = sum(factors .* values) / sum(factors)
         effective = sum(factors)^2 / sum(factors .^ 2)
-        return (μ, std(values) / sqrt(effective), sum(factors .^ 2) / sum(factors))
+        spread = std(values) / sqrt(effective)
+        fraction = sum(factors .^ 2) / sum(factors)
+        return (μ, spread, fraction, spread * sqrt(fraction))
     end
 
     σ = Float64[coalesce(u, NaN) for u in uncertainties]
@@ -196,5 +211,7 @@ function _combine(
     τ² = max(0.0, (Q - (k - 1)) / (total - sum(w₀ .^ 2) / total))
 
     w = factors ./ (σ .^ 2 .+ τ²)
-    return (sum(w .* values) / sum(w), 1 / sqrt(sum(w)), sum(w .* factors) / sum(w))
+    spread = 1 / sqrt(sum(w))
+    fraction = sum(w .* factors) / sum(w)
+    return (sum(w .* values) / sum(w), spread, fraction, spread * sqrt(fraction))
 end

@@ -347,10 +347,14 @@ function run_pipeline(configuration::Configuration)
             @info "interpolated dataset pooled at reduced weight" dataset = datasets[i].label weight =
                 w
     end
-    pooled, measured = _consensus(r_ν[admitted], SYSTEMATIC_TREND_LABEL, weights)
+    pooled, measured, σ_measurement = _consensus(r_ν[admitted], SYSTEMATIC_TREND_LABEL, weights)
+    # The trend is fitted to the combined values at the uncertainty of one measurement, with the
+    # measured fraction beside it, as a dataset is: the standard error of `pooled` carries the
+    # fraction already, and fitting to it would count the fraction twice.
+    combined = RatioCurve(pooled.A_H, pooled.ratio, σ_measurement, pooled.label)
     windows = segments_settings.required_windows
     trend = _segment(
-        pooled,
+        combined,
         relation,
         segments_settings,
         SYSTEMATIC_TREND_LABEL,
@@ -363,7 +367,7 @@ function run_pipeline(configuration::Configuration)
                was fitted without them" windows reason = trend
         windows = UnitRange{Int}[]
         trend = _segment(
-            pooled,
+            combined,
             relation,
             segments_settings,
             SYSTEMATIC_TREND_LABEL,
@@ -472,7 +476,7 @@ function run_pipeline(configuration::Configuration)
         alternatives = ExtractedCurve[trend]
         for extra in 1:2
             refit = _segment(
-                pooled,
+                combined,
                 relation,
                 segments_settings,
                 SYSTEMATIC_TREND_LABEL,

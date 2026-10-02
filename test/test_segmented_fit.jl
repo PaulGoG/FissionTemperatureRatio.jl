@@ -152,6 +152,83 @@ using LinearAlgebra: LinearAlgebra
         @test_throws ArgumentError fit_segments(
             masses, ratio, spread; measured = fill(1.5, length(masses))
         )
+        # The fraction scales the information matrix as it scales χ²: the covariance, apart from
+        # its chi-squared factor, is that of the full fit over the fraction.
+        scale(fit) = max(1.0, fit.wrss / fit.dof)
+        @test thin.covariance ./ scale(thin) ≈ full.covariance ./ scale(full) ./ f
+    end
+
+    @testset "a pool of one interpolated dataset is that dataset" begin
+        masses = collect(126:150)
+        ratio = reference_ratio.(masses) .+ 0.003 .* iseven.(masses)
+        spread = Union{Missing,Float64}[0.003 + 0.0002 * (a - 126) for a in masses]
+        spread[7] = missing
+        f = 52 / 69
+        fractions = fill(f, length(masses))
+        curve = RatioCurve(masses, ratio, spread, "interpolated")
+        settings = (max_segments = 4, pinned_value = 0.5, bounds = (0.0, 1.0))
+        own = fit_segments(masses, ratio, spread; settings..., measured = fractions)
+
+        pooled, measured, σ_measurement = FissionTemperatureRatio._consensus(
+            [curve], SYSTEMATIC_TREND_LABEL, [f]
+        )
+        # The combined curve states the standard error, fraction included; the fit takes the
+        # uncertainty of one measurement and the fraction beside it.
+        @test measured == fractions
+        @test isequal(σ_measurement, spread)
+        @test all(skipmissing(pooled.σ .≈ spread ./ sqrt(f)))
+        trend = fit_segments(
+            pooled.A_H, pooled.ratio, σ_measurement; settings..., measured = measured
+        )
+        @test segments(trend) > 1
+        @test trend.breakpoints == own.breakpoints
+        @test trend.coefficients == own.coefficients
+        @test trend.wrss == own.wrss
+        @test trend.dof == own.dof
+        @test trend.bic == own.bic
+        @test trend.selection == own.selection
+        @test trend.covariance == own.covariance
+
+        # Fitted to the standard error with the fraction beside it, the fraction would enter
+        # twice: χ² of a residual at f²/σ², where a measurement of the dataset enters at f/σ².
+        order = (min_segments = segments(own), max_segments = segments(own))
+        once = fit_segments(masses, ratio, spread; settings..., order..., measured = fractions)
+        twice = fit_segments(
+            masses, ratio, pooled.σ; settings..., order..., measured = fractions
+        )
+        @test twice.wrss ≈ f * once.wrss
+    end
+
+    @testset "a pool of integer-mass datasets carries no fraction" begin
+        masses = collect(126:150)
+        ratio = reference_ratio.(masses) .+ 0.003 .* iseven.(masses)
+        one = RatioCurve(masses, ratio, fill(0.004, length(masses)), "one")
+        other = RatioCurve(
+            masses[3:end], ratio[3:end] .+ 0.01, fill(0.006, length(masses) - 2), "other"
+        )
+        pooled, measured, σ_measurement = FissionTemperatureRatio._consensus(
+            [one, other], SYSTEMATIC_TREND_LABEL, [1.0, 1.0]
+        )
+        # Exactly one, and exactly the standard error: nothing of such a pool moves.
+        @test all(==(1.0), measured)
+        @test isequal(σ_measurement, pooled.σ)
+        counted = fit_segments(
+            pooled.A_H, pooled.ratio, σ_measurement; max_segments = 4, measured = measured
+        )
+        plain = fit_segments(pooled.A_H, pooled.ratio, pooled.σ; max_segments = 4)
+        @test counted.coefficients == plain.coefficients
+        @test counted.wrss == plain.wrss
+        @test counted.covariance == plain.covariance
+
+        # An interpolated dataset beside a measured one: the weight of each combined point is
+        # that of its standard error, however it is split between fraction and uncertainty.
+        f = 52 / 69
+        pooled, measured, σ_measurement = FissionTemperatureRatio._consensus(
+            [one, other], SYSTEMATIC_TREND_LABEL, [1.0, f]
+        )
+        @test measured[1:2] == [1.0, 1.0]
+        @test all(f .< measured[3:end] .< 1)
+        @test measured ./ σ_measurement .^ 2 ≈ 1 ./ pooled.σ .^ 2
     end
 
     @testset "invalid arguments are rejected" begin

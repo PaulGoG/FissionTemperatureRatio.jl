@@ -32,7 +32,7 @@ A continuous piecewise-linear fit with breakpoints selected from the data.
 - `pinned_value`: the value the fit was pinned to at `x₀`, or `nothing`.
 - `points`, `measured_points`: the points fitted, and how many measurements they amount to,
   `Σ f` over the measured fractions `f` of the points; equal unless the data were interpolated.
-- `wrss`, `dof`, `bic`: weighted residual sum of squares `Σ f w r²`, degrees of freedom
+- `wrss`, `dof`, `bic`: weighted residual sum of squares `Σ (f/σ²) r²`, degrees of freedom
   `measured_points − parameters`, and the selection criterion, all counted in measurements.
   `wrss/dof` is a reduced chi-squared to the extent that the quoted uncertainties are trustworthy
   in absolute scale.
@@ -294,13 +294,15 @@ weights carry no scale and the noise must then be estimated from the residuals.
   symmetric split, where the two fragments are identical and the ratio is one half.
 - `required_windows`: mass-number windows each of which must contain a breakpoint, for imposing
   a known feature such as the minimum at the heavy magic fragment.
-- `measured`: the measured fraction of every point, in `(0, 1]`, all ones by default. A point
+- `measured`: the measured fraction `f` of every point, in `(0, 1]`, all ones by default. A point
   interpolated from measurements at non-integer abscissae shares them with its neighbours and
-  counts for less than one measurement: the sample size of the criterion and the degrees of
-  freedom are `Σ measured`, not the number of points, and each point's residual enters `χ²` with
-  its fraction. The coefficients are those of the weighted solve, which the fractions do not
-  change for a single dataset. Without this, correlated interpolated points would buy extra
-  segments.
+  counts for less than one measurement: its weight is `f/σ²`, with `σ` its uncertainty as one
+  measurement, and that one weight serves the solve, `χ²` and the information matrix `XᵀWX` the
+  covariance is the inverse of. The sample size of the criterion and the degrees of freedom are
+  `Σ f`, not the number of points. A fraction common to every point leaves the coefficients as
+  they are and divides their covariance by it. Without this, correlated interpolated points
+  would buy extra segments and a precision their measurements do not carry. `σ` must not carry
+  the fraction already, or it enters twice.
 - `bounds`: open interval the fitted function must remain within over the whole range. For a
   ratio of the form `ν_H/(ν_L + ν_H)` the physical range is `(0, 1)`, and a fit leaving it would
   make the temperature ratio relation undefined; candidates that do are rejected outright rather
@@ -393,6 +395,9 @@ function fit_segments(
     ys = collect(Float64, y)
     pinned && (ys = ys .- pinned_value)
     w, imputed = fit_weights(σ)
+    # The measured fraction enters here and nowhere else: one weight f/σ² for the solve, for χ²
+    # and for the information matrix.
+    w .*= fraction
     # Several datasets of one fissioning nucleus contribute points at the same mass number, so
     # the abscissae repeat. Breakpoints are positions, not points: the candidates are the distinct
     # interior mass numbers.
@@ -428,8 +433,8 @@ function fit_segments(
             solved === nothing && return nothing
             β, _, gram = solved
             parameters = length(β) + length(ψ)
-            # Counted in measurements: an interpolated point contributes its fraction.
-            wrss = sum(fraction .* w .* (ys .- X * β) .^ 2)
+            # Counted in measurements: the weights carry each point's measured fraction.
+            wrss = sum(w .* (ys .- X * β) .^ 2)
             dof = n_measured - parameters
             dof > 0 || return nothing
             _within_bounds(bounds, xs, ψ, β, pinned, pinned_value) || return nothing
