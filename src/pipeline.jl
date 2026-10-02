@@ -172,23 +172,28 @@ function _unique_labels(files::AbstractVector{<:AbstractString})
     ]
 end
 
-# The EXFOR accession of a dataset: the identifier its retrieval record gives, else the digits its
+# An EXFOR dataset identifier as the manifest admits it: entry, subentry and, where the subentry
+# holds several datasets, a pointer character.
+const ACCESSION_PATTERN = r"^[0-9A-Z]{8,9}$"
+
+# The EXFOR accession of a dataset: the identifier its retrieval record gives, else the one its
 # file name leads with, else none, for a tabulation that came from no archive.
 function _dataset_accession(source::AbstractString)
     record = retrieval_record(source)
-    if record !== nothing && haskey(record.entry, "identifier")
-        return string(record.entry["identifier"])
+    candidate = if record !== nothing && haskey(record.entry, "identifier")
+        string(record.entry["identifier"])
+    else
+        first(split(basename(source), '_'))
     end
-    found = match(r"^([0-9]+)_", basename(source))
-    return found === nothing ? "" : String(something(first(found.captures)))
+    return occursin(ACCESSION_PATTERN, candidate) ? String(candidate) : ""
 end
 
 """
     curve_accessions(result) -> Dict{String,String}
 
 The EXFOR accession of every dataset of a run, keyed by its label: the identifier the retrieval
-record states, or the digits the file name leads with where no record lists the file, and empty
-for a tabulation that carries neither. The systematic trend is fitted to several datasets and has
+record states, or the one the file name leads with where no record lists the file, and empty for a
+tabulation that carries neither. The systematic trend is fitted to several datasets and has
 none; its entry is empty.
 
 The label, `Author year`, is the display name and the key a consuming code selects a curve by; it
@@ -456,8 +461,8 @@ function run_pipeline(configuration::Configuration)
     end
     if configuration.symmetrize_yields && !isempty(mass_yields)
         # Before the qualifiers are looked up by file: the source and label are unchanged.
-        mass_yields = [symmetrized_mass_yield(y, A₀) for y in mass_yields]
-        reference = symmetrized_mass_yield(reference, A₀)
+        mass_yields = [symmetrized_yield(y, A₀) for y in mass_yields]
+        reference = symmetrized_yield(reference, A₀)
         @info "mass yields symmetrized: Y(A) and Y(A₀ - A) averaged where both are measured, \
                one wing standing for the other where it alone is"
     end
@@ -744,8 +749,9 @@ function _symmetry_diagnostics(
 end
 
 # The run record a consuming code reads: the system, the quantity tabulated, the domain the curves
-# were extracted on, and for every segmented curve its label, its kind and the two files it is
-# tabulated in, written by FissionFragmentsDomain's writer and nothing besides. What else a run
+# were extracted on, and for every segmented curve its label, its kind, the two files it is
+# tabulated in and, for a dataset curve, its archive accession, written by FissionFragmentsDomain's
+# writer and nothing besides. What else a run
 # knows about each curve is in the segmented-curves table and in the run metadata.
 function _write_manifest(
     result::ExtractionResult,
@@ -765,12 +771,14 @@ function _write_manifest(
         record["compound_A"],
         record["compound_Z"],
     )
+    accessions = curve_accessions(result)
     curves = [
         ManifestCurve(
             curve.label,
             curve.kind,
             basename(written["R_T_segmented/$(curve.label)"]),
-            basename(written["r_nu_pivots/$(curve.label)"]),
+            basename(written["r_nu_pivots/$(curve.label)"]);
+            accession = accessions[curve.label],
         ) for curve in result.segmented_curves
     ]
     path = joinpath(directory, "manifest_$(identifier).toml")
@@ -822,7 +830,8 @@ rest, writes `metadata.toml`, and calls [`write_figures`](@ref).
 
 The manifest, `manifest_<run identifier>.toml`, is the contract with a consuming code, which
 stages the whole directory and selects the manifest by that prefix; it holds the system, the
-domain and, per segmented curve, the label, the kind and the two files, and nothing else. What else
+domain and, per segmented curve, the label, the kind, the two files and the accession of a dataset
+curve, and nothing else. What else
 a run reports about each curve — segments, pin, span, pairs, coverage, reduced chi-squared, range
 mean — is one row per manifest curve, keyed by its label, in `segmented_curves_<run
 identifier>.csv`; the total averages are in `total_average_R_T_<run identifier>.csv`.

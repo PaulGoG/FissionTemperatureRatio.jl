@@ -100,6 +100,7 @@ using FissionFragmentsDomain:
     recommended_mean_total_kinetic_energy,
     spontaneous_fission,
     symmetric_charge_set_is_invariant,
+    symmetrized_yield,
     system_record,
     temperature_ratio,
     temperature_ratio_slope,
@@ -139,7 +140,7 @@ export A_H_range, has_symmetric_split
 
 # Input data
 export Multiplicity, read_multiplicity, read_multiplicity_directory, multiplicity
-export read_mass_yield_directory, symmetrized_mass_yield, mass_yield_coverage, yield_fraction
+export read_mass_yield_directory, mass_yield_coverage, yield_fraction
 export MeanKineticEnergy, read_mean_kinetic_energy, mean_kinetic_energy_offset
 export RetrievalRecord,
     retrieval_record,

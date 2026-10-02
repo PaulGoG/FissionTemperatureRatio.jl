@@ -141,6 +141,8 @@ DATA_AVAILABLE && @testset "the handoff to a consuming code" begin
                 accession = accessions[curve.label]
                 @test occursin(r"^[0-9]{8,9}$", accession)
                 @test !occursin(accession, curve.label)
+                # The manifest entry records it; the label still selects the curve.
+                @test curve.accession == accession
                 # Named by the stem of the input file, <accession>_<Author>_<year>.
                 source = only(d.source for d in result.datasets if d.label == curve.label)
                 stem = first(splitext(basename(source)))
@@ -155,6 +157,18 @@ DATA_AVAILABLE && @testset "the handoff to a consuming code" begin
             end
             trend = manifest_curve(manifest, SYSTEMATIC_TREND_LABEL)
             @test trend.temperature_ratio_file == "R_T_vs_A_H_segmented_systematic_trend.csv"
+            @test trend.accession == ""
+            document = TOML.parsefile(path)
+            for entry in document["segmented_curve"]
+                keys_expected = [
+                    "label",
+                    "kind",
+                    "temperature_ratio_file",
+                    "multiplicity_ratio_pivots_file",
+                ]
+                entry["kind"] == "dataset" && push!(keys_expected, "accession")
+                @test Set(keys(entry)) == Set(keys_expected)
+            end
             @test ismissing(
                 only(filter(r -> r.label == SYSTEMATIC_TREND_LABEL, table).accession)
             )

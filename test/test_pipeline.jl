@@ -124,7 +124,8 @@ end
             @test String.(table.label) == curve_labels(manifest)
             @test SYSTEMATIC_TREND_LABEL in curve_labels(manifest)
             @test manifest_curve(manifest, SYSTEMATIC_TREND_LABEL).kind == "systematic_trend"
-            # The manifest holds the shared writer's fields and nothing besides.
+            # The manifest holds the shared writer's fields and nothing besides; a tabulation
+            # from no archive records no accession.
             document = TOML.parsefile(written["manifest"])
             @test Set(keys(document)) == Set(["system", "run", "domain", "segmented_curve"])
             for entry in document["segmented_curve"]
@@ -318,6 +319,11 @@ end
                 @test "$(name)_10000009_A.Interp_2001.csv" in files
             end
             @test "R_T_vs_A_H_segmented_systematic_trend.csv" in files
+            manifest = read_temperature_ratio_manifest(
+                staged_manifest(joinpath(directory, "output", "one"))
+            )
+            @test manifest_curve(manifest, "A. Interp 2001").accession == "10000009"
+            @test manifest_curve(manifest, SYSTEMATIC_TREND_LABEL).accession == ""
             # The combined curve states the standard error, which carries the fraction.
             @test all(one.consensus_r_ν.σ .≈ only(one.r_ν).σ ./ sqrt(20 / 29))
         end

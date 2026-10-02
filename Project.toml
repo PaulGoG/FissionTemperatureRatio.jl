@@ -30,7 +30,7 @@ CairoMakie = "0.15.14"
 DataFrames = "1.8.2"
 Dates = "1"
 DrWatson = "2.19.1"
-FissionFragmentsDomain = "0.2"
+FissionFragmentsDomain = "0.2.3"
 LaTeXStrings = "1.4.1"
 LinearAlgebra = "1"
 MathTeXEngine = "0.6.9"
@@ -42,4 +42,4 @@ TOML = "1"
 julia = "1.11"
 
 [sources]
-FissionFragmentsDomain = {url = "https://github.com/PaulGoG/FissionFragmentsDomain.jl", rev = "v0.2.1"}
+FissionFragmentsDomain = {url = "https://github.com/PaulGoG/FissionFragmentsDomain.jl", rev = "v0.2.3"}

@@ -1,6 +1,7 @@
 # Fission fragment mass yields, and the yield-weighted total average of a ratio curve.
 #
-# The yield distribution itself, `MassYield`, and its reader are FissionFragmentsDomain's. The
+# The yield distribution itself, `MassYield`, its reader and the symmetrization that imposes the
+# pre-neutron identity `Y(A) = Y(A₀ - A)` on it, `symmetrized_yield`, are FissionFragmentsDomain's. The
 # yields are pre-neutron: the temperature ratio is a function of the primary heavy-fragment mass
 # number, so averaging it over a post-neutron distribution would weight each ratio by the yield of
 # a different fragmentation. No normalization is imposed; a total average divides by the sum of
@@ -25,44 +26,6 @@ function read_mass_yield_directory(directory::AbstractString)
         read_mass_yield(joinpath(directory, file); label = label) for
         (file, label) in zip(files, _unique_labels(files))
     ]
-end
-
-"""
-    symmetrized_mass_yield(yields, compound_mass) -> MassYield
-
-`yields` with the pre-neutron identity `Y(A) = Y(A₀ - A)` imposed, `A₀` being `compound_mass`: the
-two fragments of a split are counted in one event, so their masses have one yield. Where both
-complements are measured each takes their mean, with the uncertainty of the mean of two
-independent values, `√(σ_A² + σ_{A₀-A}²)/2`; an unquoted one contributes nothing to it, and where
-neither is quoted the result quotes none. A mass whose complement is not measured stands for it:
-the complement is added with the same yield and uncertainty, so a distribution measured on the
-light wing alone gives the heavy-fragment yields a total average is taken over. The result is
-ascending in `A`. Where one wing alone was measured its split is counted on both, which an average
-does not see, since it divides by the weights it used.
-
-FissionFragmentsDomain's `symmetrized_yield` for a joint `Y(A, TKE)` takes the mean of two measured
-complements in the same way, but keeps a cell whose complement is not measured as it is.
-"""
-function symmetrized_mass_yield(yields::MassYield, compound_mass::Integer)
-    A₀ = Int(compound_mass)
-    index = Dict(A => i for (i, A) in enumerate(yields.A))
-    masses = sort!(union(yields.A, [A₀ - A for A in yields.A if A < A₀]))
-    Y = Vector{Float64}(undef, length(masses))
-    σY = Vector{Union{Missing,Float64}}(undef, length(masses))
-    for (k, A) in enumerate(masses)
-        i = get(index, A, nothing)
-        j = get(index, A₀ - A, nothing)
-        if i === nothing || j === nothing || i == j
-            measured = something(i, j)
-            Y[k] = yields.Y[measured]
-            σY[k] = yields.σY[measured]
-        else
-            Y[k] = (yields.Y[i] + yields.Y[j]) / 2
-            σ = (yields.σY[i], yields.σY[j])
-            σY[k] = all(ismissing, σ) ? missing : sqrt(sum(abs2, skipmissing(σ))) / 2
-        end
-    end
-    return MassYield(masses, Y, σY, yields.label, yields.source)
 end
 
 """

@@ -7,9 +7,9 @@ StableRNGs = "860ef19b-820b-49d6-a774-d7a799459cd3"
 
 [compat]
 BenchmarkTools = "1"
-FissionFragmentsDomain = "0.2"
+FissionFragmentsDomain = "0.2.3"
 StableRNGs = "1"
 
 [sources]
-FissionFragmentsDomain = {url = "https://github.com/PaulGoG/FissionFragmentsDomain.jl", rev = "v0.2.1"}
+FissionFragmentsDomain = {url = "https://github.com/PaulGoG/FissionFragmentsDomain.jl", rev = "v0.2.3"}
 FissionTemperatureRatio = {path = ".."}

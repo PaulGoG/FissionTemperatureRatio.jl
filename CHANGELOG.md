@@ -48,6 +48,16 @@ Notable changes to FissionTemperatureRatio.jl. The format follows
   the pivots and the per-dataset figures. Labels, the `systematic_trend` label and its file names
   are unchanged; a consuming code reads the file names from the manifest.
 
+- FissionFragmentsDomain.jl v0.2.3 in every environment, `[compat]` 0.2.3. The symmetrization of
+  a mass yield distribution is its `symmetrized_yield(yields::MassYield, compound_mass)`, of the
+  same definition as the `symmetrized_mass_yield` it replaces: the mean of two measured
+  complements with `√(σ_A² + σ_{A₀−A}²)/2`, an unquoted uncertainty contributing nothing, an
+  unpaired mass standing for its complement. No result changes.
+
+### Removed
+
+- `symmetrized_mass_yield`; use `FissionFragmentsDomain.symmetrized_yield`.
+
 ### Added
 
 - `[retrieval] min_package_version`, default `"0.2.3"`: the lowest ExforFissionData version whose
@@ -57,8 +67,11 @@ Notable changes to FissionTemperatureRatio.jl. The format follows
   22650004 on the scale of their subentry and refuses the ²⁵²Cf yields 41425015 and 41425016.
   `check_retrieval_versions`, `Configuration.min_retrieval_version`, `min_package_version` in the
   run metadata.
-- `curve_accessions(result)`, the EXFOR accession of every dataset by label, and an `accession`
-  column in `segmented_curves_<run identifier>.csv` and `dataset_diagnostics.csv`.
+- The manifest records the EXFOR accession of every dataset curve, as `accession` in its
+  `[[segmented_curve]]` entry; the systematic trend has none. The existing keys keep their names,
+  and the label still selects a curve. `curve_accessions(result)` gives the accession of every
+  dataset by label, and `segmented_curves_<run identifier>.csv` and `dataset_diagnostics.csv`
+  carry it as a column.
 
 ## [0.2.0] - 2026-10-01
 

@@ -49,7 +49,7 @@
             "y",
             "source.dat",
         )
-        symmetric = symmetrized_mass_yield(yields, 236)
+        symmetric = symmetrized_yield(yields, 236)
         @test symmetric.A == [96, 106, 118, 130, 140]
         @test symmetric.Y ≈ [6.0, 3.0, 0.5, 3.0, 6.0]
         @test symmetric.σY[2] ≈ sqrt(0.3^2 + 0.4^2) / 2
@@ -61,19 +61,19 @@
             isequal(mass_yield(symmetric, A), mass_yield(symmetric, 236 - A)) for
             A in symmetric.A
         )
-        twice = symmetrized_mass_yield(symmetric, 236)
+        twice = symmetrized_yield(symmetric, 236)
         @test twice.A == symmetric.A && twice.Y ≈ symmetric.Y
         @test (symmetric.label, symmetric.source) == (yields.label, yields.source)
         # A distribution measured on the light wing alone gives the heavy-fragment yields.
         light = MassYield([100, 106, 110], [1.0, 2.0, 1.5], [0.1, 0.2, missing], "light", "")
-        heavy = symmetrized_mass_yield(light, 236)
+        heavy = symmetrized_yield(light, 236)
         @test isequal(
             [mass_yield(heavy, A) for A in (126, 130, 136)],
             [(1.5, missing), (2.0, 0.2), (1.0, 0.1)],
         )
         # One quoted uncertainty of a pair: the other contributes nothing.
         partial = MassYield([106, 130], [2.0, 4.0], [missing, 0.4], "p", "")
-        @test symmetrized_mass_yield(partial, 236).σY == [0.2, 0.2]
+        @test symmetrized_yield(partial, 236).σY == [0.2, 0.2]
     end
 
     @testset "total average" begin
