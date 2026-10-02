@@ -108,15 +108,23 @@ uncertainty of the combination reflects the disagreement instead of hiding it.
 
 Where a mass number has one measurement only, that value and its uncertainty pass through: there
 is no dispersion to estimate. Where none of the values at a mass number carries a quoted
-uncertainty, the unweighted mean is taken and the standard error of the values supplies the
-uncertainty. Points quoting no uncertainty alongside points that do are given the median of the
-latter, as [`fit_weights`](@ref) does.
+uncertainty, the mean is taken and the standard error of the values supplies the uncertainty,
+`s/√k` with `s` their standard deviation; identical values leave nothing to estimate it from, and
+the combined point then quotes no uncertainty. Points quoting no uncertainty alongside points that
+do are given the median of the latter, as [`fit_weights`](@ref) does.
 
 `weights`, one factor per curve, scales the weight of every value of that curve, in the
 fixed-effect stage and in the combination alike: `w = f/(σ² + τ²)`. A dataset whose masses were
 interpolated onto the integers has rows that share their bracketing points and so are not
 independent; [`pooling_weight`](@ref) gives it the factor raw points over rows. A curve alone at a
-mass number passes through with its uncertainty divided by `√f`.
+mass number passes through with its uncertainty divided by `√f`, and values quoting no
+uncertainty are averaged with the weights `f` to the standard error `s/√(Σf)`.
+
+With such factors the fixed-effect weights are `f/σ²` while a value keeps the variance `σ²`, and
+the statistic `Q = Σ (f/σ²)(r − r̄)²` has the expectation `Σf − Σ(f²/σ²)/Σ(f/σ²)` where the
+datasets do not differ, not `k − 1`. `τ²` is estimated against that expectation, the method of
+moments for general weights of DerSimonian and Kacker, Contemp. Clin. Trials **28**, 105 (2007),
+doi:10.1016/j.cct.2006.04.004; it reduces to DerSimonian and Laird's where every factor is one.
 
 The uncertainty of the curve returned is the standard error of each combined value, factor
 included. A fit to it must not weight a point by its measured fraction a second time; the
@@ -189,11 +197,19 @@ function _combine(
 
     quoted = .!ismissing.(uncertainties)
     if !any(quoted)
-        # The weighted mean, and the standard error over the effective number of values.
+        # No value quotes an uncertainty: the weighted mean, with the dispersion s of the values
+        # standing for the uncertainty of one of them. A value that counts for f of a measurement
+        # has the precision f/s², so the mean has the variance s²/Σf: the standard error carries
+        # the fractions, as σ/√f does for a single value, and the uncertainty of one measurement
+        # is the standard error with the fraction taken out, as in the quoted case.
         μ = sum(factors .* values) / sum(factors)
-        effective = sum(factors)^2 / sum(factors .^ 2)
-        spread = std(values) / sqrt(effective)
         fraction = sum(factors .^ 2) / sum(factors)
+        dispersion = std(values)
+        # Identical values leave no dispersion to estimate from. The point then quotes no
+        # uncertainty, as none of its values does, and takes the median weight in a fit; a zero
+        # would claim an exact value.
+        dispersion > 0 || return (μ, missing, fraction, missing)
+        spread = dispersion / sqrt(sum(factors))
         return (μ, spread, fraction, spread * sqrt(fraction))
     end
 
@@ -206,9 +222,15 @@ function _combine(
     total = sum(w₀)
     fixed = sum(w₀ .* values) / total
     Q = sum(w₀ .* (values .- fixed) .^ 2)
+    # What Q is expected to be with no variance between the datasets. The weights are f/σ² and
+    # the values have the variance σ², so E[Q] = Σ w₀σ² − Σ w₀²σ²/Σ w₀ = Σ f − Σ w₀f/Σ w₀, which
+    # is k − 1 only where every f is one; the general weights of DerSimonian and Kacker's
+    # method of moments. Taking k − 1 for a pool that holds interpolated datasets underestimates
+    # τ² by about σ²(1 − f)/f.
+    expected = sum(factors) - sum(w₀ .* factors) / total
     # The estimator is truncated at zero: a Q below its expectation means the datasets agree
     # better than their uncertainties suggest, not that the variance between them is negative.
-    τ² = max(0.0, (Q - (k - 1)) / (total - sum(w₀ .^ 2) / total))
+    τ² = max(0.0, (Q - expected) / (total - sum(w₀ .^ 2) / total))
 
     w = factors ./ (σ .^ 2 .+ τ²)
     spread = 1 / sqrt(sum(w))

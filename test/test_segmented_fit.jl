@@ -231,6 +231,87 @@ using LinearAlgebra: LinearAlgebra
         @test measured ./ σ_measurement .^ 2 ≈ 1 ./ pooled.σ .^ 2
     end
 
+    @testset "a pool of unquoted interpolated datasets carries its fraction once" begin
+        masses = collect(126:150)
+        n = length(masses)
+        base = reference_ratio.(masses)
+        unquoted = fill(missing, n)
+        one = RatioCurve(masses, base .+ 0.004 .* iseven.(masses), unquoted, "one")
+        other = RatioCurve(masses, base .- 0.003 .+ 0.002 .* (masses .% 3), unquoted, "other")
+        function trend(factors)
+            pooled, measured, σ_measurement = FissionTemperatureRatio._consensus(
+                [one, other], SYSTEMATIC_TREND_LABEL, factors
+            )
+            fit = fit_segments(
+                pooled.A_H,
+                pooled.ratio,
+                σ_measurement;
+                min_segments = 2,
+                max_segments = 2,
+                measured = measured,
+            )
+            return (; pooled, measured, σ_measurement, fit)
+        end
+        full = trend([1.0, 1.0])
+        half = trend([0.5, 0.5])
+        # The standard error is s/√(Σf): it carries the fraction, as σ/√f does for one value,
+        # and the uncertainty of one measurement is the same quantity with the fraction out.
+        @test all(==(0.5), half.measured)
+        @test half.pooled.ratio == full.pooled.ratio
+        @test half.pooled.σ ≈ full.pooled.σ ./ sqrt(0.5)
+        @test half.σ_measurement ≈ full.pooled.σ
+        # So χ² scales with the fraction, once, and the degrees of freedom count measurements.
+        @test half.fit.coefficients ≈ full.fit.coefficients
+        @test half.fit.wrss ≈ 0.5 * full.fit.wrss
+        @test half.fit.dof ≈ 0.5 * n - (length(half.fit.coefficients) + 1)
+        @test half.fit.dof < full.fit.dof
+
+        # Unequal fractions: the weight of every combined point is that of its standard error.
+        mixed = trend([1.0, 0.5])
+        @test all(≈((1.0 + 0.25) / 1.5), mixed.measured)
+        @test mixed.pooled.σ ≈ full.pooled.σ .* sqrt(2 / 1.5)
+        @test mixed.measured ./ mixed.σ_measurement .^ 2 ≈ 1 ./ mixed.pooled.σ .^ 2
+    end
+
+    @testset "identical unquoted values leave the combined point unquoted" begin
+        masses = collect(126:150)
+        base = reference_ratio.(masses)
+        unquoted = fill(missing, length(masses))
+        shifted = base .+ 0.004
+        # At one mass the two datasets tabulate the same value: there is no dispersion to
+        # estimate an uncertainty from, and a zero would claim an exact value and stop the fit.
+        shifted[5] = base[5]
+        one = RatioCurve(masses, base, unquoted, "one")
+        other = RatioCurve(masses, shifted, unquoted, "other")
+        pooled, measured, σ_measurement = FissionTemperatureRatio._consensus(
+            [one, other], SYSTEMATIC_TREND_LABEL, [1.0, 1.0]
+        )
+        @test ismissing(pooled.σ[5]) && ismissing(σ_measurement[5])
+        @test count(ismissing, pooled.σ) == 1
+        @test pooled.ratio[5] == base[5]
+        fit = fit_segments(
+            pooled.A_H, pooled.ratio, σ_measurement; max_segments = 3, measured = measured
+        )
+        @test fit.weights_imputed == 1
+    end
+
+    @testset "the between-dataset variance is estimated against the expectation of Q" begin
+        # Two values ±d about their mean, σ = 1, each counting for f of a measurement: the
+        # weights are f, Q = 2 f d² and its expectation without a variance between the datasets
+        # is Σf − Σf²/Σf = f, not k − 1 = 1. With d² = 0.75 and f = 1/2, Q = 0.75 exceeds 0.5,
+        # τ² = (0.75 − 0.5)/(1 − 0.5) = 0.5, and the standard error is (Σ f/(1 + τ²))^(-1/2).
+        d = sqrt(0.75)
+        low = RatioCurve([130], [0.3 - d], [1.0], "low")
+        high = RatioCurve([130], [0.3 + d], [1.0], "high")
+        interpolated = consensus([low, high]; weights = [0.5, 0.5])
+        @test only(interpolated.ratio) ≈ 0.3
+        @test only(interpolated.σ) ≈ sqrt(1.5)
+        # Measured at integer masses, Q = 1.5 against k − 1 = 1: DerSimonian and Laird's
+        # estimate, τ² = 0.5, unchanged.
+        measured = consensus([low, high])
+        @test only(measured.σ) ≈ sqrt(1.5 / 2)
+    end
+
     @testset "invalid arguments are rejected" begin
         @test_throws DimensionMismatch fit_segments([1, 2], [1.0], [1.0])
         @test_throws ArgumentError fit_segments(A_H, noisy, σ; max_segments = 0)
