@@ -7,10 +7,75 @@ the minor version and a patch release carries none.
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-10-02
+
+No trend and no dataset curve changes. The run identifiers of ²³⁵U and ²³⁹Pu change in their
+`excl` token, an exclusion having been added to each. Corrections after a review of 0.2.2 are
+included; those of them that would break an accepted configuration or a written file are left for
+0.3.0.
+
+### Added
+
+- `pooled_datasets(result)`, the labels of the datasets a systematic trend was combined from:
+  those that form at least one fragment pair in the range and that the configuration does not
+  exclude.
+- `deviation_autocorrelation(result)`: the lag-one autocorrelation, along the mass axis, of the
+  pooled datasets' deviations from the combined curve. The covariance of a trend takes the
+  combined points as independent, so its written uncertainty, and that of its total average, is
+  low by about `√((1 + ρ)/(1 − ρ))`: `ρ` is 0.71, 0.61, 0.70 and 0.44 for ²⁵²Cf, ²³⁵U, ²³⁹Pu and
+  ²³³U, factors of 2.4, 2.0, 2.4 and 1.6. The written uncertainty is not enlarged. `ρ` and the
+  factor are written under `[result.trend_uncertainty]` in `metadata.toml`, and `ρ` as a last
+  column, `deviation_autocorrelation`, of `segmented_curves_<run identifier>.csv`. The method
+  page states the consequence where it explains the low chi-squared of a trend.
+
+### Changed
+
+- Batenkov 2004 for ²³⁵U (EXFOR 41502005) and for ²³⁹Pu (41502006) are excluded by accession in
+  the shipped configurations, with the reason. Each gives 21 masses on a grid of 4 u on which no
+  mass has its complement, so neither formed a fragment pair or entered a pool before, and they
+  are not paired against interpolated complements; the paper, AIP Conf. Proc. 769, 1003 (2005),
+  doi:10.1063/1.1945175, presents them as preliminary, with statistical uncertainties only. The
+  exclusion puts that on record in the configuration, the run metadata and the dataset
+  diagnostics.
+- A `[yield] exclude` without `subdirectory` has nothing to act on and nothing to be checked
+  against. It is still read for its form, with a warning, but no longer kept in the
+  configuration or written to the metadata, where an accession that names nothing could appear.
+- On a clone without the measured input, the testsets that need it are reported as skipped in
+  the test summary; they were passed over without a trace.
+- The README and the method page say that the paper's segments were drawn by hand and that the
+  paper did not use this package; the README had the segment count "chosen by the Bayesian
+  information criterion as published".
+
+### Fixed
+
+- The `pooled` column of `dataset_diagnostics.csv` was true for a dataset that forms no fragment
+  pair, which contributes nothing to a trend: four datasets of the shipped ²³⁵U and ²³⁹Pu runs.
+  It is now true only for the datasets `pooled_datasets` lists.
+- Two files of one directory carrying one accession, as a retrieval under another spelling of
+  the author leaves them, were read and pooled as two measurements, and an exclusion by that
+  accession applied to one of them. Such a directory is now refused, when the configuration is
+  loaded and when the directory is read.
+- An exclusion that names no dataset was refused, in a run started from a configuration built by
+  hand, only after every dataset had been fitted. It is refused before anything is fitted, the
+  exclusions under `[yield]` included.
+- Where a pool quotes no uncertainty, the mean was weighted by the pooling factors and the
+  dispersion about it was not. The dispersion is now `Σ f (r − r̄)²/(Σf − Σf²/Σf)`, the estimate
+  of `τ²` for values of no quoted variance; equal factors give the sample variance as before. No
+  mass of the four shipped trends is in this case.
+
 ## [0.2.2] - 2026-10-02
 
 Validated on the ExforFissionData v0.2.4 retrieval, whose tables for the four systems are those
 of v0.2.3 byte for byte.
+
+This release broke the rule it states. Keying an exclusion on the accession changed the `excl`
+token of the run identifier for the same exclusion, and with it the names of the run directory,
+of the manifest, of the curve table and of the total-average file; and
+`Configuration.excluded_datasets`, `Configuration.excluded_mass_yields` and the exclusions in the
+run metadata became keyed by accession where they had been keyed by label. Both are breaking
+changes and belonged in 0.3.0. The deprecated label form of an exclusion can still name the wrong
+dataset, where a directory holds only another subentry of the same author and year; it goes in
+0.3.0.
 
 ### Changed
 
@@ -600,7 +665,8 @@ branch:
   check so a partially present tree failed, and results were overwritten in place with no run
   identifier, commit or hardware record.
 
-[unreleased]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.2.2...HEAD
+[unreleased]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.2.3...HEAD
+[0.2.3]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.1.0...v0.2.0
