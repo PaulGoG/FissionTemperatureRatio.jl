@@ -159,7 +159,7 @@ end
                     else
                         getfield(configuration, name)
                     end for name in fieldnames(Configuration)
-                )...,
+                )...
             )
             @test_throws "which names no dataset read" run_pipeline(absent)
             # A tabulation from no archive is excluded under its label.
@@ -170,7 +170,7 @@ end
                     else
                         getfield(configuration, name)
                     end for name in fieldnames(Configuration)
-                )...,
+                )...
             )
             run = run_pipeline(by_label)
             # Named apart from the outer `written`, which the testsets below read.

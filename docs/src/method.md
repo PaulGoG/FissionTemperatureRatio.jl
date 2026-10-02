@@ -271,11 +271,49 @@ bracketing points; it enters with ``f`` = measured points / rows written, as rec
 retrieval record, so that it counts by what was measured. An uncertainty written as zero is read as
 not quoted.
 
+With such factors the fixed-effect weights are ``a = f/\sigma^2`` while a value keeps the variance
+``\sigma^2``, and the statistic ``Q = \sum a\,(r - \bar{r}_a)^2`` the variance is estimated from
+has, where the datasets do not differ, the expectation
+
+```math
+\mathrm{E}[Q] = \sum f - \frac{\sum a f}{\sum a},
+```
+
+which is ``k - 1`` for ``k`` datasets only where every ``f`` is one. The estimate is the method of
+moments for general weights [DerSimonian2007](@cite),
+
+```math
+\tau^2 = \max\!\left(0,\; \frac{Q - \mathrm{E}[Q]}{\sum a - \sum a^2 / \sum a}\right),
+```
+
+which reduces to DerSimonian and Laird's for datasets measured at integer masses. Taking ``k - 1``
+throughout would underestimate ``\tau^2`` by about ``\sigma^2 (1 - f)/f``, which matters where the
+datasets agree within their uncertainties and ``Q`` lies near its expectation: the estimate is
+then truncated to zero where it should not be. The variance of an interpolated value is taken as
+its tabulated ``\sigma^2``.
+
+Where no value at a mass number quotes an uncertainty, the values are averaged with the weights
+``f`` and their standard deviation ``s`` stands for the uncertainty of one of them, so the mean
+has the standard error ``s/\sqrt{\sum f}``; values that coincide leave nothing to estimate it
+from, and the combined point then quotes none.
+
 The reason is empirical. The datasets of one system disagree by ten to twenty times their quoted
 uncertainties, so ``\tau^2`` dominates ``\sigma^2``, the weights become nearly equal, and the
 combination stops being decided by whichever author quoted the smallest errors. It also makes the
 fitted chi-squared of the combined curve a statement about the fit rather than about the
 disagreement: for 252-Cf it falls from about 16 to about 2.
+
+A reduced chi-squared of the trend below one is the expected outcome of this, not a sign of too
+many segments. The standard error of a combined value treats the disagreement between datasets as
+independent from one mass number to the next, and it is not: the deviation of a dataset from the
+combined curve is largely an offset and a slow drift, with a lag-one autocorrelation of 0.5 to
+0.9 along the mass axis for 235-U and 239-Pu, so the combined curve scatters about a smooth line
+far less than its standard error says. For those two systems the residuals of the trend give a
+reduced chi-squared of 6.5 and 6.2 against the quoted uncertainties alone and of 0.44 with
+``\tau^2``, which is ten to twenty times ``\sigma^2`` at the median. The selection of the segment
+count does not depend on that scale, the criterion taking the noise from the residuals, and it is
+not held by the limit on the count: with `max_segments` raised from 6 to 12 the 235-U trend still
+selects five segments and the 239-Pu trend six.
 
 The same disagreement is why no dataset is rejected for being far from the others. In units of
 the quoted uncertainties none of them agrees with any other, so such a criterion rejects whatever

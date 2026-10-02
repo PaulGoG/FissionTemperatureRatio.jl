@@ -127,6 +127,10 @@ julia docs/assets.jl
 | Reproduction of published total averages | complete for 233-U, 252-Cf and 235-U, and for 239-Pu over an inferred Y(A); see the validation status |
 | Run record with the fragmentation domain, for the consuming code | complete |
 
+Versions follow semantic versioning with the pre-1.0 convention: a breaking change, to a
+configuration key, to an output file name or to a key of the manifest, raises the minor version,
+and a patch release carries none. The [changelog](CHANGELOG.md) marks every breaking change.
+
 ## Results at a glance
 
 The method, its conventions and its equation numbering are those of *Eur. Phys. J. A* **60**, 190
@@ -349,6 +353,12 @@ interpolated dataset is that dataset's fit. The combined curve is written out, s
 be checked against its own input; its uncertainty is the standard error of each combined value,
 which carries the factor.
 
+The between-dataset variance is estimated against what the dispersion statistic is expected to
+be where the datasets do not differ, which for a pool holding interpolated datasets is less than
+the number of datasets less one; and it is why the reduced chi-squared of a trend is below one,
+0.44 for ²³⁵U and ²³⁹Pu, without the trend having too many segments. [The
+method](docs/src/method.md) gives both.
+
 **Admission.** For the same reason, a dataset cannot be judged by how far it sits from the others
 in units of its own uncertainty: none is consistent with any other, and a reduced chi-squared
 ranks how generously an author quoted errors rather than how good the measurement is. Every
@@ -405,7 +415,7 @@ energies fix the fragment velocities that carry the neutron spectrum into the fr
 a deficit that grows with fragment velocity is what an error there produces. Nothing shows it to
 be the better measurement, and the measurement published from IRMM in 2011 (23118006) is pooled.
 Its own curve is still fitted and written. With it in the pool the ²⁵²Cf trend takes 4 segments,
-with `χ²/dof` = 1.88 and `⟨R_T⟩` = 1.0788; without it, 5 segments, 1.55 and 1.0879.
+with `χ²/dof` = 1.86 and `⟨R_T⟩` = 1.0788; without it, 5 segments, 1.53 and 1.0878.
 
 The shipped ²³⁵U configuration excludes the ²³⁵U result of the same paper and analysis, Zeynalov
 2019 (EXFOR 41738002). Here the total is right and its division between the wings is not.
@@ -694,7 +704,7 @@ Verified:
   again near the most probable fragmentation, and a near-linear rise above it.
 - **The published total averages, to within 1.0 %, one measurement aside.** The `⟨R_T⟩` of
   Table 1 of the paper, per `ν(A)` dataset and per `Y(A)` distribution, comes back from
-  independently retrieved archive data (ExforFissionData.jl v0.2.3) with the published settings —
+  independently retrieved archive data (ExforFissionData.jl v0.2.4) with the published settings —
   the ratio of means over the digitised Gaussian charge tables, or the mean values for ²³³U, on the
   shared fragmentation domain:
 

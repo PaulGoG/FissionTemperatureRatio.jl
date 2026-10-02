@@ -81,7 +81,7 @@ julia scripts/retrieve.jl config/U233_nth_TKE_vs_A.toml /path/to/FissionTemperat
 Check that package out at a named commit before retrieving: the `[run]` table of every
 `retrieval.toml` records the revision and version that wrote it, and a run of this package copies
 that table, for every input directory it reads, into its `metadata.toml`. The results quoted in the
-README rest on the twelve committed configurations of its v0.2.3, `<system>_<observable>.toml`
+README rest on the twelve committed configurations of its v0.2.4, `<system>_<observable>.toml`
 for the four systems and `nu_vs_A`, `Y_vs_A`, `TKE_vs_A`.
 
 Masses the archive gives as non-integer values, digitised or binned, are interpolated onto the
