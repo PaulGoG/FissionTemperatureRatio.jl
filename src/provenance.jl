@@ -398,6 +398,11 @@ function run_metadata(result::ExtractionResult)
             "mass_yields_not_averaged" => _not_averaged(result),
             # ⟨R_T⟩ of the systematic trend at the selected number of segments and one and two
             # more, per yield distribution: [segments, ⟨R_T⟩].
+            # What the uncertainty of the systematic trend leaves out: it takes the combined
+            # points as independent, and this is the lag-one autocorrelation of the pooled
+            # datasets' deviations from the combined curve, with the factor by which the written
+            # uncertainty is low for it, √((1 + ρ)/(1 − ρ)).
+            "trend_uncertainty" => _trend_uncertainty_record(result),
             "segment_count_sensitivity" => Dict{String,Any}(
                 label => [[k, value] for (k, value) in entries] for
                 (label, entries) in result.segment_count_sensitivity
@@ -418,6 +423,18 @@ function run_metadata(result::ExtractionResult)
             ),
         ),
     )
+end
+
+function _trend_uncertainty_record(result::ExtractionResult)
+    ρ = deviation_autocorrelation(result)
+    record = Dict{String,Any}("treats_combined_points_as_independent" => true)
+    if ismissing(ρ)
+        record["deviation_autocorrelation"] = "not estimated"
+    else
+        record["deviation_autocorrelation"] = ρ
+        0 <= ρ < 1 && (record["understated_by_about"] = sqrt((1 + ρ) / (1 - ρ)))
+    end
+    return record
 end
 
 # The `[run]` table of every retrieval record in the input directories: which parser revision

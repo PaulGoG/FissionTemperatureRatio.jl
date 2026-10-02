@@ -171,7 +171,9 @@ export ExtractionResult,
     pool,
     systematic_trend,
     manifest_domain,
-    curve_accessions
+    curve_accessions,
+    pooled_datasets,
+    deviation_autocorrelation
 export run_identifier, run_parameters, run_metadata, RUN_IDENTIFIER_ABBREVIATIONS
 
 # Figures

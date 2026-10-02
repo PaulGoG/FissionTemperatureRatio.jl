@@ -385,6 +385,7 @@ end
 # or by its label where it carries none.
 function _resolve_exclusions(entries, directory::AbstractString, path::String)
     files = _data_files(directory)
+    _refuse_shared_accession(directory, files)
     labels = _unique_labels(files)
     accessions = [_dataset_accession(joinpath(directory, file)) for file in files]
     exclusions = Dict{String,String}()
@@ -744,13 +745,13 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
             )
         else
             # Without a directory the primary distribution alone is averaged over, and an
-            # exclusion has nothing to act on: it is kept as written and changes nothing.
-            for entry in _exclusions(yield_section, "yield.exclude")
-                haskey(excluded_mass_yields, entry.name) && throw(
-                    ArgumentError("yield.exclude names $(repr(entry.name)) more than once")
-                )
-                excluded_mass_yields[entry.name] = entry.reason
-            end
+            # exclusion has nothing to act on and nothing to be checked against. It is read for
+            # its form and then dropped, so that neither the run identifier nor the metadata
+            # records an exclusion that was not applied.
+            isempty(_exclusions(yield_section, "yield.exclude")) ||
+                @warn "yield.exclude has no effect without yield.subdirectory: the primary \
+                       distribution alone is averaged over, and the exclusions are neither \
+                       applied nor recorded"
         end
     end
     symmetrize_yields = if haskey(document, "yield")

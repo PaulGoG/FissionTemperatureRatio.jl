@@ -449,8 +449,11 @@ end
                 MINIMAL_CONFIGURATION *
                 "\n[yield]\nmass_yield_file = \"Y_vs_A/1_A.Author_2000.dat\"\nexclude = [{ dataset = \"B. Other 2001\", reason = \"partial\" }]\n",
             )
-            excluding = load_configuration(excluding; data_directory = directory)
-            @test excluding.excluded_mass_yields == Dict("B. Other 2001" => "partial")
+            # It is read for its form, said to have no effect, and not recorded.
+            excluding = @test_logs (:warn, r"no effect") match_mode = :any load_configuration(
+                excluding; data_directory = directory
+            )
+            @test isempty(excluding.excluded_mass_yields)
             @test run_parameters(excluding) == tokens
             # A directory is averaged over with the primary as its coverage reference.
             both = write_beside(
@@ -481,6 +484,24 @@ end
                 path, MINIMAL_CONFIGURATION * "\n[yield]\nsymmetrize = true\n"
             )
             @test_throws ArgumentError load_configuration(neither; data_directory = directory)
+        end
+    end
+
+    @testset "two files of one accession are refused" begin
+        # One measurement held twice, as a retrieval under another spelling of the author leaves
+        # it: it would be read and pooled twice, and an exclusion could name only one.
+        with_configuration(MINIMAL_CONFIGURATION) do path, directory
+            for name in ("41739002_A.Set_1999.dat", "41739002_A.Sett_1999.dat")
+                write(
+                    joinpath(directory, "datasets", name), "A nu nu_uncertainty\n126 2.0 0.1\n"
+                )
+            end
+            @test_throws "two files of the accession 41739002" load_configuration(
+                path; data_directory = directory
+            )
+            @test_throws "two files of the accession 41739002" read_multiplicity_directory(
+                joinpath(directory, "datasets")
+            )
         end
     end
 
@@ -620,6 +641,9 @@ end
                     @test ncodeunits("total_average_R_T_$(identifier).csv") <= 255
                 end
             end
+        else
+            # Reported, not passed over: the measured input is not shipped.
+            @test_skip DATA_AVAILABLE
         end
     end
 

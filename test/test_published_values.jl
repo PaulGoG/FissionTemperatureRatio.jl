@@ -12,7 +12,7 @@
 # table names. The 239-Pu rows are compared over Nishio 1995, a yield distribution inferred by
 # agreement, since the table's caption names none.
 #
-# Both need the measured input, so both are skipped on a bare clone. A row is skipped, not failed,
+# Both need the measured input, so both are reported as skipped on a bare clone. A row is skipped, not failed,
 # when the local data holds no dataset of that label: what the archive returns for a query changes
 # over time.
 
@@ -32,6 +32,11 @@ const PUBLISHED_SYSTEMS = unique(first.(PUBLISHED_TOTAL_AVERAGES))
 
 function has_inputs(system)
     return all(isdir(joinpath(DATA_DIRECTORY, system, d)) for d in ("nu_vs_A", "Y_vs_A"))
+end
+
+# Without the measured input, which is not shipped, the testset is reported as skipped.
+DATA_AVAILABLE || @testset "published total averages" begin
+    @test_skip DATA_AVAILABLE
 end
 
 DATA_AVAILABLE && @testset "published total averages" begin
@@ -72,17 +77,29 @@ DATA_AVAILABLE && @testset "published total averages" begin
         end
         published_rows_hold(results; widened = SHIPPED_TOLERANCE)
 
-        # Zeynalov 2019 is kept out of the 252-Cf pool (41739002) and of the 235-U pool
-        # (41738002) by the shipped configurations, with the reason on record, and still offers
-        # its own curve. The datasets must be held: an exclusion of an absent dataset is refused
-        # when the configuration is loaded, and `only` fails where no dataset has the accession.
-        for (system, accession) in (("Cf252_sf", "41739002"), ("U235_nth", "41738002"))
+        # The shipped exclusions, by accession, each with its reason on record. Zeynalov 2019 is
+        # kept out of the 252-Cf pool (41739002) and of the 235-U pool (41738002) and still
+        # offers its own curve; Batenkov 2004 (41502005 for 235-U, 41502006 for 239-Pu) forms no
+        # fragment pair on its 4-u grid and offers none. The datasets must be held: an exclusion
+        # of an absent dataset is refused when the configuration is loaded, and `only` fails
+        # where no dataset has the accession.
+        for (system, accession, offers_curve) in (
+            ("Cf252_sf", "41739002", true),
+            ("U235_nth", "41738002", true),
+            ("U235_nth", "41502005", false),
+            ("Pu239_nth", "41502006", false),
+        )
             haskey(results, system) || continue
             run = results[system]
             label = only(l for (l, a) in curve_accessions(run) if a == accession)
             @test run.configuration.excluded_datasets[accession] isa String
-            @test run.dataset_outcomes[label] == "segmented curve"
-            @test any(c -> c.label == label, run.segmented_curves)
+            @test !(label in pooled_datasets(run))
+            @test any(c -> c.label == label, run.segmented_curves) == offers_curve
+            if offers_curve
+                @test run.dataset_outcomes[label] == "segmented curve"
+            else
+                @test startswith(run.dataset_outcomes[label], "no complete fragment pair")
+            end
             excluded = run_metadata(run)["configuration"]["excluded_datasets"]
             @test occursin(accession, excluded[accession])
         end

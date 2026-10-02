@@ -136,6 +136,7 @@ function read_multiplicity_directory(directory::AbstractString)
     files = _data_files(directory)
     isempty(files) &&
         throw(ArgumentError("multiplicity directory holds no data files: $(directory)"))
+    _refuse_shared_accession(directory, files)
     return [
         read_multiplicity(joinpath(directory, file); label = label) for
         (file, label) in zip(files, _unique_labels(files))
@@ -188,6 +189,36 @@ function _dataset_accession(source::AbstractString)
     return occursin(ACCESSION_PATTERN, candidate) ? String(candidate) : ""
 end
 
+# Two files of one directory carrying one accession are one measurement held twice — a leftover
+# of an earlier retrieval under another spelling of the author, a copy — and would be read, fitted
+# and pooled twice, while an exclusion by that accession could name only one of them.
+function _refuse_shared_accession(directory::AbstractString, files)
+    held = Dict{String,String}()
+    for file in files
+        accession = _dataset_accession(joinpath(directory, file))
+        isempty(accession) && continue
+        haskey(held, accession) && throw(
+            ArgumentError(
+                "$(directory) holds two files of the accession $(accession), \
+                 $(held[accession]) and $(file); one measurement would be read twice"
+            ),
+        )
+        held[accession] = file
+    end
+    return nothing
+end
+
+# The exclusion key of every data file of a directory, with its label, from the file names and the
+# retrieval record alone.
+function _directory_keys(directory::AbstractString)
+    files = _data_files(directory)
+    _refuse_shared_accession(directory, files)
+    return Dict(
+        _exclusion_key(joinpath(directory, file), label) => label for
+        (file, label) in zip(files, _unique_labels(files))
+    )
+end
+
 # The key a dataset is excluded under: its accession, or its label where it carries none.
 function _exclusion_key(source::AbstractString, label::AbstractString)
     accession = _dataset_accession(source)
@@ -198,7 +229,17 @@ _exclusion_key(data::Union{Multiplicity,MassYield}) = _exclusion_key(data.source
 # The exclusions that apply to `datasets`, by label, each with its reason. One that names no
 # dataset read is an error: the configuration would claim an exclusion the run did not make.
 function _excluded_labels(exclusions::Dict{String,String}, datasets, path::AbstractString)
-    keys_read = Dict(_exclusion_key(data) => data.label for data in datasets)
+    keys_read = Dict{String,String}()
+    for data in datasets
+        key = _exclusion_key(data)
+        haskey(keys_read, key) && throw(
+            ArgumentError(
+                "$(repr(keys_read[key])) and $(repr(data.label)) are both held under \
+                 $(repr(key)); an exclusion could not tell them apart"
+            ),
+        )
+        keys_read[key] = data.label
+    end
     for key in sort!(collect(keys(exclusions)))
         haskey(keys_read, key) || throw(
             ArgumentError(
@@ -208,6 +249,66 @@ function _excluded_labels(exclusions::Dict{String,String}, datasets, path::Abstr
         )
     end
     return Dict(keys_read[key] => reason for (key, reason) in exclusions)
+end
+
+"""
+    pooled_datasets(result) -> Vector{String}
+
+The labels of the datasets the systematic trend is combined from, in the order read: those that
+provide at least one complete fragment pair within the fragmentation range and that the
+configuration does not exclude. A dataset that forms no pair has nothing to pool, whether or not
+an exclusion names it.
+"""
+function pooled_datasets(result::ExtractionResult)
+    excluded = _excluded_labels(
+        result.configuration.excluded_datasets, result.datasets, "multiplicity.exclude"
+    )
+    return [
+        data.label for (data, curve) in zip(result.datasets, result.r_ν) if
+        !isempty(curve) && !haskey(excluded, data.label)
+    ]
+end
+
+"""
+    deviation_autocorrelation(result) -> Union{Float64,Missing}
+
+The lag-one autocorrelation, along the mass axis, of the deviations of the pooled datasets from the
+combined curve: for each pooled dataset the deviation `r_ν(A_H) − r̄_ν(A_H)` less its mean over the
+dataset, correlated between consecutive mass numbers and summed over the datasets,
+`Σ d(A) d(A+1) / Σ d(A)²`. `missing` where no pooled dataset has two consecutive masses or the
+deviations vanish.
+
+It measures what the uncertainty of the systematic trend leaves out. The covariance of the trend
+takes the combined points as independent, while a dataset departs from the others by an offset
+and a slow drift rather than point by point. With an autocorrelation `ρ` the variance of a smooth
+curve through the points is larger by about `(1 + ρ)/(1 − ρ)`, so the written uncertainty of the
+trend and of its total average is low by about the square root of that. The written uncertainty
+is not corrected for it.
+"""
+function deviation_autocorrelation(result::ExtractionResult)
+    pooled = Set(pooled_datasets(result))
+    combined = Dict(zip(result.consensus_r_ν.A_H, result.consensus_r_ν.ratio))
+    lagged = 0.0
+    squared = 0.0
+    terms = 0
+    for curve in result.r_ν
+        curve.label in pooled || continue
+        masses = [A for A in curve.A_H if haskey(combined, A)]
+        length(masses) < 2 && continue
+        deviation = Dict(
+            A => r - combined[A] for
+            (A, r) in zip(curve.A_H, curve.ratio) if haskey(combined, A)
+        )
+        offset = mean(values(deviation))
+        for A in masses
+            terms += 1
+            squared += (deviation[A] - offset)^2
+            haskey(deviation, A + 1) &&
+                (lagged += (deviation[A] - offset) * (deviation[A + 1] - offset))
+        end
+    end
+    # Deviations at the level of rounding, as between identical datasets, say nothing.
+    return terms > 0 && sqrt(squared / terms) > 1e-12 ? lagged / squared : missing
 end
 
 """
@@ -319,6 +420,23 @@ function run_pipeline(configuration::Configuration)
     averaging = _averaging(settings.ratio_averaging, masses, domain, mean_kinetic_energy)
 
     datasets = read_multiplicity_directory(configuration.multiplicity_directory)
+    # Before anything is fitted: an exclusion that names no dataset is a configuration the run
+    # cannot honour. `load_configuration` has checked it; a configuration built by hand has not.
+    excluded = _excluded_labels(
+        configuration.excluded_datasets, datasets, "multiplicity.exclude"
+    )
+    if configuration.yield_directory !== nothing
+        held = _directory_keys(configuration.yield_directory)
+        for key in sort!(collect(keys(configuration.excluded_mass_yields)))
+            haskey(held, key) || throw(
+                ArgumentError(
+                    "yield.exclude excludes $(repr(key)), which names no distribution of \
+                     $(configuration.yield_directory); an exclusion is keyed by the EXFOR \
+                     accession of its dataset"
+                ),
+            )
+        end
+    end
     by_file = retrieval_qualifiers(configuration.multiplicity_directory)
     qualifiers = Dict(
         data.label => get(by_file, basename(data.source), String[]) for data in datasets
@@ -404,9 +522,6 @@ function run_pipeline(configuration::Configuration)
     # Datasets named in the configuration are kept out of the pooling but not out of the run: they
     # are still fitted, written and diagnosed, so an exclusion is visible rather than a silent
     # absence. An exclusion names its dataset by EXFOR accession.
-    excluded = _excluded_labels(
-        configuration.excluded_datasets, datasets, "multiplicity.exclude"
-    )
     admitted = [i for i in usable if !haskey(excluded, datasets[i].label)]
     isempty(admitted) && throw(
         ArgumentError("every usable dataset is excluded from the pooling by configuration")
@@ -929,12 +1044,14 @@ function write_results(result::ExtractionResult, directory::AbstractString)
     excluded = _excluded_labels(
         configuration.excluded_datasets, result.datasets, "multiplicity.exclude"
     )
+    pooled = Set(pooled_datasets(result))
+    autocorrelation = deviation_autocorrelation(result)
     rows = [
         (
             label = curve.label,
             accession = accessions[curve.label],
             kind = curve.kind,
-            pooled = curve.kind == "systematic_trend" || !haskey(excluded, curve.label),
+            pooled = curve.kind == "systematic_trend" || curve.label in pooled,
             segments = segments(curve.fit),
             pinned_at_symmetric_split = curve.fit.pinned_value !== nothing,
             first_A_H = first(curve.R_T.A_H),
@@ -950,6 +1067,17 @@ function write_results(result::ExtractionResult, directory::AbstractString)
             range_mean_R_T_uncertainty = round(
                 last(result.range_mean_R_T[curve.label]); sigdigits = digits
             ),
+            # The trend's uncertainty takes the combined points as independent; this is the
+            # autocorrelation of the datasets' deviations it leaves out.
+            deviation_autocorrelation = if curve.kind == "systematic_trend"
+                if ismissing(autocorrelation)
+                    missing
+                else
+                    round(autocorrelation; sigdigits = digits)
+                end
+            else
+                missing
+            end,
         ) for curve in result.segmented_curves
     ]
     path = joinpath(directory, "segmented_curves_$(identifier).csv")
@@ -1048,7 +1176,7 @@ function write_results(result::ExtractionResult, directory::AbstractString)
                 flagged = !isempty(_flagged(get(result.qualifiers, d.label, String[]))),
                 pair_sum_deviation = _scale_field(result.datasets[i], :deviation, digits),
                 scale_consistent = _scale_field(result.datasets[i], :consistent, digits),
-                pooled = !haskey(excluded, d.label),
+                pooled = d.label in pooled,
                 exclusion_reason = get(excluded, d.label, ""),
                 segmented_curve = get(result.dataset_outcomes, d.label, ""),
             ) for (i, d) in enumerate(result.dataset_diagnostics)

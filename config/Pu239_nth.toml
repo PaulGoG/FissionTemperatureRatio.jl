@@ -23,7 +23,10 @@ mean_kinetic_energy_file = "Pu239_nth/TKE_vs_A/21995038_C.Wagemans_1984.dat"  # 
 
 [multiplicity]
 subdirectory = "Pu239_nth/nu_vs_A"            # under data/; whitespace-separated A nu nu_uncertainty
-# exclude: datasets kept out of the pooled trend, as [{ accession = EXFOR dataset identifier, reason = text }]; each still offers its own curve; optional
+# exclude: datasets kept out of the pooled trend, as [{ accession = EXFOR dataset identifier, reason = text }]; one that forms fragment pairs still offers its own curve
+exclude = [
+    { accession = "41502006", reason = "EXFOR 41502006, Batenkov 2004 (AIP Conf. Proc. 769, 1003, doi:10.1063/1.1945175), preliminary results with statistical uncertainties only: 21 masses on a 4-u grid, 85 to 165, on which no mass has its complement at A0 = 240, so it forms no fragment pair and is not paired against interpolated complements" },
+]
 
 [yield]
 mass_yield_file = "Pu239_nth/Y_vs_A/21995028_C.Wagemans_1984.dat"  # primary pre-neutron Y(A), A Y Y_uncertainty, relative to data/; averaged over alone, or the coverage reference of subdirectory

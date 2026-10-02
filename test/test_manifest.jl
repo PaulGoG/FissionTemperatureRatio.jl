@@ -6,6 +6,11 @@
 # depends on; a change that breaks it would otherwise be found by whoever is downstream rather than
 # here.
 
+# Without the measured input, which is not shipped, the testset is reported as skipped.
+DATA_AVAILABLE || @testset "the handoff to a consuming code" begin
+    @test_skip DATA_AVAILABLE
+end
+
 DATA_AVAILABLE && @testset "the handoff to a consuming code" begin
     configuration = load_configuration(
         joinpath(CONFIG_DIRECTORY, "U233_nth.toml"); data_directory = DATA_DIRECTORY

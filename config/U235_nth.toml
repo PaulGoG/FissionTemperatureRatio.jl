@@ -23,9 +23,10 @@ mean_kinetic_energy_file = "U235_nth/TKE_vs_A/23164007_A.Al-adili_2016.dat"  # p
 
 [multiplicity]
 subdirectory = "U235_nth/nu_vs_A"             # under data/; whitespace-separated A nu nu_uncertainty
-# exclude: datasets kept out of the pooled trend, as [{ accession = EXFOR dataset identifier, reason = text }]; each still offers its own curve
+# exclude: datasets kept out of the pooled trend, as [{ accession = EXFOR dataset identifier, reason = text }]; one that forms fragment pairs still offers its own curve
 exclude = [
     { accession = "41738002", reason = "EXFOR 41738002, Zeynalov 2019, the 235-U result of the paper and analysis excluded for 252-Cf (41739002), statistical uncertainties only: weighted with the Al-Adili 2016 Y(A) over A_H = 130 to 150, its light- and heavy-fragment multiplicities are 1.02 and 1.36 against 1.36 to 1.66 and 1.02 to 1.17 in Fraser 1966, Nishio 1998, Al-Adili 2020 and Vorobyev 2010; the pair sum, 2.39, is on the scale of nu-bar, so the neutrons are divided wrongly between the wings, and r_nu is 0.57 against 0.41 to 0.44 (Apalin 1965: 0.49)" },
+    { accession = "41502005", reason = "EXFOR 41502005, Batenkov 2004 (AIP Conf. Proc. 769, 1003, doi:10.1063/1.1945175), preliminary results with statistical uncertainties only: 21 masses on a 4-u grid, 81 to 161, on which no mass has its complement at A0 = 236, so it forms no fragment pair and is not paired against interpolated complements; the authors report substantial deviations from earlier data in the symmetric region and at the edges of the distribution" },
 ]
 
 [yield]

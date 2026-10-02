@@ -181,6 +181,140 @@ end
             @test row("sparse").exclusion_reason == "few pairs"
             @test row("full").pooled == true
             @test row("partial").pooled == true
+            @test pooled_datasets(run) == ["full", "partial"]
+            @test pooled_datasets(result) == ["full", "partial", "sparse"]
+        end
+
+        @testset "the autocorrelation of the datasets' deviations is reported" begin
+            # Two datasets that depart from their common mean in opposite directions: point by
+            # point in one pair, by a slow drift in the other.
+            function write_departing(path, departure)
+                rows = Dict{Int,Float64}()
+                for A_H in 127:140
+                    r = reference_ratio(A_H) + departure(A_H)
+                    rows[A_H] = 4 * r
+                    rows[252 - A_H] = 4 * (1 - r)
+                end
+                rows[126] = 2.0
+                open(path, "w") do io
+                    println(io, "A nu nu_uncertainty")
+                    for A in sort!(collect(keys(rows)))
+                        println(io, A, " ", rows[A], " 0.05")
+                    end
+                end
+            end
+            function autocorrelation(name, departure)
+                directory_ = joinpath(directory, name)
+                mkpath(directory_)
+                write_departing(joinpath(directory_, "up.dat"), A -> departure(A))
+                write_departing(joinpath(directory_, "down.dat"), A -> -departure(A))
+                path = joinpath(directory, "$(name).toml")
+                write(
+                    path,
+                    replace(
+                        PIPELINE_CONFIGURATION,
+                        "subdirectory = \"datasets\"" => "subdirectory = \"$(name)\"",
+                    ),
+                )
+                return run_pipeline(load_configuration(path; data_directory = directory))
+            end
+            alternating = autocorrelation("alternating", A -> 0.01 * (-1)^A)
+            drifting = autocorrelation("drifting", A -> 0.002 * (A - 133))
+            @test deviation_autocorrelation(alternating) < -0.8
+            @test deviation_autocorrelation(drifting) > 0.6
+            # Identical datasets do not deviate, and there is nothing to estimate.
+            @test ismissing(deviation_autocorrelation(result))
+
+            record = run_metadata(drifting)["result"]["trend_uncertainty"]
+            @test record["treats_combined_points_as_independent"]
+            ρ = record["deviation_autocorrelation"]
+            @test record["understated_by_about"] ≈ sqrt((1 + ρ) / (1 - ρ))
+            @test run_metadata(result)["result"]["trend_uncertainty"]["deviation_autocorrelation"] ==
+                "not estimated"
+            table = CSV.read(
+                write_results(drifting, joinpath(directory, "output", "drifting"))["segmented_curves"],
+                DataFrame,
+            )
+            trend = only(filter(r -> r.label == SYSTEMATIC_TREND_LABEL, eachrow(table)))
+            @test trend.deviation_autocorrelation ≈ ρ rtol = 1e-5
+            @test all(
+                ismissing, filter(r -> r.kind == "dataset", table).deviation_autocorrelation
+            )
+        end
+
+        @testset "a yield exclusion that names no distribution is refused at the start" begin
+            yields = joinpath(directory, "yields-check")
+            mkpath(yields)
+            write(
+                joinpath(yields, "10000001_A.Both_2000.dat"),
+                "A Y Y_uncertainty\n126 1.0 0.1\n134 2.0 0.1\n",
+            )
+            path = joinpath(directory, "yields-check.toml")
+            write(
+                path,
+                PIPELINE_CONFIGURATION *
+                "\n[yield]\nsubdirectory = \"yields-check\"\nmass_yield_file = \"yields-check/10000001_A.Both_2000.dat\"\n",
+            )
+            loaded = load_configuration(path; data_directory = directory)
+            absent = Configuration(
+                (
+                    if name === :excluded_mass_yields
+                        Dict("99999999" => "x")
+                    else
+                        getfield(loaded, name)
+                    end for name in fieldnames(Configuration)
+                )...,
+            )
+            @test_throws "which names no distribution" run_pipeline(absent)
+        end
+
+        @testset "a dataset that forms no pair is not pooled, excluded or not" begin
+            unpaired = joinpath(directory, "unpaired")
+            mkpath(unpaired)
+            write_multiplicity(joinpath(unpaired, "full.dat"), 126:140)
+            # Heavy masses alone, as a coarse grid gives them: no mass has its complement.
+            open(joinpath(unpaired, "grid.dat"), "w") do io
+                println(io, "A nu nu_uncertainty")
+                for A in 129:4:137
+                    println(io, A, " 1.5 0.05")
+                end
+            end
+            path = joinpath(directory, "unpaired.toml")
+            body = replace(
+                PIPELINE_CONFIGURATION,
+                "subdirectory = \"datasets\"" => "subdirectory = \"unpaired\"",
+            )
+            write(path, body)
+            run = run_pipeline(load_configuration(path; data_directory = directory))
+            @test pooled_datasets(run) == ["full"]
+            @test startswith(run.dataset_outcomes["grid"], "no complete fragment pair")
+            table = CSV.read(
+                write_results(run, joinpath(directory, "output", "unpaired"))["dataset_diagnostics"],
+                DataFrame,
+            )
+            row(label) = only(filter(r -> r.dataset == label, eachrow(table)))
+            @test row("grid").pooled == false
+            @test ismissing(row("grid").exclusion_reason)
+            @test row("full").pooled == true
+
+            # Named by an exclusion, it stays out for the stated reason, and nothing else moves.
+            write(
+                path,
+                replace(
+                    body,
+                    "[multiplicity]" => "[multiplicity]\nexclude = [{ dataset = \"grid\", reason = \"no pair on its grid\" }]",
+                ),
+            )
+            excluding = run_pipeline(load_configuration(path; data_directory = directory))
+            @test pooled_datasets(excluding) == ["full"]
+            @test systematic_trend(excluding).fit.coefficients ==
+                systematic_trend(run).fit.coefficients
+            table = CSV.read(
+                write_results(excluding, joinpath(directory, "output", "unpaired-excluded"))["dataset_diagnostics"],
+                DataFrame,
+            )
+            @test row("grid").pooled == false
+            @test row("grid").exclusion_reason == "no pair on its grid"
         end
 
         @testset "the run directory is written once and never into" begin

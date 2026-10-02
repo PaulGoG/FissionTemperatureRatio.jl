@@ -23,7 +23,7 @@ mean_kinetic_energy_file = "U233_nth/TKE_vs_A/21981008_P.Geltenbort_1985.dat"  #
 
 [multiplicity]
 subdirectory = "U233_nth/nu_vs_A"             # under data/; whitespace-separated A nu nu_uncertainty
-# exclude: datasets kept out of the pooled trend, as [{ accession = EXFOR dataset identifier, reason = text }]; each still offers its own curve; optional
+# exclude: datasets kept out of the pooled trend, as [{ accession = EXFOR dataset identifier, reason = text }]; one that forms fragment pairs still offers its own curve; optional
 
 [yield]
 mass_yield_file = "U233_nth/Y_vs_A/21981005_P.Geltenbort_1985.dat"  # primary pre-neutron Y(A), A Y Y_uncertainty, relative to data/; averaged over alone, or the coverage reference of subdirectory
