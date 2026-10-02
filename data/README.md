@@ -160,8 +160,8 @@ measurement, has its sawtooth minimum where the others do and is held.
 of light-fragment neutrons by 15 to 19 %, its pair sum 3.47 against `ν̄` = 3.76, and its `r_ν` lies
 above every other set over most of `A_H` = 130 to 160. It is coded per fragment, so the retrieval
 forms no pair sum for it and records no scale flag. The shipped configuration excludes it from the
-pooled trend, with the reason; its own curve is still written. The main README gives the
-attribution.
+pooled trend by its accession, with the reason; its own curve is still written. The main README
+gives the attribution.
 
 **Two 239-Pu multiplicity datasets are off the scale of ν̄.** Tsuchiya 2000 (22650004) and
 Batenkov 2004 (41502006) are read per fragment, with pair sums 3.9 ± 0.6 % above and 10.7 ± 1.3 %

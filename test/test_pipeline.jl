@@ -151,6 +151,38 @@ end
             @test row.coverage ≈ 4 / 15 atol = 1e-5
         end
 
+        @testset "an exclusion that names no dataset read is refused" begin
+            absent = Configuration(
+                (
+                    if name === :excluded_datasets
+                        Dict("99999999" => "x")
+                    else
+                        getfield(configuration, name)
+                    end for name in fieldnames(Configuration)
+                )...,
+            )
+            @test_throws "which names no dataset read" run_pipeline(absent)
+            # A tabulation from no archive is excluded under its label.
+            by_label = Configuration(
+                (
+                    if name === :excluded_datasets
+                        Dict("sparse" => "few pairs")
+                    else
+                        getfield(configuration, name)
+                    end for name in fieldnames(Configuration)
+                )...,
+            )
+            run = run_pipeline(by_label)
+            # Named apart from the outer `written`, which the testsets below read.
+            excluding_written = write_results(run, joinpath(directory, "output", "excluding"))
+            table = CSV.read(excluding_written["dataset_diagnostics"], DataFrame)
+            row(label) = only(filter(r -> r.dataset == label, eachrow(table)))
+            @test row("sparse").pooled == false
+            @test row("sparse").exclusion_reason == "few pairs"
+            @test row("full").pooled == true
+            @test row("partial").pooled == true
+        end
+
         @testset "the run directory is written once and never into" begin
             @test isfile(joinpath(run_directory, "dataset_diagnostics.csv"))
             @test isfile(joinpath(run_directory, "r_nu_vs_A_H_pivots_full.csv"))
@@ -239,7 +271,7 @@ end
             write(
                 path,
                 PIPELINE_CONFIGURATION *
-                "\n[yield]\nsubdirectory = \"yields\"\nmass_yield_file = \"yields/10000001_A.Both_2000.dat\"\nexclude = [{ dataset = \"B. Light 2000\", reason = \"not inclusive\" }]\n",
+                "\n[yield]\nsubdirectory = \"yields\"\nmass_yield_file = \"yields/10000001_A.Both_2000.dat\"\nexclude = [{ accession = \"10000002\", reason = \"not inclusive\" }]\n",
             )
             excluding = run_pipeline(load_configuration(path; data_directory = directory))
             @test haskey(excluding.mass_yield_coverage, "B. Light 2000")
@@ -248,6 +280,8 @@ end
             )
             @test run_metadata(excluding)["result"]["mass_yields_not_averaged"]["B. Light 2000"] ==
                 "excluded by configuration: not inclusive"
+            @test run_metadata(excluding)["identifier"]["hashed"]["Y"]["exclude"] ==
+                ["10000002"]
 
             # The two floors are separate keys: lowering one leaves the other gate where it was.
             write(

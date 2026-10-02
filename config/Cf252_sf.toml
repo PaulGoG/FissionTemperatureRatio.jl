@@ -22,15 +22,15 @@ mean_kinetic_energy_file = "Cf252_sf/TKE_vs_A/23268004_A.Goeoek_2014.dat"  # pre
 
 [multiplicity]
 subdirectory = "Cf252_sf/nu_vs_A"             # under data/; whitespace-separated A nu nu_uncertainty
-# exclude: datasets kept out of the pooled trend, as [{ dataset = label, reason = text }]; each still offers its own curve
+# exclude: datasets kept out of the pooled trend, as [{ accession = EXFOR dataset identifier, reason = text }]; each still offers its own curve
 exclude = [
-    { dataset = "Sh.Zeynalov 2019", reason = "EXFOR 41739002, a check of revised analysis software on 0.5e6 coincidences of earlier IRMM data, statistical uncertainties only: its yield-weighted light-fragment multiplicity is 1.71 against 2.01 to 2.12 in Goeoek 2014, Budtz-Jorgensen 1988, Zeynalov 2011 and Al-Adili 2020, the pair sum 3.47 against a nu-bar of 3.76; a deficit on one wing does not cancel in r_nu, which lies 0.03 to 0.08 above the consensus of the other sets over A_H = 130 to 160" },
+    { accession = "41739002", reason = "EXFOR 41739002, a check of revised analysis software on 0.5e6 coincidences of earlier IRMM data, statistical uncertainties only: its yield-weighted light-fragment multiplicity is 1.71 against 2.01 to 2.12 in Goeoek 2014, Budtz-Jorgensen 1988, Zeynalov 2011 and Al-Adili 2020, the pair sum 3.47 against a nu-bar of 3.76; a deficit on one wing does not cancel in r_nu, which lies 0.03 to 0.08 above the consensus of the other sets over A_H = 130 to 160" },
 ]
 
 [yield]
 mass_yield_file = "Cf252_sf/Y_vs_A/23268003_A.Goeoek_2014.dat"  # primary pre-neutron Y(A), A Y Y_uncertainty, relative to data/; averaged over alone, or the coverage reference of subdirectory
 # subdirectory: every Y(A) under data/ to average over in place of the primary alone; optional
-# exclude: Y(A) under subdirectory kept out of every average, as [{ dataset = label, reason = text }]; optional
+# exclude: Y(A) under subdirectory kept out of every average, as [{ accession = EXFOR dataset identifier, reason = text }]; optional
 symmetrize = true                             # Y(A) and Y(A0 - A) averaged where both are measured (pre-neutron identity)
 min_yield_coverage = 0.3                      # share of the primary Y(A)'s heavy-fragment yield a distribution must cover to be averaged over, 0 to 1
 

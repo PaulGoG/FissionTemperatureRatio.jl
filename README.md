@@ -305,7 +305,8 @@ named by `mean_kinetic_energy_file` and `[yield] mass_yield_file`: Göök 2014 f
 distribution of a directory instead, with the primary distribution as the reference their coverage
 is measured against; the published settings do, Surin's ²³³U distribution among them.
 `[yield] exclude` keeps distributions of that directory out of every average, each with its
-reason, as `[multiplicity] exclude` does for the pooling; they are still read and reported.
+reason, as `[multiplicity] exclude` does for the pooling; they are still read and reported. Both
+name a dataset by its accession.
 `"ratio_of_means"` is the closed form of the published extraction. The published settings are
 reproduced exactly by `ratio_of_means` over the digitised charge tables with
 `zero_polarization_at_symmetry = true`, or over `"mean"` for 233-U; see
@@ -372,12 +373,19 @@ configuration names it and says why:
 [multiplicity]
 subdirectory = "Cf252_sf/nu_vs_A"
 exclude = [
-    { dataset = "E. Nardi 1968", reason = "one usable fragment pair in range" },
+    { accession = "31845003", reason = "one usable fragment pair in range" },
 ]
 ```
 
 An excluded dataset is still read, still fitted where its coverage allows, still written and still
 diagnosed. It is excluded from the combination, not from the record.
+
+An exclusion names its dataset by EXFOR accession. A label, `Author year`, takes the accession of
+each dataset as soon as a second one of the same author and year is retrieved, and an exclusion
+written against it would then match neither; the accession does not change. An exclusion that
+names no dataset of the directory is refused when the configuration is loaded.
+`dataset = "<label>"` remains for a tabulation that carries no accession; for a dataset that has
+one it still works, with a warning, and is deprecated.
 
 The shipped ²⁵²Cf configuration excludes one dataset, Zeynalov 2019 (EXFOR 41739002). Its `r_ν`
 lies 0.03 to 0.08 above the consensus of the other fourteen sets over `A_H` = 130 to 160, where

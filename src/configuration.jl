@@ -164,7 +164,9 @@ inputs.
 average is taken over; with `yield_directory`, every distribution of the directory is averaged
 over and `yield_file` is the reference their coverage is measured against
 ([`mass_yield_coverage`](@ref)). `excluded_mass_yields` names distributions of the directory kept
-out of every average, each with its reason; they are still read and reported.
+out of every average, each with its reason; they are still read and reported. Both
+`excluded_datasets` and `excluded_mass_yields` are keyed by the EXFOR accession of each dataset,
+or by its label where it carries none.
 
 `symmetrize_yields` imposes the pre-neutron identity `Y(A) = Y(A₀ - A)` on every mass yield
 distribution before the total average: where both complements are measured each takes their mean.
@@ -337,29 +339,87 @@ end
 
 # Datasets kept out of the pooling, each with the reason written down. A reason is required:
 # excluding a measurement is a judgement, and an unexplained one is indistinguishable from a
-# mistake to anyone reading the configuration later.
+# mistake to anyone reading the configuration later. An exclusion names its dataset by accession,
+# which does not change when a second dataset of the same author and year is retrieved, as a label
+# does.
 function _exclusions(section::AbstractDict, path::String)
-    haskey(section, "exclude") || return Dict{String,String}()
+    entries = @NamedTuple{by::Symbol, name::String, reason::String}[]
+    haskey(section, "exclude") || return entries
     raw = section["exclude"]
     raw isa AbstractVector || throw(
-        ArgumentError("$(path) must be an array of tables, each with `dataset` and `reason`"),
+        ArgumentError("$(path) must be an array of tables, each with `accession` and `reason`"),
     )
-    exclusions = Dict{String,String}()
     for (index, entry) in enumerate(raw)
-        entry isa AbstractDict &&
-        haskey(entry, "dataset") &&
-        haskey(entry, "reason") &&
-        entry["dataset"] isa String &&
-        entry["reason"] isa String || throw(
+        well_formed =
+            entry isa AbstractDict &&
+            haskey(entry, "reason") &&
+            entry["reason"] isa String &&
+            count(key -> haskey(entry, key), ("accession", "dataset")) == 1 &&
+            all(key -> !haskey(entry, key) || entry[key] isa String, ("accession", "dataset"))
+        well_formed || throw(
             ArgumentError(
-                "$(path)[$(index)] must be a table with string keys `dataset` and `reason`"
+                "$(path)[$(index)] must be a table with a string `reason` and one of the \
+                 string keys `accession` and `dataset`"
             ),
         )
+        _refuse_unknown(entry, ("accession", "dataset", "reason"), "$(path)[$(index)]")
         isempty(strip(entry["reason"])) &&
             throw(ArgumentError("$(path)[$(index)] must give a non-empty reason"))
-        haskey(exclusions, entry["dataset"]) &&
-            throw(ArgumentError("$(path) names $(repr(entry["dataset"])) more than once"))
-        exclusions[entry["dataset"]] = entry["reason"]
+        by = haskey(entry, "accession") ? :accession : :dataset
+        name = entry[String(by)]
+        by === :accession &&
+            !occursin(ACCESSION_PATTERN, name) &&
+            throw(
+                ArgumentError(
+                    "$(path)[$(index)].accession must be an EXFOR dataset identifier, 8 or 9 \
+                 characters from 0-9 and A-Z, got $(repr(name))"
+                ),
+            )
+        push!(entries, (by = by, name = name, reason = entry["reason"]))
+    end
+    return entries
+end
+
+# The exclusions of one section against the data files of its directory. Each must name exactly
+# one dataset held there, and is keyed as `_exclusion_key` keys that dataset: by its accession,
+# or by its label where it carries none.
+function _resolve_exclusions(entries, directory::AbstractString, path::String)
+    files = _data_files(directory)
+    labels = _unique_labels(files)
+    accessions = [_dataset_accession(joinpath(directory, file)) for file in files]
+    exclusions = Dict{String,String}()
+    for (index, entry) in enumerate(entries)
+        key = if entry.by === :accession
+            entry.name in accessions || throw(
+                ArgumentError(
+                    "$(path)[$(index)] excludes the accession $(repr(entry.name)), which no \
+                     dataset of $(directory) carries; it holds \
+                     $(join(filter(!isempty, accessions), ", "))",
+                ),
+            )
+            entry.name
+        else
+            position = findfirst(==(entry.name), labels)
+            position === nothing && throw(
+                ArgumentError(
+                    "$(path)[$(index)] excludes the dataset labelled $(repr(entry.name)), \
+                     which is not among those of $(directory): $(join(labels, ", "))",
+                ),
+            )
+            accession = accessions[position]
+            if isempty(accession)
+                entry.name
+            else
+                @warn "$(path)[$(index)] names a dataset by its label, which changes when a \
+                       second dataset of the same author and year is retrieved; this form is \
+                       deprecated for a dataset that has an accession: write \
+                       accession = \"$(accession)\"" dataset = entry.name
+                accession
+            end
+        end
+        haskey(exclusions, key) &&
+            throw(ArgumentError("$(path) names $(repr(key)) more than once"))
+        exclusions[key] = entry.reason
     end
     return exclusions
 end
@@ -651,7 +711,11 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
     multiplicity_directory = _subdirectory(
         multiplicity_section, "multiplicity.subdirectory", data_directory
     )
-    excluded_datasets = _exclusions(multiplicity_section, "multiplicity.exclude")
+    excluded_datasets = _resolve_exclusions(
+        _exclusions(multiplicity_section, "multiplicity.exclude"),
+        multiplicity_directory,
+        "multiplicity.exclude",
+    )
 
     # Optional. Without it the run reports the mean over the fragment mass range only; with it,
     # the total average over each yield distribution, which is the quantity the literature quotes.
@@ -675,8 +739,19 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
         )
         if haskey(yield_section, "subdirectory")
             yield_directory = _subdirectory(yield_section, "yield.subdirectory", data_directory)
+            excluded_mass_yields = _resolve_exclusions(
+                _exclusions(yield_section, "yield.exclude"), yield_directory, "yield.exclude"
+            )
+        else
+            # Without a directory the primary distribution alone is averaged over, and an
+            # exclusion has nothing to act on: it is kept as written and changes nothing.
+            for entry in _exclusions(yield_section, "yield.exclude")
+                haskey(excluded_mass_yields, entry.name) && throw(
+                    ArgumentError("yield.exclude names $(repr(entry.name)) more than once")
+                )
+                excluded_mass_yields[entry.name] = entry.reason
+            end
         end
-        excluded_mass_yields = _exclusions(yield_section, "yield.exclude")
     end
     symmetrize_yields = if haskey(document, "yield")
         _value(document["yield"], "symmetrize", Bool, "yield.symmetrize", true)

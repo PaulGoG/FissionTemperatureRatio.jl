@@ -430,6 +430,8 @@ end
         with_configuration(MINIMAL_CONFIGURATION) do path, directory
             mkpath(joinpath(directory, "Y_vs_A"))
             write(joinpath(directory, "Y_vs_A", "1_A.Author_2000.dat"), "A Y\n130 5.0\n")
+            # A tabulation that carries no accession, which an exclusion names by its label.
+            write(joinpath(directory, "Y_vs_A", "2_B.Other_2001.dat"), "A Y\n130 4.0\n")
             file = write_beside(
                 path,
                 MINIMAL_CONFIGURATION *
@@ -586,13 +588,17 @@ end
         )
         body = replace(
             body,
-            "[multiplicity]" => "[multiplicity]\nexclude = [{ dataset = \"A\", reason = \"b\" }]",
+            "[multiplicity]" => "[multiplicity]\nexclude = [{ accession = \"41739002\", reason = \"b\" }]",
         )
         body = replace(
             body,
             "max_segments = 3" => "max_segments = 12\nrequired_windows = [[128, 132]]\nmin_pair_coverage = 0.35\nmin_points_per_segment = 10\nmin_segment_span = 10",
         )
         with_configuration(body) do path, directory
+            write(
+                joinpath(directory, "datasets", "41739002_A.Set_1999.dat"),
+                "A nu nu_uncertainty\n126 2.0 0.1\n",
+            )
             identifier = run_identifier(load_configuration(path; data_directory = directory))
             @test ncodeunits("total_average_R_T_$(identifier).csv") <= 255
         end
@@ -617,35 +623,81 @@ end
         end
     end
 
-    @testset "excluded datasets need a written reason" begin
+    @testset "exclusions name a dataset by accession, with a written reason" begin
         with_configuration(MINIMAL_CONFIGURATION) do path, directory
             @test isempty(
                 load_configuration(path; data_directory = directory).excluded_datasets
             )
         end
+        excluding(clause) =
+            replace(MINIMAL_CONFIGURATION, "[multiplicity]" => "[multiplicity]\n$(clause)")
+        write_dataset(directory, file) =
+            write(joinpath(directory, "datasets", file), "A nu nu_uncertainty\n126 2.0 0.1\n")
 
         # Excluding a measurement is a judgement; an unexplained one cannot be told from a slip.
         for clause in (
-            "exclude = [{ dataset = \"A\" }]",
-            "exclude = [{ dataset = \"A\", reason = \"  \" }]",
-            "exclude = [\"A\"]",
-            "exclude = [{ dataset = \"A\", reason = \"x\" }, { dataset = \"A\", reason = \"y\" }]",
+            "exclude = [{ accession = \"41739002\" }]",
+            "exclude = [{ accession = \"41739002\", reason = \"  \" }]",
+            "exclude = [\"41739002\"]",
+            "exclude = [{ accession = \"41739002\", reason = \"x\" }, " *
+            "{ accession = \"41739002\", reason = \"y\" }]",
+            "exclude = [{ accession = \"41739002\", dataset = \"A. Set 1999\", reason = \"x\" }]",
+            "exclude = [{ reason = \"x\" }]",
+            "exclude = [{ accession = \"4173\", reason = \"x\" }]",
+            "exclude = [{ accession = \"41739002\", reason = \"x\", note = \"y\" }]",
         )
-            body = replace(
-                MINIMAL_CONFIGURATION, "[multiplicity]" => "[multiplicity]\n$(clause)"
-            )
-            with_configuration(body) do path, directory
+            with_configuration(excluding(clause)) do path, directory
+                write_dataset(directory, "41739002_A.Set_1999.dat")
                 @test_throws ArgumentError load_configuration(path; data_directory = directory)
             end
         end
 
-        body = replace(
-            MINIMAL_CONFIGURATION,
-            "[multiplicity]" => "[multiplicity]\nexclude = [{ dataset = \"A. Set 1999\", reason = \"too sparse\" }]",
-        )
-        with_configuration(body) do path, directory
-            configuration = load_configuration(path; data_directory = directory)
-            @test configuration.excluded_datasets["A. Set 1999"] == "too sparse"
+        # Two subentries of one author and year: each label carries its accession, and only
+        # the accession names one of them whatever its neighbours are.
+        by_accession = "exclude = [{ accession = \"41739002\", reason = \"too sparse\" }]"
+        with_configuration(excluding(by_accession)) do path, directory
+            write_dataset(directory, "41739002_A.Set_1999.dat")
+            write_dataset(directory, "41739003_A.Set_1999.dat")
+            configuration = @test_logs min_level = Base.CoreLogging.Warn load_configuration(
+                path; data_directory = directory
+            )
+            @test configuration.excluded_datasets == Dict("41739002" => "too sparse")
+        end
+        by_label = "exclude = [{ dataset = \"A. Set 1999\", reason = \"too sparse\" }]"
+        with_configuration(excluding(by_label)) do path, directory
+            write_dataset(directory, "41739002_A.Set_1999.dat")
+            write_dataset(directory, "41739003_A.Set_1999.dat")
+            @test_throws "which is not among those of" load_configuration(
+                path; data_directory = directory
+            )
+        end
+
+        # An exclusion of a dataset the directory does not hold is refused.
+        absent = "exclude = [{ accession = \"99999999\", reason = \"x\" }]"
+        with_configuration(excluding(absent)) do path, directory
+            write_dataset(directory, "41739002_A.Set_1999.dat")
+            @test_throws "which no dataset of" load_configuration(
+                path; data_directory = directory
+            )
+        end
+
+        # The label still names a dataset that has an accession, deprecated, under its accession.
+        with_configuration(excluding(by_label)) do path, directory
+            write_dataset(directory, "41739002_A.Set_1999.dat")
+            configuration = @test_logs (:warn, r"deprecated") match_mode = :any begin
+                load_configuration(path; data_directory = directory)
+            end
+            @test configuration.excluded_datasets == Dict("41739002" => "too sparse")
+        end
+
+        # A tabulation that carries no accession is named by its label.
+        own = "exclude = [{ dataset = \"own\", reason = \"test\" }]"
+        with_configuration(excluding(own)) do path, directory
+            write_dataset(directory, "own.dat")
+            configuration = @test_logs min_level = Base.CoreLogging.Warn load_configuration(
+                path; data_directory = directory
+            )
+            @test configuration.excluded_datasets == Dict("own" => "test")
         end
     end
 

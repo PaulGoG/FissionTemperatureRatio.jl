@@ -188,6 +188,28 @@ function _dataset_accession(source::AbstractString)
     return occursin(ACCESSION_PATTERN, candidate) ? String(candidate) : ""
 end
 
+# The key a dataset is excluded under: its accession, or its label where it carries none.
+function _exclusion_key(source::AbstractString, label::AbstractString)
+    accession = _dataset_accession(source)
+    return isempty(accession) ? String(label) : accession
+end
+_exclusion_key(data::Union{Multiplicity,MassYield}) = _exclusion_key(data.source, data.label)
+
+# The exclusions that apply to `datasets`, by label, each with its reason. One that names no
+# dataset read is an error: the configuration would claim an exclusion the run did not make.
+function _excluded_labels(exclusions::Dict{String,String}, datasets, path::AbstractString)
+    keys_read = Dict(_exclusion_key(data) => data.label for data in datasets)
+    for key in sort!(collect(keys(exclusions)))
+        haskey(keys_read, key) || throw(
+            ArgumentError(
+                "$(path) excludes $(repr(key)), which names no dataset read; an exclusion \
+                 is keyed by the EXFOR accession of its dataset"
+            ),
+        )
+    end
+    return Dict(keys_read[key] => reason for (key, reason) in exclusions)
+end
+
 """
     curve_accessions(result) -> Dict{String,String}
 
@@ -381,14 +403,11 @@ function run_pipeline(configuration::Configuration)
     # shape on its own.
     # Datasets named in the configuration are kept out of the pooling but not out of the run: they
     # are still fitted, written and diagnosed, so an exclusion is visible rather than a silent
-    # absence.
-    admitted = [
-        i for i in usable if !haskey(configuration.excluded_datasets, datasets[i].label)
-    ]
-    for (label, reason) in configuration.excluded_datasets
-        any(data.label == label for data in datasets) ||
-            @warn "configuration excludes a dataset that was not read" dataset = label reason
-    end
+    # absence. An exclusion names its dataset by EXFOR accession.
+    excluded = _excluded_labels(
+        configuration.excluded_datasets, datasets, "multiplicity.exclude"
+    )
+    admitted = [i for i in usable if !haskey(excluded, datasets[i].label)]
     isempty(admitted) && throw(
         ArgumentError("every usable dataset is excluded from the pooling by configuration")
     )
@@ -488,11 +507,7 @@ function run_pipeline(configuration::Configuration)
     excluded_yields = if configuration.yield_directory === nothing
         Dict{String,String}()
     else
-        configuration.excluded_mass_yields
-    end
-    for (label, reason) in excluded_yields
-        any(y.label == label for y in mass_yields) ||
-            @warn "configuration excludes a yield distribution that was not read" yield = label reason
+        _excluded_labels(configuration.excluded_mass_yields, mass_yields, "yield.exclude")
     end
     averaged_yields = filter(mass_yields) do distribution
         coverage = yield_coverage[distribution.label]
@@ -911,7 +926,9 @@ function write_results(result::ExtractionResult, directory::AbstractString)
 
     # What a run knows about each segmented curve beyond the manifest: one row per manifest curve,
     # keyed by its label. No column is an energy; the ratios are dimensionless.
-    excluded = configuration.excluded_datasets
+    excluded = _excluded_labels(
+        configuration.excluded_datasets, result.datasets, "multiplicity.exclude"
+    )
     rows = [
         (
             label = curve.label,

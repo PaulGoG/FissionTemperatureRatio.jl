@@ -75,9 +75,9 @@ identifier.
 
 Every key is abbreviated through [`RUN_IDENTIFIER_ABBREVIATIONS`](@ref), and a key with no entry
 there throws rather than being given a token on the spot. A value that is a list or a path — the
-required windows, the exclusion list, a tabulated charge distribution, a mass or shell-correction
-table other than the shipped one, the `⟨TKE⟩(A)` dataset, the yield directory — enters as a
-content-hash token and is written in full into the run metadata, with the reason; a named source
+required windows, the exclusion list, by accession, a tabulated charge distribution, a mass or
+shell-correction table other than the shipped one, the `⟨TKE⟩(A)` dataset, the yield directory —
+enters as a content-hash token and is written in full into the run metadata, with the reason; a named source
 enters as its name, the shipped Table III as `gc1965`. The Gilbert-Cameron branch and shell
 corrections change a Gilbert-Cameron result only, and are tokens of such a run alone. The yield
 coverage floor is a token of a run that names a yield distribution, and of no other. The system is
@@ -198,7 +198,7 @@ function _not_averaged(result::ExtractionResult)
     excluded = if configuration.yield_directory === nothing
         Dict{String,String}()
     else
-        configuration.excluded_mass_yields
+        _excluded_labels(configuration.excluded_mass_yields, result.mass_yields, "yield.exclude")
     end
     reasons = Dict{String,Any}()
     for (label, coverage) in result.mass_yield_coverage

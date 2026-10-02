@@ -73,15 +73,18 @@ DATA_AVAILABLE && @testset "published total averages" begin
         published_rows_hold(results; widened = SHIPPED_TOLERANCE)
 
         # Zeynalov 2019 (41739002) is kept out of the 252-Cf pool by the shipped configuration,
-        # with the reason on record, and still offers its own curve.
-        if haskey(results, "Cf252_sf") &&
-            any(d -> d.label == "Sh.Zeynalov 2019", results["Cf252_sf"].datasets)
-            run = results["Cf252_sf"]
-            @test haskey(run.configuration.excluded_datasets, "Sh.Zeynalov 2019")
-            @test run.dataset_outcomes["Sh.Zeynalov 2019"] == "segmented curve"
-            @test any(c -> c.label == "Sh.Zeynalov 2019", run.segmented_curves)
+        # with the reason on record, and still offers its own curve. The dataset must be held:
+        # an exclusion of an absent dataset is refused when the configuration is loaded, and
+        # `only` fails where no dataset has the accession.
+        for (system, accession) in (("Cf252_sf", "41739002"),)
+            haskey(results, system) || continue
+            run = results[system]
+            label = only(l for (l, a) in curve_accessions(run) if a == accession)
+            @test run.configuration.excluded_datasets[accession] isa String
+            @test run.dataset_outcomes[label] == "segmented curve"
+            @test any(c -> c.label == label, run.segmented_curves)
             excluded = run_metadata(run)["configuration"]["excluded_datasets"]
-            @test occursin("41739002", excluded["Sh.Zeynalov 2019"])
+            @test occursin(accession, excluded[accession])
         end
 
         # Straede's 235-U yields are spectrum-averaged: used, and flagged. Only a distribution the

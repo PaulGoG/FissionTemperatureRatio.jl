@@ -353,7 +353,9 @@ function figure_temperature_ratio(result)
     lines!(axis, trend.A_H, trend.ratio; color = RGBf(0.835, 0.369, 0.0), linewidth = 3)
     # Every measurement is drawn; the trend is fitted to those the configuration pools.
     excluded = result.configuration.excluded_datasets
-    pooled = count(data -> !haskey(excluded, data.label), result.datasets)
+    pooled = count(
+        data -> !haskey(excluded, FissionTemperatureRatio._exclusion_key(data)), result.datasets
+    )
     through = pooled == length(result.datasets) ? "" : " through $(pooled)"
     text!(
         axis,
