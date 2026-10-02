@@ -71,6 +71,11 @@ Notable changes to FissionTemperatureRatio.jl. The format follows
   dataset's own curve is divided by `f`: its uncertainties grow by `1/√f`. Coefficients and
   chi-squared of those curves are unchanged.
 
+- The run metadata could state the version of an earlier release, `[source] package_version`
+  being read when the module is compiled and the project file not being a dependency of the
+  compiled cache: a release that changed only the version kept the previous one. The project file
+  is now declared with `include_dependency`.
+
 ### Removed
 
 - `symmetrized_mass_yield`; use `FissionFragmentsDomain.symmetrized_yield`.

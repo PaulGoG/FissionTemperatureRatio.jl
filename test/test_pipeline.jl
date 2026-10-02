@@ -169,6 +169,9 @@ end
             @test !haskey(metadata["identifier"]["tokens"], "Ycov")
             @test metadata["configuration"]["min_pair_coverage"] == 0.3
             @test metadata["configuration"]["min_package_version"] == "0.2.3"
+            # The version of the code that ran, as its project file states it now.
+            @test metadata["source"]["package_version"] ==
+                string(pkgversion(FissionTemperatureRatio))
             @test metadata["inputs"]["multiplicity_directory"] == "datasets"
         end
 

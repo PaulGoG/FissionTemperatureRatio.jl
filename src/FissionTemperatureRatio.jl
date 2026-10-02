@@ -116,7 +116,11 @@ using TOML: TOML
 
 # `@__DIR__` is resolved when this file is parsed, so the path is always available. `pkgdir` is
 # not: it looks the module up in the loaded-package table, which is not yet populated while the
-# module is still being defined, and returns `nothing` there.
+# module is still being defined, and returns `nothing` there. The project file is declared a
+# dependency of the compiled module: the version is read when the module is compiled, and a
+# release that changes nothing but the version would otherwise leave the earlier one in the cache
+# and in the metadata of every run.
+include_dependency(joinpath(dirname(@__DIR__), "Project.toml"))
 const PACKAGE_VERSION = VersionNumber(
     TOML.parsefile(joinpath(dirname(@__DIR__), "Project.toml"))["version"]
 )
