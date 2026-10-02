@@ -2,11 +2,68 @@
 
 Notable changes to FissionTemperatureRatio.jl. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
-[semantic versioning](https://semver.org/spec/v2.0.0.html).
+[semantic versioning](https://semver.org/spec/v2.0.0.html). Before 1.0 a breaking change raises
+the minor version and a patch release carries none.
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-10-02
+
+Validated on the ExforFissionData v0.2.4 retrieval, whose tables for the four systems are those
+of v0.2.3 byte for byte.
+
+### Changed
+
+- Zeynalov 2019 for ²³⁵U (EXFOR 41738002), from the paper and analysis already excluded for
+  ²⁵²Cf, is kept out of the ²³⁵U pool by the shipped configuration, with the reason; its own curve
+  is still fitted and written. Weighted with the Al-Adili 2016 `Y(A)` over `A_H` = 130 to 150,
+  its light- and heavy-fragment multiplicities are 1.02 and 1.36 against 1.36 to 1.66 and 1.02 to
+  1.17 in Fraser 1966, Nishio 1998, Al-Adili 2020 and Vorobyev 2010, with the pair sum, 2.39, on
+  the scale of `ν̄`: the neutrons are divided wrongly between the wings, and `r_ν` is 0.571
+  against 0.413 to 0.436. The ²³⁵U trend moves from 6 segments, `χ²/dof` = 0.19 and
+  `⟨R_T⟩` = 1.0743 to 5 segments, 0.44 and 1.1230.
+
+### Deprecated
+
+- `{ dataset = "<label>", reason = … }` in an `exclude` list, for a dataset that has an EXFOR
+  accession: it still resolves, with a warning naming the accession to write. The form remains
+  for a tabulation that carries no accession. Its removal for archive datasets will come with a
+  minor version.
+
+### Fixed
+
+- A pool of values that quote no uncertainty carried no pooling fraction in the chi-squared of
+  the trend: 0.2.1 took the fraction out of a standard error, `s/√n_eff`, that did not hold it,
+  where 0.2.0 had it once. The mean of values counting for `f` of a measurement each has the
+  variance `s²/Σf`; the standard error is now `s/√(Σf)` and the fraction enters once, as in the
+  quoted case. No mass of the four shipped trends is in this case.
+- Identical unquoted values at one mass gave the combined point a zero uncertainty, which
+  `fit_weights` refuses, and stopped the run. The point now quotes no uncertainty and takes the
+  median weight.
+- The between-dataset variance was estimated as `(Q − (k − 1))/C` with the fixed-effect weights
+  `f/σ²`, for which the expectation of `Q` without such a variance is `Σf − Σ(f²/σ²)/Σ(f/σ²)`,
+  equal to `k − 1` only where every `f` is one. `τ²` was low by about `σ²(1 − f)/f`, and
+  truncated to zero where it should not have been, wherever an interpolated dataset is pooled.
+  It is now estimated against that expectation, the method of moments for general weights of
+  DerSimonian and Kacker, doi:10.1016/j.cct.2006.04.004. The four trends keep their segments and
+  breakpoints. The combined `r_ν` moves at 38 of 49 masses for ²⁵²Cf (by at most 7 × 10⁻⁵), at
+  31 of 41 for ²³⁹Pu (`A_H` = 123 to 160, by at most 0.003, its standard error by up to 22 %) and
+  at 12 of 43 for ²³³U (`A_H` = 118 to 130, at most 4 × 10⁻⁴). The trend `R_T(A_H)` moves by less
+  than 0.001 for ²⁵²Cf and ²³³U; for ²³⁹Pu by more than 0.002 over `A_H` = 122 to 131, at most
+  0.026 at `A_H` = 126 (1.741 to 1.767), 0.4 of its uncertainty there. `⟨R_T⟩`: ²⁵²Cf 1.0879 to
+  1.0878, ²³⁹Pu 1.0267 to 1.0268, ²³³U 1.0724 unchanged.
+- An exclusion matched the display label, which gains an accession suffix as soon as a second
+  dataset of the same author and year is retrieved; the exclusion then matched neither and the
+  dataset returned to the pool with a warning. An exclusion now names its dataset by EXFOR
+  accession, `{ accession = "41739002", reason = … }`, under `[multiplicity]` and `[yield]`
+  alike, and one that names no dataset of its directory is an error when the configuration is
+  loaded, as is one that names no dataset read when a run starts. The run identifier hashes the
+  accessions, so the `excl` token of the ²⁵²Cf run changes.
+
 ## [0.2.1] - 2026-10-02
+
+This release carries breaking changes, marked below, and by the rule above should have been
+0.3.0.
 
 ### Added
 
@@ -543,7 +600,8 @@ branch:
   check so a partially present tree failed, and results were overwritten in place with no run
   identifier, commit or hardware record.
 
-[unreleased]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.2.1...HEAD
+[unreleased]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/releases/tag/v0.1.0
