@@ -72,11 +72,11 @@ DATA_AVAILABLE && @testset "published total averages" begin
         end
         published_rows_hold(results; widened = SHIPPED_TOLERANCE)
 
-        # Zeynalov 2019 (41739002) is kept out of the 252-Cf pool by the shipped configuration,
-        # with the reason on record, and still offers its own curve. The dataset must be held:
-        # an exclusion of an absent dataset is refused when the configuration is loaded, and
-        # `only` fails where no dataset has the accession.
-        for (system, accession) in (("Cf252_sf", "41739002"),)
+        # Zeynalov 2019 is kept out of the 252-Cf pool (41739002) and of the 235-U pool
+        # (41738002) by the shipped configurations, with the reason on record, and still offers
+        # its own curve. The datasets must be held: an exclusion of an absent dataset is refused
+        # when the configuration is loaded, and `only` fails where no dataset has the accession.
+        for (system, accession) in (("Cf252_sf", "41739002"), ("U235_nth", "41738002"))
             haskey(results, system) || continue
             run = results[system]
             label = only(l for (l, a) in curve_accessions(run) if a == accession)

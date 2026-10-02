@@ -23,7 +23,10 @@ mean_kinetic_energy_file = "U235_nth/TKE_vs_A/23164007_A.Al-adili_2016.dat"  # p
 
 [multiplicity]
 subdirectory = "U235_nth/nu_vs_A"             # under data/; whitespace-separated A nu nu_uncertainty
-# exclude: datasets kept out of the pooled trend, as [{ accession = EXFOR dataset identifier, reason = text }]; each still offers its own curve; optional
+# exclude: datasets kept out of the pooled trend, as [{ accession = EXFOR dataset identifier, reason = text }]; each still offers its own curve
+exclude = [
+    { accession = "41738002", reason = "EXFOR 41738002, Zeynalov 2019, the 235-U result of the paper and analysis excluded for 252-Cf (41739002), statistical uncertainties only: weighted with the Al-Adili 2016 Y(A) over A_H = 130 to 150, its light- and heavy-fragment multiplicities are 1.02 and 1.36 against 1.36 to 1.66 and 1.02 to 1.17 in Fraser 1966, Nishio 1998, Al-Adili 2020 and Vorobyev 2010; the pair sum, 2.39, is on the scale of nu-bar, so the neutrons are divided wrongly between the wings, and r_nu is 0.57 against 0.41 to 0.44 (Apalin 1965: 0.49)" },
+]
 
 [yield]
 mass_yield_file = "U235_nth/Y_vs_A/23164005_A.Al-adili_2016.dat"  # primary pre-neutron Y(A), A Y Y_uncertainty, relative to data/; averaged over alone, or the coverage reference of subdirectory

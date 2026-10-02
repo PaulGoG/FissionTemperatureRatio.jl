@@ -407,6 +407,19 @@ be the better measurement, and the measurement published from IRMM in 2011 (2311
 Its own curve is still fitted and written. With it in the pool the ²⁵²Cf trend takes 4 segments,
 with `χ²/dof` = 1.88 and `⟨R_T⟩` = 1.0788; without it, 5 segments, 1.55 and 1.0879.
 
+The shipped ²³⁵U configuration excludes the ²³⁵U result of the same paper and analysis, Zeynalov
+2019 (EXFOR 41738002). Here the total is right and its division between the wings is not.
+Weighted with the Al-Adili 2016 yields over `A_H` = 130 to 150, `⟨ν_L⟩` and `⟨ν_H⟩` are 1.02 and
+1.36, against 1.36 to 1.66 and 1.02 to 1.17 in Fraser 1966, Nishio 1998, Al-Adili 2020 and
+Vorobyev 2010, so `r_ν` is 0.571 against 0.413 to 0.436 (Apalin 1965: 0.486), while the pair sum,
+2.39, is on the scale of `ν̄`. At single masses, `ν(112)` = 3.43 against 1.75 to 2.31 in Nishio,
+Al-Adili and Vorobyev, and `ν(124)` = 1.24 against 0.36 and 0.47 in the last two. Over that range
+its `r_ν` lies 0.05 to 0.16 above the consensus of the other seven sets, whose spread is 0.04, and
+above every one of them at 19 of the 21 masses. The subentry gives pre-neutron masses and
+statistical uncertainties only. Its own curve is still fitted and written. With it in the pool
+the ²³⁵U trend takes 6 segments, with `χ²/dof` = 0.19 and `⟨R_T⟩` = 1.0743; without it, 5 segments,
+0.44 and 1.1230.
+
 Two guards bound what a segmented curve may assert. `min_segment_span` (an integer from 1 to 50,
 default 3) is the smallest extent of a segment in mass units from its first pivot to its last; at
 four points per segment on consecutive mass numbers it coincides with the point guard

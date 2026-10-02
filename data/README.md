@@ -163,6 +163,13 @@ forms no pair sum for it and records no scale flag. The shipped configuration ex
 pooled trend by its accession, with the reason; its own curve is still written. The main README
 gives the attribution.
 
+**One 235-U multiplicity dataset is kept out of the pool.** Zeynalov 2019 (41738002), from the
+same paper and analysis, has its pair sum on the scale of `ν̄` but divides it wrongly between the
+wings: over `A_H` = 130 to 150 its light fragments emit 1.02 neutrons against 1.36 to 1.66 in the
+comparable sets, its heavy fragments 1.36 against 1.02 to 1.17. The shipped configuration
+excludes it from the pooled trend by its accession, with the reason; its own curve is still
+written.
+
 **Two 239-Pu multiplicity datasets are off the scale of ν̄.** Tsuchiya 2000 (22650004) and
 Batenkov 2004 (41502006) are read per fragment, with pair sums 3.9 ± 0.6 % above and 10.7 ± 1.3 %
 below `ν̄`, and their records state `scale_consistent = false`; the run flags them. A uniform scale
