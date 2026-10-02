@@ -148,7 +148,7 @@ kept or excluded. This package reads those files; it does not query the archive 
 ![Temperature ratio](docs/src/assets/temperature_ratio.png)
 
 The temperature ratio of ²⁵²Cf(sf): every measurement held, in grey, and the systematic trend
-through them with its uncertainty. Above the symmetric split the light fragment is the hotter of
+through the fourteen that are pooled, with its uncertainty. Above the symmetric split the light fragment is the hotter of
 the pair, and the ratio crosses unity near the most probable fragmentation.
 
 ![Segment selection](docs/src/assets/segment_selection.gif)

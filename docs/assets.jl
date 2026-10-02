@@ -351,12 +351,16 @@ function figure_temperature_ratio(result)
         color = (RGBf(0.835, 0.369, 0.0), 0.25),
     )
     lines!(axis, trend.A_H, trend.ratio; color = RGBf(0.835, 0.369, 0.0), linewidth = 3)
+    # Every measurement is drawn; the trend is fitted to those the configuration pools.
+    excluded = result.configuration.excluded_datasets
+    pooled = count(data -> !haskey(excluded, data.label), result.datasets)
+    through = pooled == length(result.datasets) ? "" : " through $(pooled)"
     text!(
         axis,
         0.97,
         0.93;
         text = "$(system_notation(result.configuration.system))\n\
-                $(length(result.datasets)) measurements\nsystematic trend",
+                $(length(result.datasets)) measurements\nSystematic trend$(through)",
         space = :relative,
         align = (:right, :top),
         fontsize = 21,
