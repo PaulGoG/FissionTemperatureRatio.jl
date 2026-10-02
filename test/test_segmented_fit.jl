@@ -273,6 +273,41 @@ using LinearAlgebra: LinearAlgebra
         @test mixed.measured ./ mixed.σ_measurement .^ 2 ≈ 1 ./ mixed.pooled.σ .^ 2
     end
 
+    @testset "the dispersion of an unquoted pool is taken with the weights of its mean" begin
+        # Values 0, 1, 3 with f = 1, 1/2, 1/2: the mean is (0 + 0.5 + 1.5)/2 = 1,
+        # Σ f (r − r̄)² = 1 + 0 + 2 = 3, its expectation in units of s² is Σf − Σf²/Σf = 1.25,
+        # so s² = 2.4 and the standard error is √(s²/Σf) = √1.2. The unweighted sample variance
+        # about the unweighted mean, 7/3, would give another figure.
+        curves = [RatioCurve([130], [r], [missing], "set $(r)") for r in (0.0, 1.0, 3.0)]
+        combined = consensus(curves; weights = [1.0, 0.5, 0.5])
+        @test only(combined.ratio) ≈ 1.0
+        @test only(combined.σ) ≈ sqrt(1.2)
+        # Equal fractions: the sample variance, and s/√(Σf).
+        equal = consensus(curves; weights = [0.5, 0.5, 0.5])
+        @test only(equal.σ) ≈ sqrt((7 / 3) / 1.5)
+    end
+
+    @testset "the estimate of the between-dataset variance is unbiased under pooling factors" begin
+        # Six values of variance σ² + τ² about one mean, combined with the factors f: the
+        # estimate of τ² averages to τ² over many draws. Against k − 1 in place of the
+        # expectation of Q it would average about σ²(1 − f)/f lower, 0.84 here. With equal σ
+        # the estimate is recovered from the standard error, Σ f/(σ² + τ²) = 1/σ_r̄².
+        rng = StableRNG(20261002)
+        quoted, τ² = 1.0, 4.0
+        factors = [1.0, 0.5, 0.5, 0.4, 0.6, 0.5]
+        draws = 40_000
+        estimates = Vector{Float64}(undef, draws)
+        uncertainties = Union{Missing,Float64}[quoted for _ in factors]
+        for draw in 1:draws
+            values = sqrt(quoted^2 + τ²) .* randn(rng, length(factors))
+            _, spread, _, _ = FissionTemperatureRatio._combine(values, uncertainties, factors)
+            estimates[draw] = spread^2 * sum(factors) - quoted^2
+        end
+        # The truncation at zero adds about 0.02 at these values; the Monte Carlo standard error
+        # of the mean is about 0.02.
+        @test sum(estimates) / draws ≈ τ² atol = 0.1
+    end
+
     @testset "identical unquoted values leave the combined point unquoted" begin
         masses = collect(126:150)
         base = reference_ratio.(masses)

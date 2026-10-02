@@ -109,8 +109,8 @@ uncertainty of the combination reflects the disagreement instead of hiding it.
 Where a mass number has one measurement only, that value and its uncertainty pass through: there
 is no dispersion to estimate. Where none of the values at a mass number carries a quoted
 uncertainty, the mean is taken and the standard error of the values supplies the uncertainty,
-`s/√k` with `s` their standard deviation; identical values leave nothing to estimate it from, and
-the combined point then quotes no uncertainty. Points quoting no uncertainty alongside points that
+`s/√k` with `s` their standard deviation about it; identical values leave nothing to estimate it
+from, and the combined point then quotes no uncertainty. Points quoting no uncertainty alongside points that
 do are given the median of the latter, as [`fit_weights`](@ref) does.
 
 `weights`, one factor per curve, scales the weight of every value of that curve, in the
@@ -118,7 +118,12 @@ fixed-effect stage and in the combination alike: `w = f/(σ² + τ²)`. A datase
 interpolated onto the integers has rows that share their bracketing points and so are not
 independent; [`pooling_weight`](@ref) gives it the factor raw points over rows. A curve alone at a
 mass number passes through with its uncertainty divided by `√f`, and values quoting no
-uncertainty are averaged with the weights `f` to the standard error `s/√(Σf)`.
+uncertainty are averaged with the weights `f` to the standard error `s/√(Σf)`, `s²` being
+`Σ f (r − r̄)²/(Σf − Σf²/Σf)`.
+
+The standard error written here reads `f` as the share of a measurement a value amounts to. The
+estimate of `τ²` reads it as a weight on a value of variance `σ² + τ²`; for the mean under that
+reading the written standard error is conservative, by `1/√f` where the fractions are equal.
 
 With such factors the fixed-effect weights are `f/σ²` while a value keeps the variance `σ²`, and
 the statistic `Q = Σ (f/σ²)(r − r̄)²` has the expectation `Σf − Σ(f²/σ²)/Σ(f/σ²)` where the
@@ -198,18 +203,21 @@ function _combine(
     quoted = .!ismissing.(uncertainties)
     if !any(quoted)
         # No value quotes an uncertainty: the weighted mean, with the dispersion s of the values
-        # standing for the uncertainty of one of them. A value that counts for f of a measurement
-        # has the precision f/s², so the mean has the variance s²/Σf: the standard error carries
-        # the fractions, as σ/√f does for a single value, and the uncertainty of one measurement
-        # is the standard error with the fraction taken out, as in the quoted case.
-        μ = sum(factors .* values) / sum(factors)
-        fraction = sum(factors .^ 2) / sum(factors)
-        dispersion = std(values)
+        # about it standing for the uncertainty of one of them. s² is estimated with the weights
+        # of the mean, Σ f (r − r̄)² over its expectation in units of s², Σf − Σf²/Σf, which is
+        # the estimate of τ² below for values of no quoted variance; it is the sample variance
+        # where the fractions are equal. The standard error, s/√(Σf), carries the fractions as
+        # σ/√f does for a single value, and the uncertainty of one measurement is the standard
+        # error with the fraction taken out, as in the quoted case.
+        total = sum(factors)
+        μ = sum(factors .* values) / total
+        fraction = sum(factors .^ 2) / total
+        dispersion = sqrt(sum(factors .* (values .- μ) .^ 2) / (total - fraction))
         # Identical values leave no dispersion to estimate from. The point then quotes no
         # uncertainty, as none of its values does, and takes the median weight in a fit; a zero
         # would claim an exact value.
         dispersion > 0 || return (μ, missing, fraction, missing)
-        spread = dispersion / sqrt(sum(factors))
+        spread = dispersion / sqrt(total)
         return (μ, spread, fraction, spread * sqrt(fraction))
     end
 
