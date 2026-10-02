@@ -11,11 +11,18 @@ let overwrite = !("--check" in ARGS)
     include(joinpath(@__DIR__, "formatter", "activate.jl"))
     using JuliaFormatter: format
 
+    # One pass of the formatter is not always its fixed point: a construct it rewrites can take a
+    # second pass to settle, and CI checks against the fixed point. Format until nothing changes.
     formatted = true
-    for directory in DIRECTORIES
-        path = joinpath(@__DIR__, directory)
-        isdir(path) || continue
-        formatted &= format(path; overwrite = overwrite)
+    for pass in 1:(overwrite ? 4 : 1)
+        settled = true
+        for directory in DIRECTORIES
+            path = joinpath(@__DIR__, directory)
+            isdir(path) || continue
+            settled &= format(path; overwrite = overwrite)
+        end
+        pass == 1 && (formatted = settled)
+        settled && break
     end
 
     if !formatted

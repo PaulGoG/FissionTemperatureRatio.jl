@@ -263,7 +263,7 @@ end
                     else
                         getfield(loaded, name)
                     end for name in fieldnames(Configuration)
-                )...,
+                )...
             )
             @test_throws "which names no distribution" run_pipeline(absent)
         end
