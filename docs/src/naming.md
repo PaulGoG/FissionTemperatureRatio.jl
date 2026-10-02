@@ -215,9 +215,9 @@ data/sims/<system>/<run>/
 ├── r_nu_vs_A_H_<dataset>.csv
 ├── R_T_vs_A_H_<dataset>.csv
 ├── r_nu_vs_A_H_consensus_systematic_trend.csv
-├── r_nu_vs_A_H_segmented_<label>.csv
-├── R_T_vs_A_H_segmented_<label>.csv
-├── r_nu_vs_A_H_pivots_<label>.csv
+├── r_nu_vs_A_H_segmented_<dataset>.csv        …_systematic_trend.csv for the trend
+├── R_T_vs_A_H_segmented_<dataset>.csv
+├── r_nu_vs_A_H_pivots_<dataset>.csv
 ├── segmented_curves_<run>.csv                 one row per manifest curve
 ├── total_average_R_T_<run>.csv
 ├── dataset_diagnostics.csv
@@ -228,23 +228,26 @@ plots/<system>/<run>/
 ├── nu_vs_A.pdf
 ├── r_nu_vs_A_H.pdf
 ├── R_T_vs_A_H.pdf
-├── r_nu_vs_A_H_segmented_<label>.pdf
-└── R_T_vs_A_H_segmented_<label>.pdf
+├── r_nu_vs_A_H_segmented_<dataset>.pdf
+└── R_T_vs_A_H_segmented_<dataset>.pdf
 ```
 
 An output follows the same `<quantity>_vs_<abscissa>` rule as an input, so it can be fed back in
-without translation, and a table name carries the quantity, the abscissa and the label of the
-curve or dataset, nothing more:
+without translation, and a table name carries the quantity, the abscissa and the dataset, nothing
+more. `<dataset>` is the stem of the input file, `<accession>_<Author>_<year>`, so the archive
+accession is in the name of every file of a measurement; the trend's files carry its label,
+`systematic_trend`. A label, `Author year`, is the display name and the key that selects a curve
+in the manifest, and takes the accession only where two datasets would share it:
 
 | File | Content |
 | :--- | :--- |
 | `r_nu_vs_A_H_<dataset>.csv` | the ratio extracted point by point from one measurement |
 | `R_T_vs_A_H_<dataset>.csv` | the temperature ratio from it |
 | `r_nu_vs_A_H_consensus_systematic_trend.csv` | the combined ratio the trend curve was fitted to |
-| `r_nu_vs_A_H_segmented_<label>.csv` | the fitted ratio, tabulated |
-| `R_T_vs_A_H_segmented_<label>.csv` | the temperature ratio from the fitted ratio |
-| `r_nu_vs_A_H_pivots_<label>.csv` | the fit as its joined points |
-| `segmented_curves_<run>.csv` | per manifest curve, keyed by its label: segments, pin, span, pairs, coverage, reduced chi-squared, range mean |
+| `r_nu_vs_A_H_segmented_<dataset>.csv` | the fitted ratio, tabulated |
+| `R_T_vs_A_H_segmented_<dataset>.csv` | the temperature ratio from the fitted ratio |
+| `r_nu_vs_A_H_pivots_<dataset>.csv` | the fit as its joined points |
+| `segmented_curves_<run>.csv` | per manifest curve, keyed by its label: accession, segments, pin, span, pairs, coverage, reduced chi-squared, range mean |
 | `total_average_R_T_<run>.csv` | ⟨R_T⟩ over each yield distribution reaching the coverage floor, with the yield fraction the curve takes in |
 | `dataset_diagnostics.csv` | one row per dataset read, with the qualifiers its retrieval recorded |
 | `manifest_<run>.toml` | what the run produced, for a consuming code |

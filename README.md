@@ -341,8 +341,12 @@ the combination reflects the disagreement instead of hiding it. A dataset whose 
 retrieval interpolated onto the integers (`mass_treatment = "interpolated"` in its record) enters
 at the weight of its measured points over its written rows, since neighbouring interpolated rows
 share their bracketing measurements; the factor is the `pooling_weight` column of
-`dataset_diagnostics.csv`. The combined curve is written out, so the trend can be checked against
-its own input.
+`dataset_diagnostics.csv`. That factor `f` enters a fit once, as the weight `f/σ²` of a point in
+the solve, in `χ²` and in the information matrix, with `Σ f` measurements behind the degrees of
+freedom, for the trend exactly as for the dataset's own curve: the trend of a pool holding one
+interpolated dataset is that dataset's fit. The combined curve is written out, so the trend can
+be checked against its own input; its uncertainty is the standard error of each combined value,
+which carries the factor.
 
 **Admission.** For the same reason, a dataset cannot be judged by how far it sits from the others
 in units of its own uncertainty: none is consistent with any other, and a reduced chi-squared
@@ -466,34 +470,40 @@ configuration, as `configuration.toml`, and of the resolved manifest of the scri
 | `manifest_<run identifier>.toml` | the run record a consuming code reads; exactly one per directory |
 | `r_nu_vs_A_H_<dataset>.csv`, `R_T_vs_A_H_<dataset>.csv` | the ratios extracted point by point from one measurement |
 | `r_nu_vs_A_H_consensus_systematic_trend.csv` | the combined ratio the trend curve was fitted to |
-| `r_nu_vs_A_H_segmented_<label>.csv`, `R_T_vs_A_H_segmented_<label>.csv` | the fitted ratio at every mass number and the temperature ratio from it |
-| `r_nu_vs_A_H_pivots_<label>.csv` | the fit as its joined points |
+| `r_nu_vs_A_H_segmented_<dataset>.csv`, `R_T_vs_A_H_segmented_<dataset>.csv` | the fitted ratio at every mass number and the temperature ratio from it; `…_systematic_trend.csv` for the trend |
+| `r_nu_vs_A_H_pivots_<dataset>.csv` | the fit as its joined points; `…_systematic_trend.csv` for the trend |
 | `segmented_curves_<run identifier>.csv` | one row per manifest curve, keyed by its label: segments, pin, span, pairs, coverage, reduced chi-squared, range mean |
 | `total_average_R_T_<run identifier>.csv` | `⟨R_T⟩` of every segmented curve over every yield distribution |
 | `dataset_diagnostics.csv` | one row per dataset read, with its reaction-code qualifiers |
 | `metadata.toml`, `configuration.toml`, `Manifest.toml` | the provenance record, written by the script |
 
 The manifest, the curve table and the total averages carry the run identifier in their names;
-every other table is named by its quantity, its abscissa and its label, and found through the
-manifest. `write_results` refuses a run whose identifier would make one of those names longer than
+every other table is named by its quantity, its abscissa and its dataset, and found through the
+manifest. `<dataset>` is the stem of the input file, `<accession>_<Author>_<year>` as the
+retrieval writes it, so `R_T_vs_A_H_segmented_22660005_K.Nishio_1998.csv` traces to its EXFOR
+entry and to its input by name alone. The label of a curve stays `Author year`, with the
+accession added only where two datasets would share it: it is the display name and the key a
+consuming code selects a curve by. `curve_accessions(result)` gives the accession of each label,
+and the curve table and the dataset diagnostics carry it as a column. `write_results` refuses a run whose identifier would make one of those names longer than
 the 255 bytes a file system admits. The ratio tables have the headers `A_H,r_nu,r_nu_uncertainty`
 and `A_H,R_T,R_T_uncertainty`, the pivot table included; in the point-by-point tables an
 uncertainty the measurement does not quote is an empty field, never zero.
-`segmented_curves_<run identifier>.csv` has the columns `label, kind, pooled, segments,
+`segmented_curves_<run identifier>.csv` has the columns `label, accession, kind, pooled, segments,
 pinned_at_symmetric_split, first_A_H, last_A_H, pairs, measured_points, coverage,
 reduced_chi_squared, weights_imputed, range_mean_R_T, range_mean_R_T_uncertainty`, all
 dimensionless. `total_average_R_T_<run identifier>.csv` has the columns `segmented_curve,
 mass_yield, R_T, R_T_uncertainty, R_T_uncertainty_independent_points, yield_fraction,
 R_T_one_more_segment, R_T_two_more_segments`, the last two filled for the systematic trend only,
 and
-`dataset_diagnostics.csv` the columns `dataset, points, pairs, first_pair, last_pair, coverage,
+`dataset_diagnostics.csv` the columns `dataset, accession, points, pairs, first_pair, last_pair, coverage,
 outside_physical_range, symmetry_departure, complement_sum, complement_spread,
 without_uncertainties, qualifiers, pooling_weight, flagged, pair_sum_deviation, scale_consistent,
 pooled, exclusion_reason, segmented_curve`, the last
 reading "segmented
 curve" or stating why there is none: no complete pair, coverage below the floor, or no fit and the
 reason. The figures are `nu_vs_A.pdf`, `r_nu_vs_A_H.pdf` and `R_T_vs_A_H.pdf`, and
-`r_nu_vs_A_H_segmented_<label>.pdf` and `R_T_vs_A_H_segmented_<label>.pdf` for every dataset curve.
+`r_nu_vs_A_H_segmented_<dataset>.pdf` and `R_T_vs_A_H_segmented_<dataset>.pdf` for every dataset
+curve.
 
 The run identifier is DrWatson's `savename` over every configuration key that changes the result,
 tokens sorted and joined by `_`, each key abbreviated through `RUN_IDENTIFIER_ABBREVIATIONS`, which

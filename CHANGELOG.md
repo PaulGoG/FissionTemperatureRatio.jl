@@ -6,6 +6,60 @@ Notable changes to FissionTemperatureRatio.jl. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- The pooling fraction of an interpolated dataset entered the chi-squared of the systematic trend
+  twice. The combined curve carries the fraction `f` in its standard error, `σ/√f` for a single
+  value and `(Σ f/(σ² + τ²))^(-1/2)` otherwise, and the segmented fit multiplied each residual by
+  the measured fraction again, so a residual of the trend entered with `f²/σ²` where a
+  measurement of a dataset enters with `f/σ²`. The trend's `wrss`, its reduced chi-squared, the
+  criterion that selects the segment count and the covariance scale were low wherever an
+  interpolated dataset was pooled. `fit_segments` now forms one weight `f/σ²` per point, `σ`
+  being its uncertainty as one measurement, for the solve, for chi-squared and for the
+  information matrix alike, with `Σ f` behind the degrees of freedom, and the trend is fitted to
+  the combined values at the uncertainty of one measurement. The trend of a pool holding one
+  interpolated dataset reproduces that dataset's own fit exactly; a pool of integer-mass
+  datasets is unchanged. Selected segment counts are as before for the four shipped systems; the
+  reduced chi-squared of the trend rises from 1.77 to 1.88 (²⁵²Cf, same pool), 0.186 to 0.192
+  (²³⁵U), 0.42 to 0.49 (²³⁹Pu) and 1.67 to 1.71 (²³³U), and the ²³³U trend moves its second
+  breakpoint from 140 to 141 and its `⟨R_T⟩` from 1.0740 to 1.0724.
+- With the fraction in the information matrix, the coefficient covariance of an interpolated
+  dataset's own curve is divided by `f`: its uncertainties grow by `1/√f`. Coefficients and
+  chi-squared of those curves are unchanged.
+
+### Changed
+
+- Zeynalov 2019 (EXFOR 41739002) is kept out of the ²⁵²Cf pool by the shipped configuration, with
+  the reason; its own curve is still fitted and written. Its `r_ν` lies 0.03 to 0.08 above the
+  consensus of the other fourteen sets over `A_H` = 130 to 160, from a deficit of light-fragment
+  neutrons (`⟨ν_L⟩` = 1.71 against 2.01 to 2.12, pair sum 3.47 against `ν̄` = 3.76) that does not
+  cancel in the ratio; the README gives the attribution. The ²⁵²Cf trend moves from 4 segments,
+  `χ²/dof` = 1.88 and `⟨R_T⟩` = 1.0788 to 5 segments, 1.55 and 1.0879.
+- **Breaking:** `segments.min_dataset_coverage` gated two measures and is replaced by two keys,
+  each validated on load and each a token of the run identifier: `segments.min_pair_coverage`
+  (`cov`), the fraction of the heavy masses of the range a `ν(A)` dataset must pair to offer a
+  curve of its own, and `yield.min_yield_coverage` (`Ycov`, on a run that names a yield
+  distribution), the share of the primary distribution's heavy-fragment yield a `Y(A)` must cover
+  to be averaged over. Both default to 0.3. The retired key is refused with a message naming its
+  replacements. `SegmentSettings.min_pair_coverage`, `Configuration.min_yield_coverage`.
+- **Breaking:** the files of a dataset are named by the stem of its input file,
+  `<accession>_<Author>_<year>`, in place of its label: `R_T_vs_A_H_segmented_22660005_K.Nishio_1998.csv`
+  for what was `R_T_vs_A_H_segmented_K._Nishio_1998.csv`, and likewise the point-by-point tables,
+  the pivots and the per-dataset figures. Labels, the `systematic_trend` label and its file names
+  are unchanged; a consuming code reads the file names from the manifest.
+
+### Added
+
+- `[retrieval] min_package_version`, default `"0.2.3"`: the lowest ExforFissionData version whose
+  retrieval records a run accepts. A record below it, or one stating no `[run] package_version`,
+  is refused when the configuration is loaded, and input directories written by different
+  versions are reported in a warning. ExforFissionData 0.2.3 put the ²³⁹Pu multiplicities of
+  22650004 on the scale of their subentry and refuses the ²⁵²Cf yields 41425015 and 41425016.
+  `check_retrieval_versions`, `Configuration.min_retrieval_version`, `min_package_version` in the
+  run metadata.
+- `curve_accessions(result)`, the EXFOR accession of every dataset by label, and an `accession`
+  column in `segmented_curves_<run identifier>.csv` and `dataset_diagnostics.csv`.
+
 ## [0.2.0] - 2026-10-01
 
 ### Added

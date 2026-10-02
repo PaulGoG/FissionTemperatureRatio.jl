@@ -138,6 +138,17 @@ points over its written rows for each of its points, and a point of the combined
 average of its contributors' fractions, weighted as they are combined. Interpolated points share
 their bracketing measurements, and counted as independent they would buy extra segments.
 
+That fraction ``f`` enters a fit once. A point of uncertainty ``\sigma``, taken as one
+measurement, carries the weight ``f/\sigma^2``, and the same weight serves the solve,
+``\chi^2 = \sum (f/\sigma^2)\, r^2`` and the information matrix ``X^\mathsf{T} W X``; the degrees
+of freedom are ``\sum f`` less the number of parameters. A fraction common to every point of a
+dataset leaves its coefficients as they are and divides their covariance by ``f``. The combined
+curve is fitted by the same rule: the standard error of a combined value already carries the
+fractions of its contributors, so the fit takes the uncertainty of one measurement,
+``\sigma_{\bar{r}} \sqrt{f}``, with ``f`` beside it, and not the standard error with ``f`` again.
+The systematic trend of a pool that holds one interpolated dataset is then that dataset's own
+fit, in breakpoints, coefficients, ``\chi^2``, degrees of freedom and covariance.
+
 How far a result rests on the selected order is stated with it: the systematic trend is refitted
 with one and two segments more, and its total average at each order is reported beside the
 selected one.
