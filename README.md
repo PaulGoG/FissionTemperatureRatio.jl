@@ -375,6 +375,26 @@ exclude = [
 An excluded dataset is still read, still fitted where its coverage allows, still written and still
 diagnosed. It is excluded from the combination, not from the record.
 
+The shipped ²⁵²Cf configuration excludes one dataset, Zeynalov 2019 (EXFOR 41739002). Its `r_ν`
+lies 0.03 to 0.08 above the consensus of the other fourteen sets over `A_H` = 130 to 160, where
+their spread is 0.02, and above every one of them at 25 of those 31 masses. The departure is a
+deficit of light-fragment neutrons. Weighted with Göök's yields, `⟨ν_L⟩` is 1.71 against 2.01 to
+2.12 in Göök 2014, Budtz-Jørgensen 1988, Zeynalov 2011 and Al-Adili 2020, and `⟨ν_H⟩` is 1.76
+against 1.65 to 1.77: the pair sum is 3.47, 8 % below `ν̄`, and the heavy fragments would emit
+half the neutrons. A scale error confined to one wing does not cancel in `r_ν`, and the retrieval
+forms no pair sum for a set coded per fragment, so nothing flags it. The subentry gives
+pre-neutron masses from a twin ionisation chamber with one neutron detector, corrected for energy
+loss, pulse-height defect and background, with statistical uncertainties only; it states no
+selection in `TKE` or angle and no correction for the detection geometry. The paper, *EPJ Web
+Conf.* **211**, 04003 (2019), [doi:10.1051/epjconf/201921104003](https://doi.org/10.1051/epjconf/201921104003),
+presents the result as a check of revised analysis software, which corrects the fragment kinetic
+energies for neutron emission, on 0.5 × 10⁶ coincidences of data taken earlier at IRMM. Those
+energies fix the fragment velocities that carry the neutron spectrum into the fragment frame, and
+a deficit that grows with fragment velocity is what an error there produces. Nothing shows it to
+be the better measurement, and the measurement published from IRMM in 2011 (23118006) is pooled.
+Its own curve is still fitted and written. With it in the pool the ²⁵²Cf trend takes 4 segments,
+with `χ²/dof` = 1.88 and `⟨R_T⟩` = 1.0788; without it, 5 segments, 1.55 and 1.0879.
+
 Two guards bound what a segmented curve may assert. `min_segment_span` (an integer from 1 to 50,
 default 3) is the smallest extent of a segment in mass units from its first pivot to its last; at
 four points per segment on consecutive mass numbers it coincides with the point guard
