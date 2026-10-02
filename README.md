@@ -141,7 +141,10 @@ average temperature ratios of its Table 1 come back to within 1.0 % for ²³³U(
 settings, which invert charge by charge on Wahl's charge model, to within 1.4 %, Apalin aside at
 2.1 %. For ²³⁹Pu the yield distribution is inferred by agreement, the table's caption naming none.
 The [validation status](#validation-status) below states exactly what has been checked against the
-paper and what has not.
+paper and what has not. The paper did not use this package: its jointed segments were drawn by
+hand through the multiplicity ratio of each dataset. Here the number of segments and their
+breakpoints are selected by a criterion, and the trend that combines several datasets is this
+package's own construction, which is why the agreement is at the per-cent level.
 
 Experimental input — prompt neutron multiplicity `ν(A)`, fragment mass yields `Y(A)` and the mean
 total kinetic energy `⟨TKE⟩(A)` — comes from the IAEA EXFOR archive through
@@ -245,8 +248,8 @@ Readers take columns **by position**, not by header text, so a header rename ups
 here. `docs/src/naming.md` sets out the vocabulary — quantities, identifiers, configuration keys,
 file names and headers — that this package and the codes on either side of it share.
 
-Without the data the pipeline cannot run, and the tests that need measurements are skipped with a
-warning. The rest of the suite — the inversion on the shipped fragmentation domains, the
+Without the data the pipeline cannot run, and the tests that need measurements are reported as
+skipped in the test summary. The rest of the suite — the inversion on the shipped fragmentation domains, the
 configuration, a synthetic run and its run record — runs regardless, on the mass table and shell corrections
 FissionFragmentsDomain.jl ships.
 
@@ -359,6 +362,16 @@ the number of datasets less one; and it is why the reduced chi-squared of a tren
 0.44 for ²³⁵U and ²³⁹Pu, without the trend having too many segments. [The
 method](docs/src/method.md) gives both.
 
+**The uncertainty of a trend is low.** The covariance of the trend takes the combined points as
+independent, while a dataset departs from the others by an offset and a slow drift: the
+deviations of the pooled datasets from the combined curve have a lag-one autocorrelation `ρ` of
+0.71, 0.61, 0.70 and 0.44 for ²⁵²Cf, ²³⁵U, ²³⁹Pu and ²³³U. The uncertainty written for the
+trend's `R_T(A_H)` and for its `⟨R_T⟩` is then low by about `√((1 + ρ)/(1 − ρ))`, a factor of 1.6
+to 2.4. It is not enlarged for this. A run reports `ρ` and the factor under
+`[result.trend_uncertainty]` in `metadata.toml` and in the `deviation_autocorrelation` column of
+the curve table, and `deviation_autocorrelation(result)` returns it. The curve of a single
+dataset is not concerned.
+
 **Admission.** For the same reason, a dataset cannot be judged by how far it sits from the others
 in units of its own uncertainty: none is consistent with any other, and a reduced chi-squared
 ranks how generously an author quoted errors rather than how good the measurement is. Every
@@ -430,6 +443,16 @@ statistical uncertainties only. Its own curve is still fitted and written. With 
 the ²³⁵U trend takes 6 segments, with `χ²/dof` = 0.19 and `⟨R_T⟩` = 1.0743; without it, 5 segments,
 0.44 and 1.1230.
 
+Two further datasets are excluded by name although neither could be pooled: Batenkov 2004 for
+²³⁵U (EXFOR 41502005) and for ²³⁹Pu (41502006), from *AIP Conf. Proc.* **769**, 1003 (2005),
+[doi:10.1063/1.1945175](https://doi.org/10.1063/1.1945175). Each gives 21 masses on a grid of 4 u
+on which no mass has its complement, so neither forms a fragment pair, and they are not paired
+against interpolated complements. The paper presents them as preliminary, with statistical
+uncertainties only, and reports substantial deviations from earlier ²³⁵U data in the symmetric
+region and at the edges of the distribution. The exclusions state this in the configurations;
+they change no result. `pooled_datasets(result)` lists the datasets a trend was combined from,
+and the `pooled` column of `dataset_diagnostics.csv` is true for those alone.
+
 Two guards bound what a segmented curve may assert. `min_segment_span` (an integer from 1 to 50,
 default 3) is the smallest extent of a segment in mass units from its first pivot to its last; at
 four points per segment on consecutive mass numbers it coincides with the point guard
@@ -441,7 +464,8 @@ is fitted to it alone: with pairs at few mass numbers the breakpoint search cann
 minimum where the data do not reach, and the curve it returns asserts structure between the
 measurements that a consuming code could not tell from a measured feature. All four shipped
 configurations set both explicitly. The number of segments itself is chosen by the Bayesian
-information criterion as published. `required_windows` places a breakpoint where physics says
+information criterion; in the paper the segments were drawn by hand. `required_windows` places a
+breakpoint where physics says
 there is one — the minimum at the heavy magic fragment, `A_H` near 130, fixed by the `Z = 50`,
 `N = 82` shell closure — and `windows_apply_to_datasets` extends that from the trend curve to every
 dataset.
@@ -521,8 +545,8 @@ and `A_H,R_T,R_T_uncertainty`, the pivot table included; in the point-by-point t
 uncertainty the measurement does not quote is an empty field, never zero.
 `segmented_curves_<run identifier>.csv` has the columns `label, accession, kind, pooled, segments,
 pinned_at_symmetric_split, first_A_H, last_A_H, pairs, measured_points, coverage,
-reduced_chi_squared, weights_imputed, range_mean_R_T, range_mean_R_T_uncertainty`, all
-dimensionless. `total_average_R_T_<run identifier>.csv` has the columns `segmented_curve,
+reduced_chi_squared, weights_imputed, range_mean_R_T, range_mean_R_T_uncertainty,
+deviation_autocorrelation`, all dimensionless, the last filled for the systematic trend only. `total_average_R_T_<run identifier>.csv` has the columns `segmented_curve,
 mass_yield, R_T, R_T_uncertainty, R_T_uncertainty_independent_points, yield_fraction,
 R_T_one_more_segment, R_T_two_more_segments`, the last two filled for the systematic trend only,
 and

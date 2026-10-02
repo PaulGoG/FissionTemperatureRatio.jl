@@ -119,7 +119,11 @@ the published extraction did.
 ## Description by joined segments
 
 The ratio extracted point by point is scattered, and for some datasets sparse, so it is
-``r_\nu`` that is described by joined segments and ``R_T`` that follows by the exact relation above. The model is
+``r_\nu`` that is described by joined segments and ``R_T`` that follows by the exact relation above.
+In the paper the segments were drawn by hand through the ratio of each dataset, and this package
+was not used. Here their number and their breakpoints are selected from the data, and the
+combination of several datasets into one trend, further down, is this package's own; the total
+averages therefore agree with the published ones at the per-cent level, not to the digits quoted. The model is
 continuous and piecewise-linear, written in the truncated-power basis
 
 ```math
@@ -289,13 +293,22 @@ moments for general weights [DerSimonian2007](@cite),
 which reduces to DerSimonian and Laird's for datasets measured at integer masses. Taking ``k - 1``
 throughout would underestimate ``\tau^2`` by about ``\sigma^2 (1 - f)/f``, which matters where the
 datasets agree within their uncertainties and ``Q`` lies near its expectation: the estimate is
-then truncated to zero where it should not be. The variance of an interpolated value is taken as
-its tabulated ``\sigma^2``.
+then truncated to zero where it should not be.
+
+Two readings of ``f`` are in use, and they are not the same. The estimate of ``\tau^2`` reads it
+as a weight on a value whose variance is ``\sigma^2 + \tau^2``, the tabulated ``\sigma^2`` being
+taken as the variance of an interpolated value. The standard error written for the combined
+curve reads it as the share of a measurement a value amounts to: ``\sigma/\sqrt{f}`` for a value
+alone at its mass number and ``(\sum f/(\sigma^2 + \tau^2))^{-1/2}`` otherwise. For the mean
+under the first reading the written standard error is conservative, by ``1/\sqrt{f}`` where the
+fractions are equal.
 
 Where no value at a mass number quotes an uncertainty, the values are averaged with the weights
-``f`` and their standard deviation ``s`` stands for the uncertainty of one of them, so the mean
-has the standard error ``s/\sqrt{\sum f}``; values that coincide leave nothing to estimate it
-from, and the combined point then quotes none.
+``f`` and their dispersion about that mean, ``s^2 = \sum f (r - \bar{r})^2 / (\sum f - \sum f^2/\sum f)``,
+stands for the variance of one of them: the same estimate as ``\tau^2`` above for values of no
+quoted variance, and the sample variance where the fractions are equal. The mean has the standard
+error ``s/\sqrt{\sum f}``; values that coincide leave nothing to estimate it from, and the
+combined point then quotes none.
 
 The reason is empirical. The datasets of one system disagree by ten to twenty times their quoted
 uncertainties, so ``\tau^2`` dominates ``\sigma^2``, the weights become nearly equal, and the
@@ -314,6 +327,18 @@ reduced chi-squared of 6.5 and 6.2 against the quoted uncertainties alone and of
 count does not depend on that scale, the criterion taking the noise from the residuals, and it is
 not held by the limit on the count: with `max_segments` raised from 6 to 12 the 235-U trend still
 selects five segments and the 239-Pu trend six.
+
+The same coherence has a consequence the written uncertainty of the trend does not carry. The
+covariance of the fitted coefficients takes the combined points as independent. With errors that
+are correlated from one mass number to the next with a coefficient ``\rho``, a smooth curve
+through them averages less than it appears to, and its variance is larger by about
+``(1 + \rho)/(1 - \rho)``. The uncertainty written for the trend's ``R_T(A_H)`` and for its
+total average is therefore low by about ``\sqrt{(1 + \rho)/(1 - \rho)}``. A run measures
+``\rho`` as the lag-one autocorrelation of the pooled datasets' deviations from the combined
+curve, each less its own mean, and writes it with that factor to the run metadata and to the
+curve table: 0.71, 0.61, 0.70 and 0.44 for 252-Cf, 235-U, 239-Pu and 233-U, factors of 2.4, 2.0,
+2.4 and 1.6. The written uncertainty is not enlarged by it; the curve of a single dataset is not
+concerned, its points being measured one by one.
 
 The same disagreement is why no dataset is rejected for being far from the others. In units of
 the quoted uncertainties none of them agrees with any other, so such a criterion rejects whatever

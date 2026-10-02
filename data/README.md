@@ -179,7 +179,10 @@ pair sum cannot see one; by the structural diagnostics of the run, Tsuchiya's pa
 comes from the heavy tail above 154. Tsuchiya's subentry heads its values in percent per fission,
 a miscoding the record states as `unit_miscoded`; they are written as tabulated, in neutrons per
 fragment. Batenkov's datasets for 239-Pu and 235-U lie on a 4-u grid of odd masses, on which no
-mass has its complement at `A₀ = 240` or 236, so neither enters a curve.
+mass has its complement at `A₀ = 240` or 236, so neither enters a curve. They are preliminary
+results (*AIP Conf. Proc.* **769**, 1003 (2005), doi:10.1063/1.1945175), are not paired against
+interpolated complements, and the shipped configurations exclude both by accession, with that
+reason.
 
 **Uncertainties are absent from several multiplicity datasets.** An unquoted uncertainty is read
 as `missing`, never as zero; such points take the median weight of the quoted ones and are counted
