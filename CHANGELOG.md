@@ -6,26 +6,22 @@ Notable changes to FissionTemperatureRatio.jl. The format follows
 
 ## [Unreleased]
 
-### Fixed
+## [0.2.1] - 2026-10-02
 
-- The pooling fraction of an interpolated dataset entered the chi-squared of the systematic trend
-  twice. The combined curve carries the fraction `f` in its standard error, `σ/√f` for a single
-  value and `(Σ f/(σ² + τ²))^(-1/2)` otherwise, and the segmented fit multiplied each residual by
-  the measured fraction again, so a residual of the trend entered with `f²/σ²` where a
-  measurement of a dataset enters with `f/σ²`. The trend's `wrss`, its reduced chi-squared, the
-  criterion that selects the segment count and the covariance scale were low wherever an
-  interpolated dataset was pooled. `fit_segments` now forms one weight `f/σ²` per point, `σ`
-  being its uncertainty as one measurement, for the solve, for chi-squared and for the
-  information matrix alike, with `Σ f` behind the degrees of freedom, and the trend is fitted to
-  the combined values at the uncertainty of one measurement. The trend of a pool holding one
-  interpolated dataset reproduces that dataset's own fit exactly; a pool of integer-mass
-  datasets is unchanged. Selected segment counts are as before for the four shipped systems; the
-  reduced chi-squared of the trend rises from 1.77 to 1.88 (²⁵²Cf, same pool), 0.186 to 0.192
-  (²³⁵U), 0.42 to 0.49 (²³⁹Pu) and 1.67 to 1.71 (²³³U), and the ²³³U trend moves its second
-  breakpoint from 140 to 141 and its `⟨R_T⟩` from 1.0740 to 1.0724.
-- With the fraction in the information matrix, the coefficient covariance of an interpolated
-  dataset's own curve is divided by `f`: its uncertainties grow by `1/√f`. Coefficients and
-  chi-squared of those curves are unchanged.
+### Added
+
+- `[retrieval] min_package_version`, default `"0.2.3"`: the lowest ExforFissionData version whose
+  retrieval records a run accepts. A record below it, or one stating no `[run] package_version`,
+  is refused when the configuration is loaded, and input directories written by different
+  versions are reported in a warning. ExforFissionData 0.2.3 put the ²³⁹Pu multiplicities of
+  22650004 on the scale of their subentry and refuses the ²⁵²Cf yields 41425015 and 41425016.
+  `check_retrieval_versions`, `Configuration.min_retrieval_version`, `min_package_version` in the
+  run metadata.
+- The manifest records the EXFOR accession of every dataset curve, as `accession` in its
+  `[[segmented_curve]]` entry; the systematic trend has none. The existing keys keep their names,
+  and the label still selects a curve. `curve_accessions(result)` gives the accession of every
+  dataset by label, and `segmented_curves_<run identifier>.csv` and `dataset_diagnostics.csv`
+  carry it as a column.
 
 ### Changed
 
@@ -54,24 +50,30 @@ Notable changes to FissionTemperatureRatio.jl. The format follows
   complements with `√(σ_A² + σ_{A₀−A}²)/2`, an unquoted uncertainty contributing nothing, an
   unpaired mass standing for its complement. No result changes.
 
+### Fixed
+
+- The pooling fraction of an interpolated dataset entered the chi-squared of the systematic trend
+  twice. The combined curve carries the fraction `f` in its standard error, `σ/√f` for a single
+  value and `(Σ f/(σ² + τ²))^(-1/2)` otherwise, and the segmented fit multiplied each residual by
+  the measured fraction again, so a residual of the trend entered with `f²/σ²` where a
+  measurement of a dataset enters with `f/σ²`. The trend's `wrss`, its reduced chi-squared, the
+  criterion that selects the segment count and the covariance scale were low wherever an
+  interpolated dataset was pooled. `fit_segments` now forms one weight `f/σ²` per point, `σ`
+  being its uncertainty as one measurement, for the solve, for chi-squared and for the
+  information matrix alike, with `Σ f` behind the degrees of freedom, and the trend is fitted to
+  the combined values at the uncertainty of one measurement. The trend of a pool holding one
+  interpolated dataset reproduces that dataset's own fit exactly; a pool of integer-mass
+  datasets is unchanged. Selected segment counts are as before for the four shipped systems; the
+  reduced chi-squared of the trend rises from 1.77 to 1.88 (²⁵²Cf, same pool), 0.186 to 0.192
+  (²³⁵U), 0.42 to 0.49 (²³⁹Pu) and 1.67 to 1.71 (²³³U), and the ²³³U trend moves its second
+  breakpoint from 140 to 141 and its `⟨R_T⟩` from 1.0740 to 1.0724.
+- With the fraction in the information matrix, the coefficient covariance of an interpolated
+  dataset's own curve is divided by `f`: its uncertainties grow by `1/√f`. Coefficients and
+  chi-squared of those curves are unchanged.
+
 ### Removed
 
 - `symmetrized_mass_yield`; use `FissionFragmentsDomain.symmetrized_yield`.
-
-### Added
-
-- `[retrieval] min_package_version`, default `"0.2.3"`: the lowest ExforFissionData version whose
-  retrieval records a run accepts. A record below it, or one stating no `[run] package_version`,
-  is refused when the configuration is loaded, and input directories written by different
-  versions are reported in a warning. ExforFissionData 0.2.3 put the ²³⁹Pu multiplicities of
-  22650004 on the scale of their subentry and refuses the ²⁵²Cf yields 41425015 and 41425016.
-  `check_retrieval_versions`, `Configuration.min_retrieval_version`, `min_package_version` in the
-  run metadata.
-- The manifest records the EXFOR accession of every dataset curve, as `accession` in its
-  `[[segmented_curve]]` entry; the systematic trend has none. The existing keys keep their names,
-  and the label still selects a curve. `curve_accessions(result)` gives the accession of every
-  dataset by label, and `segmented_curves_<run identifier>.csv` and `dataset_diagnostics.csv`
-  carry it as a column.
 
 ## [0.2.0] - 2026-10-01
 
@@ -536,6 +538,7 @@ branch:
   check so a partially present tree failed, and results were overwritten in place with no run
   identifier, commit or hardware record.
 
-[unreleased]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.2.0...HEAD
+[unreleased]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/releases/tag/v0.1.0
