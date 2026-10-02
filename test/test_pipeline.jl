@@ -163,6 +163,9 @@ end
             @test metadata["result"]["dataset_outcomes"]["sparse"] ==
                 result.dataset_outcomes["sparse"]
             @test metadata["identifier"]["tokens"]["cov"] == 0.3
+            @test !haskey(metadata["identifier"]["tokens"], "Ycov")
+            @test metadata["configuration"]["min_pair_coverage"] == 0.3
+            @test metadata["configuration"]["min_package_version"] == "0.2.3"
             @test metadata["inputs"]["multiplicity_directory"] == "datasets"
         end
 
@@ -213,6 +216,7 @@ end
             partial = with_yields.total_average_R_T["partial"]["A. Both 2000"]
             @test partial.yield_fraction ≈ sum(peak, 131:140) / sum(peak, 126:140)
             metadata = run_metadata(with_yields)
+            @test metadata["identifier"]["tokens"]["Ycov"] == 0.3
             @test collect(keys(metadata["result"]["mass_yields_not_averaged"])) ==
                 ["C. Tail 2000"]
             @test startswith(
@@ -238,6 +242,71 @@ end
             )
             @test run_metadata(excluding)["result"]["mass_yields_not_averaged"]["B. Light 2000"] ==
                 "excluded by configuration: not inclusive"
+
+            # The two floors are separate keys: lowering one leaves the other gate where it was.
+            write(
+                path,
+                PIPELINE_CONFIGURATION *
+                "\n[yield]\nsubdirectory = \"yields\"\nmass_yield_file = \"yields/10000001_A.Both_2000.dat\"\nmin_yield_coverage = 0.05\n",
+            )
+            lower_yield = run_pipeline(load_configuration(path; data_directory = directory))
+            @test haskey(lower_yield.total_average_R_T[SYSTEMATIC_TREND_LABEL], "C. Tail 2000")
+            @test startswith(lower_yield.dataset_outcomes["sparse"], "coverage")
+            write(
+                path,
+                replace(
+                    PIPELINE_CONFIGURATION,
+                    "max_segments = 3" => "max_segments = 3\nmin_pair_coverage = 0.2",
+                ) *
+                "\n[yield]\nsubdirectory = \"yields\"\nmass_yield_file = \"yields/10000001_A.Both_2000.dat\"\n",
+            )
+            lower_pair = run_pipeline(load_configuration(path; data_directory = directory))
+            @test !haskey(lower_pair.total_average_R_T[SYSTEMATIC_TREND_LABEL], "C. Tail 2000")
+            @test !startswith(lower_pair.dataset_outcomes["sparse"], "coverage")
+        end
+
+        @testset "the trend of a pool of one interpolated dataset is that dataset's fit" begin
+            single = joinpath(directory, "single")
+            mkpath(single)
+            file = "10000009_A.Interp_2001.dat"
+            write_multiplicity(joinpath(single, file), 126:140)
+            # 29 rows written from 20 measured masses: every point counts for 20/29 of one.
+            write(
+                joinpath(single, "retrieval.toml"),
+                """
+                [[accepted]]
+                file = "$(file)"
+                identifier = "10000009"
+                mass_treatment = "interpolated"
+                mass_values_non_integer = 20
+                rows_written = 29
+                qualifiers = []
+
+                [run]
+                package_version = "0.2.3"
+                """,
+            )
+            path = joinpath(directory, "single.toml")
+            write(
+                path,
+                replace(
+                    PIPELINE_CONFIGURATION,
+                    "subdirectory = \"datasets\"" => "subdirectory = \"single\"",
+                ),
+            )
+            one = run_pipeline(load_configuration(path; data_directory = directory))
+            dataset = only(filter(c -> c.kind == "dataset", one.segmented_curves)).fit
+            trend = systematic_trend(one).fit
+            @test dataset.measured_points ≈ 15 * 20 / 29
+            @test segments(trend) > 1
+            # The pooling fraction enters once: the same weights, χ², degrees of freedom,
+            # selection and covariance as the dataset's own fit, to the last bit.
+            for field in
+                (:breakpoints, :coefficients, :wrss, :dof, :bic, :selection, :covariance)
+                @test getfield(trend, field) == getfield(dataset, field)
+            end
+            # The combined curve states the standard error, which carries the fraction.
+            @test all(one.consensus_r_ν.σ .≈ only(one.r_ν).σ ./ sqrt(20 / 29))
         end
     end
 end

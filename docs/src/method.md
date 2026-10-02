@@ -154,7 +154,7 @@ consecutive mass numbers the two guards coincide; the span guard acts where absc
 in a combined curve, or where the point count is set lower.
 
 A dataset is offered as a segmented curve of its own only if it provides a complete fragment pair
-at a fraction `min_dataset_coverage` of the mass numbers of the fragmentation range. Below that
+at a fraction `min_pair_coverage` of the mass numbers of the fragmentation range. Below that
 floor it is still read, diagnosed and pooled into the systematic trend, but no curve is fitted to
 it alone: with pairs at few mass numbers the breakpoint search cannot place the minimum where the
 data do not reach, and the curve it returns asserts structure between the measurements that a
@@ -209,7 +209,7 @@ is not a property of the fission yield. Coverage is measured in yield, against t
 distribution of the system: the share of its heavy-fragment yield over the fragmentation range at
 the masses the distribution holds. The distribution's own yields cannot measure it, since a sparse
 digitisation normalised over the masses it holds sums to as much as a complete one. A distribution
-below `min_dataset_coverage` is therefore read but not averaged over, and every average states its
+below `min_yield_coverage` is therefore read but not averaged over, and every average states its
 yield fraction, the share of the distribution's
 yield over the range that falls at the mass numbers of the curve: one for a curve spanning the
 range, less for a dataset whose complete pairs stop short of it.

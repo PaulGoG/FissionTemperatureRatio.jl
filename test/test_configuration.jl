@@ -44,7 +44,7 @@ function with_configuration(f, body::AbstractString)
         write(joinpath(directory, "TKE_vs_A", "2_B.Author_2001.dat"), "A TKE\n126 170.0\n")
         write(
             joinpath(directory, "TKE_vs_A", "retrieval.toml"),
-            "[[accepted]]\nfile = \"1_A.Author_2000.dat\"\nqualifiers = []\n",
+            "[[accepted]]\nfile = \"1_A.Author_2000.dat\"\nqualifiers = []\n\n[run]\npackage_version = \"0.2.3\"\n",
         )
         path = joinpath(directory, "configuration.toml")
         write(path, body)
@@ -75,7 +75,9 @@ end
             @test configuration.symmetrize_yields
             @test configuration.segments.pin_symmetric_split
             @test configuration.segments.min_segment_span == 3
-            @test configuration.segments.min_dataset_coverage == 0.3
+            @test configuration.segments.min_pair_coverage == 0.3
+            @test configuration.min_yield_coverage == 0.3
+            @test configuration.min_retrieval_version == v"0.2.3"
             @test configuration.output.significant_digits == 6
             @test configuration.data_directory == directory
         end
@@ -258,8 +260,16 @@ end
                 "coverage floor out of range",
                 replace(
                     MINIMAL_CONFIGURATION,
-                    "max_segments = 3" => "max_segments = 3\nmin_dataset_coverage = 1.5",
+                    "max_segments = 3" => "max_segments = 3\nmin_pair_coverage = 1.5",
                 ),
+            ),
+            (
+                "retrieval floor not a version",
+                MINIMAL_CONFIGURATION * "\n[retrieval]\nmin_package_version = \"latest\"\n",
+            ),
+            (
+                "unknown retrieval key",
+                MINIMAL_CONFIGURATION * "\n[retrieval]\nversion = \"0.2.3\"\n",
             ),
             # A key the loader does not read is refused, not ignored: a retired or misspelt key
             # would otherwise leave the run silently on the default.
@@ -371,18 +381,18 @@ end
         with_configuration(MINIMAL_CONFIGURATION) do path, directory
             configuration = load_configuration(path; data_directory = directory)
             tokens = run_parameters(configuration)
-            # The Gilbert-Cameron keys change a Gilbert-Cameron result only, and the yield source
-            # is a directory or one file.
+            # The Gilbert-Cameron keys change a Gilbert-Cameron result only, the yield source
+            # is a directory or one file, and the yield coverage floor needs a yield.
             gilbert_cameron = Set(["sc", "def"])
             @test Set(keys(tokens)) == setdiff(
-                Set(values(RUN_IDENTIFIER_ABBREVIATIONS)), gilbert_cameron, Set(["Yf"])
+                Set(values(RUN_IDENTIFIER_ABBREVIATIONS)), gilbert_cameron, Set(["Yf", "Ycov"])
             )
             other = write_beside(
                 path, replace(MINIMAL_CONFIGURATION, "model = \"BSFG\"" => "model = \"GC\"")
             )
             gc_tokens = run_parameters(load_configuration(other; data_directory = directory))
             @test Set(keys(gc_tokens)) ==
-                setdiff(Set(values(RUN_IDENTIFIER_ABBREVIATIONS)), Set(["Yf"]))
+                setdiff(Set(values(RUN_IDENTIFIER_ABBREVIATIONS)), Set(["Yf", "Ycov"]))
             @test gc_tokens["sc"] == "gc1965"
             @test allunique(values(RUN_IDENTIFIER_ABBREVIATIONS))
             identifier = run_identifier(configuration)
@@ -472,6 +482,94 @@ end
         end
     end
 
+    @testset "the retired coverage key names its replacements" begin
+        body = replace(
+            MINIMAL_CONFIGURATION,
+            "max_segments = 3" => "max_segments = 3\nmin_dataset_coverage = 0.3",
+        )
+        with_configuration(body) do path, directory
+            replacements = ["segments.min_pair_coverage", "yield.min_yield_coverage"]
+            @test_throws replacements load_configuration(path; data_directory = directory)
+        end
+    end
+
+    @testset "the yield coverage floor is its own key" begin
+        with_configuration(MINIMAL_CONFIGURATION) do path, directory
+            mkpath(joinpath(directory, "yields"))
+            write(
+                joinpath(directory, "yields", "10000001_A.Both_2000.dat"),
+                "A Y Y_uncertainty\n112 1.0 0.1\n126 2.0 0.1\n140 1.0 0.1\n",
+            )
+            yield_section = "\n[yield]\nmass_yield_file = \"yields/10000001_A.Both_2000.dat\"\n"
+            file = write_beside(
+                path, MINIMAL_CONFIGURATION * yield_section * "min_yield_coverage = 0.6\n"
+            )
+            configuration = load_configuration(file; data_directory = directory)
+            @test configuration.min_yield_coverage == 0.6
+            @test configuration.segments.min_pair_coverage == 0.3
+            @test run_parameters(configuration)["Ycov"] == 0.6
+            @test run_parameters(configuration)["cov"] == 0.3
+            out_of_range = write_beside(
+                path, MINIMAL_CONFIGURATION * yield_section * "min_yield_coverage = 1.5\n"
+            )
+            @test_throws "yield.min_yield_coverage" load_configuration(
+                out_of_range; data_directory = directory
+            )
+            # Without a yield distribution the floor gates nothing and carries no token.
+            configuration = load_configuration(path; data_directory = directory)
+            @test !haskey(run_parameters(configuration), "Ycov")
+        end
+    end
+
+    @testset "retrieval records are held to a version floor" begin
+        body = replace(
+            MINIMAL_CONFIGURATION,
+            "model = \"BSFG\"" => "model = \"BSFG\"\nmean_kinetic_energy_file = \"TKE_vs_A/1_A.Author_2000.dat\"",
+        )
+        accepted = "[[accepted]]\nfile = \"1_A.Author_2000.dat\"\nqualifiers = []\n"
+        with_configuration(body) do path, directory
+            record = joinpath(directory, "TKE_vs_A", "retrieval.toml")
+            # The fixture's record was written by 0.2.3, the default floor.
+            load_configuration(path; data_directory = directory)
+            versions = check_retrieval_versions([joinpath(directory, "TKE_vs_A")], v"0.2.3")
+            @test length(versions) == 1
+            @test only(values(versions)) == v"0.2.3"
+
+            write(record, accepted * "\n[run]\npackage_version = \"0.2.2\"\n")
+            @test_throws "below retrieval.min_package_version" load_configuration(
+                path; data_directory = directory
+            )
+            # A lower floor, set explicitly, admits it.
+            lowered = write_beside(
+                path, body * "\n[retrieval]\nmin_package_version = \"0.2.0\"\n"
+            )
+            configuration = load_configuration(lowered; data_directory = directory)
+            @test configuration.min_retrieval_version == v"0.2.0"
+
+            # A record that states no version cannot be held to the floor.
+            write(record, accepted)
+            @test_throws "states no [run] package_version" load_configuration(
+                path; data_directory = directory
+            )
+            write(record, accepted * "\n[run]\npackage_revision = \"abc\"\n")
+            @test_throws "states no [run] package_version" load_configuration(
+                path; data_directory = directory
+            )
+
+            # Input directories written by different versions are admitted, and said to be.
+            write(record, accepted * "\n[run]\npackage_version = \"0.2.3\"\n")
+            write(
+                joinpath(directory, "datasets", "retrieval.toml"),
+                "[run]\npackage_version = \"0.2.4\"\n",
+            )
+            @test_logs (:warn, r"different versions") match_mode = :any load_configuration(
+                path; data_directory = directory
+            )
+        end
+        # A directory without a record, a tabulation not produced by the retrieval, is not judged.
+        @test isempty(check_retrieval_versions([mktempdir()], v"9.9.9"))
+    end
+
     @testset "the file names that carry the identifier fit a file system" begin
         # The longest the identifier gets: Gilbert-Cameron, a resonance energy, a ⟨TKE⟩(A)
         # dataset, exclusions, windows, a coverage floor with two decimals.
@@ -492,7 +590,7 @@ end
         )
         body = replace(
             body,
-            "max_segments = 3" => "max_segments = 12\nrequired_windows = [[128, 132]]\nmin_dataset_coverage = 0.35\nmin_points_per_segment = 10\nmin_segment_span = 10",
+            "max_segments = 3" => "max_segments = 12\nrequired_windows = [[128, 132]]\nmin_pair_coverage = 0.35\nmin_points_per_segment = 10\nmin_segment_span = 10",
         )
         with_configuration(body) do path, directory
             identifier = run_identifier(load_configuration(path; data_directory = directory))

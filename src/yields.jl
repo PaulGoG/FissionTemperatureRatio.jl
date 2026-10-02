@@ -75,7 +75,7 @@ range.
 
 A distribution's own yields cannot measure its coverage, since a sparse digitisation normalised
 over the masses it holds sums to as much as a complete one. A run takes no total average over a
-distribution below `min_dataset_coverage`. Both arguments are taken as the run uses them,
+distribution below `min_yield_coverage`. Both arguments are taken as the run uses them,
 symmetrized where it symmetrizes, so a distribution measured on the light wing covers the heavy
 masses its complements stand for. Throws an `ArgumentError` when the reference carries no positive
 yield over the range.

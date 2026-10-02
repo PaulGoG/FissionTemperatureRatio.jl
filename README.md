@@ -213,6 +213,14 @@ drops the leading digits either way, and two files of one author and year keep t
 parentheses so that labels stay unique. Files other than `.dat` in those directories are ignored
 by the readers, so the run record sits beside the data it describes.
 
+Every retrieval record states the version of the parser that wrote it, `[run] package_version`.
+`[retrieval] min_package_version` (default `"0.2.3"`) is the lowest a run accepts: a record below
+it, or one stating no version, is refused when the configuration is loaded, and a run whose input
+directories were written by different versions says so in the log. The floor is 0.2.3 because that
+release put the ²³⁹Pu multiplicities of Tsuchiya 2000 (22650004) on the scale of their subentry and
+refuses the ²⁵²Cf yields 41425015 and 41425016; inputs retrieved before it can carry both. A
+directory holding no retrieval record, a tabulation of one's own for instance, is not judged.
+
 The run record also lists the reaction-code qualifiers of every dataset. A dataset carrying
 `DERIV` (derived from other data) or `SPA` (averaged over an unspecified neutron spectrum) is used,
 not corrected, and flagged: in the log, in the `qualifiers` and `flagged` columns of
@@ -371,7 +379,7 @@ Two guards bound what a segmented curve may assert. `min_segment_span` (an integ
 default 3) is the smallest extent of a segment in mass units from its first pivot to its last; at
 four points per segment on consecutive mass numbers it coincides with the point guard
 `min_points_per_segment`, so it acts where abscissae repeat or the point count is set lower.
-`min_dataset_coverage` (a real from 0 to 1, default 0.3) is the fraction of the mass numbers of the
+`min_pair_coverage` (a real from 0 to 1, default 0.3) is the fraction of the mass numbers of the
 fragmentation range at which a dataset must provide a complete pair to be offered as a segmented
 curve of its own. Below it the dataset is read, diagnosed and pooled into the trend, but no curve
 is fitted to it alone: with pairs at few mass numbers the breakpoint search cannot place the
@@ -400,10 +408,10 @@ value stands for the other. The published averages took the distributions as mea
 the primary's heavy-fragment yield at the masses the distribution holds, over its yield across the
 heavy masses of the fragmentation range. A distribution's own yields cannot measure it, since a
 sparse digitisation normalised over the masses it holds sums to as much as a complete one. One
-below `min_dataset_coverage` is read and reported but not averaged over, since its average would
-describe those masses and not the fission yield, and every average states the fraction of its
-distribution's yield the curve takes in, which is below one where a dataset's pairs stop short of
-the distribution.
+below `min_yield_coverage` (a real from 0 to 1, default 0.3, under `[yield]`) is read and reported
+but not averaged over, since its average would describe those masses and not the fission yield,
+and every average states the fraction of its distribution's yield the curve takes in, which is
+below one where a dataset's pairs stop short of the distribution.
 
 Two level density models are available. The back-shifted Fermi gas is the default; setting
 `model = "GC"` selects Gilbert-Cameron, which for fission fragments returns markedly larger
@@ -482,7 +490,7 @@ file system admits, which the test suite checks for every shipped configuration 
 density models. For 233-U:
 
 ```
-AHmax=159_AHmin=117_E=2.53e-8_TKE=a1ad68dc_Y=ab535eba_Ysym=true_avg=charge_resolved_chg=wahl_cov=0.3_dZ0=false_excl=da39a3ee_ldm=BSFG_mass=ame2020_nZ=5_npts=4_nseg=6_pin=true_span=3_wdat=false_win=b552f081
+AHmax=159_AHmin=117_E=2.53e-8_TKE=a1ad68dc_Y=ab535eba_Ycov=0.3_Ysym=true_avg=charge_resolved_chg=wahl_cov=0.3_dZ0=false_excl=da39a3ee_ldm=BSFG_mass=ame2020_nZ=5_npts=4_nseg=6_pin=true_span=3_wdat=false_win=b552f081
 ```
 
 ## Consuming the output

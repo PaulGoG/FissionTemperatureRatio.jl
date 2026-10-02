@@ -47,6 +47,9 @@ Each measured-quantity directory also holds a `retrieval.toml`, the run record o
 produced it, naming every dataset it kept or excluded and why. The readers take only `.dat` files,
 so the record sits beside the data without interfering.
 
+A run accepts a retrieval record only at or above `[retrieval] min_package_version`, 0.2.3 in the
+shipped configurations, and refuses one that states no `[run] package_version`.
+
 ## Sources
 
 **`<system>/charge_distribution_vs_A.dat`** — charge polarization `ΔZ(A)` and the Gaussian
@@ -143,7 +146,7 @@ Dyachenko 1967 (233-U) over twelve heavy masses, and Dyachenko 1967 (235-U, 4171
 digitisation of one figure that misses the heavy peak. With `symmetrize = true` a light-wing yield
 stands for its heavy complement. Coverage is measured against the primary distribution of the
 system, the share of its heavy-fragment yield at the masses a distribution holds; one below
-`min_dataset_coverage` is read but not averaged over, and every total average states the fraction
+`min_yield_coverage` is read but not averaged over, and every total average states the fraction
 of its distribution's yield it takes in.
 
 **Two 252-Cf yield distributions are not held.** The retrieval refuses Vorobiev 2001, 41425015

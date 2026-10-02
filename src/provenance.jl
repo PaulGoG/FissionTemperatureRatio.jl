@@ -31,13 +31,14 @@ const RUN_IDENTIFIER_ABBREVIATIONS = Dict(
     "yield.subdirectory" => "Y",
     "yield.mass_yield_file" => "Yf",
     "yield.symmetrize" => "Ysym",
+    "yield.min_yield_coverage" => "Ycov",
     "segments.max_segments" => "nseg",
     "segments.min_points_per_segment" => "npts",
     "segments.min_segment_span" => "span",
     "segments.pin_symmetric_split" => "pin",
     "segments.required_windows" => "win",
     "segments.windows_apply_to_datasets" => "wdat",
-    "segments.min_dataset_coverage" => "cov",
+    "segments.min_pair_coverage" => "cov",
 )
 
 # Keys that change the result of a Gilbert-Cameron run only; a back-shifted Fermi gas run carries
@@ -78,7 +79,8 @@ required windows, the exclusion list, a tabulated charge distribution, a mass or
 table other than the shipped one, the `⟨TKE⟩(A)` dataset, the yield directory — enters as a
 content-hash token and is written in full into the run metadata, with the reason; a named source
 enters as its name, the shipped Table III as `gc1965`. The Gilbert-Cameron branch and shell
-corrections change a Gilbert-Cameron result only, and are tokens of such a run alone. The system is
+corrections change a Gilbert-Cameron result only, and are tokens of such a run alone. The yield
+coverage floor is a token of a run that names a yield distribution, and of no other. The system is
 not a token: it names the directory the identifier sits in. `significant_digits` changes how a
 number is rendered, not the number, and is left out.
 
@@ -116,13 +118,14 @@ function run_parameters(configuration::Configuration)
         "yield.subdirectory" => _yield_source_token(configuration),
         "yield.mass_yield_file" => _input_token(configuration.yield_file, configuration),
         "yield.symmetrize" => configuration.symmetrize_yields,
+        "yield.min_yield_coverage" => configuration.min_yield_coverage,
         "segments.max_segments" => segments.max_segments,
         "segments.min_points_per_segment" => segments.min_points_per_segment,
         "segments.min_segment_span" => segments.min_segment_span,
         "segments.pin_symmetric_split" => segments.pin_symmetric_split,
         "segments.required_windows" => _hash_token(_canonical(segments.required_windows)),
         "segments.windows_apply_to_datasets" => segments.windows_apply_to_datasets,
-        "segments.min_dataset_coverage" => segments.min_dataset_coverage,
+        "segments.min_pair_coverage" => segments.min_pair_coverage,
     ]
     parameters = Dict{String,Any}()
     for (key, value) in entries
@@ -137,6 +140,7 @@ function run_parameters(configuration::Configuration)
         key == "yield.mass_yield_file" &&
             (directory || configuration.yield_file === nothing) &&
             continue
+        key == "yield.min_yield_coverage" && configuration.yield_file === nothing && continue
         haskey(RUN_IDENTIFIER_ABBREVIATIONS, key) || throw(
             ArgumentError("no entry in RUN_IDENTIFIER_ABBREVIATIONS for the key $(repr(key))"),
         )
@@ -190,7 +194,7 @@ end
 # The yield distributions a run read but took no total average over, each with the reason.
 function _not_averaged(result::ExtractionResult)
     configuration = result.configuration
-    floor = configuration.segments.min_dataset_coverage
+    floor = configuration.min_yield_coverage
     excluded = if configuration.yield_directory === nothing
         Dict{String,String}()
     else
@@ -318,8 +322,10 @@ function run_metadata(result::ExtractionResult)
             "pin_symmetric_split" => segments.pin_symmetric_split,
             "required_windows" => [[first(w), last(w)] for w in segments.required_windows],
             "windows_apply_to_datasets" => segments.windows_apply_to_datasets,
-            "min_dataset_coverage" => segments.min_dataset_coverage,
+            "min_pair_coverage" => segments.min_pair_coverage,
             "symmetrize_yields" => configuration.symmetrize_yields,
+            "min_yield_coverage" => configuration.min_yield_coverage,
+            "min_package_version" => string(configuration.min_retrieval_version),
             "significant_digits" => configuration.output.significant_digits,
         ),
         "identifier" => Dict{String,Any}(

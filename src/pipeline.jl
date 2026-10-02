@@ -55,7 +55,7 @@ written to disk by [`write_results`](@ref).
   says so, empty when it names none.
 - `mass_yield_coverage`: for each of them, by label, the share of the heavy-fragment yield of the
   primary distribution at the masses it holds, [`mass_yield_coverage`](@ref). A distribution
-  below `min_dataset_coverage`, or excluded by the configuration, is read and reported but not
+  below `min_yield_coverage`, or excluded by the configuration, is read and reported but not
   averaged over.
 - `total_average_R_T`: the quantity the literature quotes, `⟨R_T⟩` over each yield distribution
   that reaches the coverage floor, keyed by curve label and then by yield label. Empty when no
@@ -286,11 +286,11 @@ function run_pipeline(configuration::Configuration)
             continue
         end
         coverage = diagnostics[index].coverage
-        if coverage < segments_settings.min_dataset_coverage
+        if coverage < segments_settings.min_pair_coverage
             outcomes[data.label] = "coverage $(round(coverage; digits = 3)) below the floor \
-                                    $(segments_settings.min_dataset_coverage); pooled only"
+                                    $(segments_settings.min_pair_coverage); pooled only"
             @info "no segmented curve for this dataset" dataset = data.label coverage floor =
-                segments_settings.min_dataset_coverage
+                segments_settings.min_pair_coverage
             continue
         end
         windows = if segments_settings.windows_apply_to_datasets
@@ -451,9 +451,9 @@ function run_pipeline(configuration::Configuration)
                 distribution.label reason = excluded_yields[distribution.label]
             return false
         end
-        coverage >= segments_settings.min_dataset_coverage && return true
+        coverage >= configuration.min_yield_coverage && return true
         @warn "no total average over this yield distribution" yield = distribution.label coverage floor =
-            segments_settings.min_dataset_coverage
+            configuration.min_yield_coverage
         return false
     end
     total_average_R_T = _total_averages(segmented_curves, averaged_yields, domain.heavy_masses)

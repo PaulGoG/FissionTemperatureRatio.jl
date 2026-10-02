@@ -113,7 +113,7 @@ end
 Controls of the piecewise-linear parameterization: the largest number of segments examined, the
 smallest number of data points and the smallest extent in mass units a segment may have, whether
 the ratio is pinned to one half at the symmetric split, mass-number windows that must each
-contain a breakpoint, and the coverage a dataset needs to be offered as a curve at all.
+contain a breakpoint, and the pair coverage a dataset needs to be offered as a curve at all.
 
 `required_windows` places a breakpoint where physics says there is one — the minimum at the heavy
 magic fragment, `A_H` near 130, where the `Z = 50`, `N = 82` shell closure fixes the sharing. It
@@ -121,14 +121,11 @@ constrains the systematic-trend curve by default and the per-dataset parameteriz
 `windows_apply_to_datasets` is set, since a dataset that resolves the feature on its own should be
 left to do so.
 
-`min_dataset_coverage` is the smallest fraction of the mass numbers of the fragmentation range
-at which a dataset must provide a complete pair. Below it the dataset is read, diagnosed and
-pooled, but no segmented curve is fitted to it alone: with pairs at few mass numbers the
-breakpoint search cannot place the minimum where the data do not reach, and the curve it returns
-asserts structure between the measurements that a consuming code could not tell from a measured
-feature. A yield distribution must cover the same fraction of the primary distribution's
-heavy-fragment yield to be averaged over; below it the total average would describe those
-masses, not the fission yield.
+`min_pair_coverage` is the smallest fraction of the mass numbers of the fragmentation range at
+which a dataset must provide a complete pair. Below it the dataset is read, diagnosed and pooled,
+but no segmented curve is fitted to it alone: with pairs at few mass numbers the breakpoint search
+cannot place the minimum where the data do not reach, and the curve it returns asserts structure
+between the measurements that a consuming code could not tell from a measured feature.
 """
 struct SegmentSettings
     max_segments::Int
@@ -137,7 +134,7 @@ struct SegmentSettings
     pin_symmetric_split::Bool
     required_windows::Vector{UnitRange{Int}}
     windows_apply_to_datasets::Bool
-    min_dataset_coverage::Float64
+    min_pair_coverage::Float64
 end
 
 """
@@ -172,6 +169,13 @@ out of every average, each with its reason; they are still read and reported.
 `symmetrize_yields` imposes the pre-neutron identity `Y(A) = Y(A₀ - A)` on every mass yield
 distribution before the total average: where both complements are measured each takes their mean.
 The published extraction averaged over the distributions as measured.
+
+`min_yield_coverage` is the share of the primary distribution's heavy-fragment yield,
+[`mass_yield_coverage`](@ref), a distribution must cover to be averaged over; below it the total
+average would describe those masses, not the fission yield.
+
+`min_retrieval_version` is the lowest ExforFissionData version whose retrieval records the run
+accepts, [`check_retrieval_versions`](@ref).
 """
 struct Configuration
     system::FissioningSystem
@@ -183,8 +187,10 @@ struct Configuration
     yield_file::Union{String,Nothing}
     excluded_mass_yields::Dict{String,String}
     symmetrize_yields::Bool
+    min_yield_coverage::Float64
     segments::SegmentSettings
     output::OutputSettings
+    min_retrieval_version::VersionNumber
     source::String
     data_directory::String
 end
@@ -255,7 +261,14 @@ function _refuse_unknown(table::AbstractDict, allowed, path::String)
 end
 
 const SECTIONS = (
-    "system", "fragmentation", "level_density", "multiplicity", "yield", "segments", "output"
+    "system",
+    "fragmentation",
+    "level_density",
+    "multiplicity",
+    "yield",
+    "segments",
+    "retrieval",
+    "output",
 )
 const SYSTEM_KEYS = ("target_A", "target_Z", "channel", "incident_energy")
 const FRAGMENTATION_KEYS = (
@@ -274,7 +287,9 @@ const LEVEL_DENSITY_KEYS = (
     "mean_kinetic_energy_file",
 )
 const MULTIPLICITY_KEYS = ("subdirectory", "exclude")
-const YIELD_KEYS = ("subdirectory", "mass_yield_file", "exclude", "symmetrize")
+const YIELD_KEYS = (
+    "subdirectory", "mass_yield_file", "exclude", "symmetrize", "min_yield_coverage"
+)
 const SEGMENT_KEYS = (
     "max_segments",
     "min_points_per_segment",
@@ -282,8 +297,9 @@ const SEGMENT_KEYS = (
     "pin_symmetric_split",
     "required_windows",
     "windows_apply_to_datasets",
-    "min_dataset_coverage",
+    "min_pair_coverage",
 )
+const RETRIEVAL_KEYS = ("min_package_version",)
 const OUTPUT_KEYS = ("significant_digits",)
 
 function _value(section::AbstractDict, key::String, ::Type{T}, path::String) where {T}
@@ -404,6 +420,8 @@ Every key is checked for presence, type, enumerated choice and numerical range, 
 file named by the configuration is checked for existence, and a section or key the loader does
 not know is refused, before the pipeline is allowed to start. Failures throw an `ArgumentError`
 naming the offending key, so that a configuration the pipeline cannot honour never begins a run.
+Every retrieval record beside the inputs must state a parser version at or above
+`retrieval.min_package_version`.
 
 `data_directory` is the root the `subdirectory` and file keys are resolved against; it exists so
 that tests can point at a fixture directory.
@@ -665,8 +683,35 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
     else
         true
     end
+    min_yield_coverage = if haskey(document, "yield")
+        Float64(
+            _in_bounds(
+                _value(
+                    document["yield"],
+                    "min_yield_coverage",
+                    Real,
+                    "yield.min_yield_coverage",
+                    0.3,
+                ),
+                "yield.min_yield_coverage";
+                min = 0,
+                max = 1,
+            ),
+        )
+    else
+        0.3
+    end
 
     segments_section = _section(document, "segments", source)
+    haskey(segments_section, "min_dataset_coverage") && throw(
+        ArgumentError(
+            "segments.min_dataset_coverage is retired, having gated two measures: set \
+             segments.min_pair_coverage, the fraction of the range's heavy masses a ν(A) \
+             dataset must pair to offer a curve, and yield.min_yield_coverage, the share of \
+             the primary distribution's heavy-fragment yield a Y(A) must cover to be \
+             averaged over",
+        ),
+    )
     _refuse_unknown(segments_section, SEGMENT_KEYS, "[segments]")
     max_segments = Int(
         _in_bounds(
@@ -729,16 +774,12 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
         "segments.windows_apply_to_datasets",
         false,
     )
-    min_coverage = Float64(
+    min_pair_coverage = Float64(
         _in_bounds(
             _value(
-                segments_section,
-                "min_dataset_coverage",
-                Real,
-                "segments.min_dataset_coverage",
-                0.3,
+                segments_section, "min_pair_coverage", Real, "segments.min_pair_coverage", 0.3
             ),
-            "segments.min_dataset_coverage";
+            "segments.min_pair_coverage";
             min = 0,
             max = 1,
         ),
@@ -762,6 +803,43 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
             max = 15,
         ),
     )
+
+    min_package_version = if haskey(document, "retrieval")
+        retrieval_section = _section(document, "retrieval", source)
+        _refuse_unknown(retrieval_section, RETRIEVAL_KEYS, "[retrieval]")
+        _value(
+            retrieval_section,
+            "min_package_version",
+            String,
+            "retrieval.min_package_version",
+            "0.2.3",
+        )
+    else
+        "0.2.3"
+    end
+    min_retrieval_version = tryparse(VersionNumber, min_package_version)
+    min_retrieval_version === nothing && throw(
+        ArgumentError(
+            "retrieval.min_package_version must be a version number such as \"0.2.3\", got \
+             $(repr(min_package_version))"
+        ),
+    )
+    check_retrieval_versions(
+        String[
+            directory for directory in (
+                multiplicity_directory,
+                yield_directory,
+                yield_file === nothing ? nothing : dirname(yield_file),
+                if mean_kinetic_energy_file === nothing
+                    nothing
+                else
+                    dirname(mean_kinetic_energy_file)
+                end,
+            ) if directory !== nothing
+        ],
+        min_retrieval_version,
+    )
+
     return Configuration(
         system,
         FragmentationSettings(
@@ -785,10 +863,12 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
         yield_file,
         excluded_mass_yields,
         symmetrize_yields,
+        min_yield_coverage,
         SegmentSettings(
-            max_segments, min_points, min_span, pin, windows, windows_apply, min_coverage
+            max_segments, min_points, min_span, pin, windows, windows_apply, min_pair_coverage
         ),
         OutputSettings(significant_digits),
+        min_retrieval_version,
         source,
         String(data_directory),
     )

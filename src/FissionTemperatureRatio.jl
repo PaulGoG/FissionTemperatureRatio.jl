@@ -142,7 +142,12 @@ export Multiplicity, read_multiplicity, read_multiplicity_directory, multiplicit
 export read_mass_yield_directory, symmetrized_mass_yield, mass_yield_coverage, yield_fraction
 export MeanKineticEnergy, read_mean_kinetic_energy, mean_kinetic_energy_offset
 export RetrievalRecord,
-    retrieval_record, retrieval_qualifiers, FLAGGED_QUALIFIERS, pooling_weight, pair_sum_scale
+    retrieval_record,
+    retrieval_qualifiers,
+    check_retrieval_versions,
+    FLAGGED_QUALIFIERS,
+    pooling_weight,
+    pair_sum_scale
 
 # Physics
 export RatioCurve, multiplicity_ratio

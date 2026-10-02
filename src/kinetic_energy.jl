@@ -89,6 +89,48 @@ function retrieval_qualifiers(directory::AbstractString)
 end
 
 """
+    check_retrieval_versions(directories, floor) -> Dict{String,VersionNumber}
+
+The parser version, `[run] package_version`, of every `retrieval*.toml` in `directories`, keyed by
+record path. A release of the retrieval can change what a dataset holds, its scale or whether it
+is admitted at all, so inputs written before the version a run was validated on must not re-enter
+silently.
+
+Throws an `ArgumentError` naming the record for one that states no version or one below `floor`;
+warns when the records were written by different versions. A directory holding no record, a
+tabulation not produced by the retrieval, is not judged.
+"""
+function check_retrieval_versions(directories, floor::VersionNumber)
+    versions = Dict{String,VersionNumber}()
+    for directory in unique(directories)
+        for (record, document) in _retrieval_documents(directory)
+            run = get(document, "run", nothing)
+            stated = run isa AbstractDict ? get(run, "package_version", nothing) : nothing
+            version = stated isa AbstractString ? tryparse(VersionNumber, stated) : nothing
+            version === nothing && throw(
+                ArgumentError(
+                    "the retrieval record $(record) states no [run] package_version, so it \
+                     cannot be held to retrieval.min_package_version = \"$(floor)\"; retrieve \
+                     the inputs again with ExforFissionData $(floor) or later",
+                ),
+            )
+            version < floor && throw(
+                ArgumentError(
+                    "the retrieval record $(record) was written by ExforFissionData \
+                     $(version), below retrieval.min_package_version = \"$(floor)\"; retrieve \
+                     the inputs again with $(floor) or later",
+                ),
+            )
+            versions[record] = version
+        end
+    end
+    length(unique(values(versions))) > 1 &&
+        @warn "the input directories of this run were written by different versions of the \
+               retrieval" versions = Dict(record => string(v) for (record, v) in versions)
+    return versions
+end
+
+"""
     pooling_weight(record) -> Float64
 
 The factor by which a dataset's values are weighted where datasets are pooled: raw points over

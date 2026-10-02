@@ -28,6 +28,7 @@ mass_yield_file = "Cf252_sf/Y_vs_A/23268003_A.Goeoek_2014.dat"  # primary pre-ne
 # subdirectory: every Y(A) under data/ to average over in place of the primary alone; optional
 # exclude: Y(A) under subdirectory kept out of every average, as [{ dataset = label, reason = text }]; optional
 symmetrize = true                             # Y(A) and Y(A0 - A) averaged where both are measured (pre-neutron identity)
+min_yield_coverage = 0.3                      # share of the primary Y(A)'s heavy-fragment yield a distribution must cover to be averaged over, 0 to 1
 
 [segments]
 max_segments = 6                              # largest segment count examined, 1 to 12
@@ -36,7 +37,10 @@ min_segment_span = 3                          # smallest extent of a segment in 
 pin_symmetric_split = true                    # fix r_nu = 1/2 at A0/2; requires even A0 and heavy_mass_min = A0/2
 required_windows = [[128, 132]]               # windows the trend curve must break in, inside heavy_mass_min:heavy_mass_max
 windows_apply_to_datasets = false             # apply the windows to each dataset too, not only to the trend
-min_dataset_coverage = 0.3                    # fraction of the range's heavy masses a dataset must pair to offer a curve, or a Y(A) cover to be averaged over, 0 to 1
+min_pair_coverage = 0.3                       # fraction of the range's heavy masses a nu(A) dataset must pair to offer a curve of its own, 0 to 1
+
+[retrieval]
+min_package_version = "0.2.3"                 # lowest ExforFissionData version whose retrieval records are accepted; a record below it, or stating none, is refused
 
 [output]
 significant_digits = 6                        # significant figures in tabulated output, 1 to 15
