@@ -172,6 +172,53 @@ function _unique_labels(files::AbstractVector{<:AbstractString})
     ]
 end
 
+# The EXFOR accession of a dataset: the identifier its retrieval record gives, else the digits its
+# file name leads with, else none, for a tabulation that came from no archive.
+function _dataset_accession(source::AbstractString)
+    record = retrieval_record(source)
+    if record !== nothing && haskey(record.entry, "identifier")
+        return string(record.entry["identifier"])
+    end
+    found = match(r"^([0-9]+)_", basename(source))
+    return found === nothing ? "" : String(something(first(found.captures)))
+end
+
+"""
+    curve_accessions(result) -> Dict{String,String}
+
+The EXFOR accession of every dataset of a run, keyed by its label: the identifier the retrieval
+record states, or the digits the file name leads with where no record lists the file, and empty
+for a tabulation that carries neither. The systematic trend is fitted to several datasets and has
+none; its entry is empty.
+
+The label, `Author year`, is the display name and the key a consuming code selects a curve by; it
+carries the accession only where two datasets would otherwise share it. The accession is what
+identifies the measurement in the archive, so it is written into the manifest entry of every
+dataset curve and into the name of every file of that dataset.
+"""
+function curve_accessions(result::ExtractionResult)
+    accessions = Dict(data.label => _dataset_accession(data.source) for data in result.datasets)
+    accessions[SYSTEMATIC_TREND_LABEL] = ""
+    return accessions
+end
+
+# The token the tables and figures of each curve are named by, keyed by label. A dataset's is the
+# stem of its input file, `<accession>_<Author>_<year>` for a retrieved one, so an output traces to
+# its archive entry and to its input file by name alone; the trend's is its label.
+function _file_tokens(result::ExtractionResult)
+    tokens = Dict(
+        data.label => _file_token(first(splitext(basename(data.source)))) for
+        data in result.datasets
+    )
+    tokens[SYSTEMATIC_TREND_LABEL] = _file_token(SYSTEMATIC_TREND_LABEL)
+    allunique(values(tokens)) || throw(
+        ArgumentError(
+            "two datasets would be written under one file name: $(sort!(collect(values(tokens))))",
+        ),
+    )
+    return tokens
+end
+
 """
     pool(curves; label) -> RatioCurve
 
@@ -779,6 +826,10 @@ domain and, per segmented curve, the label, the kind and the two files, and noth
 a run reports about each curve — segments, pin, span, pairs, coverage, reduced chi-squared, range
 mean — is one row per manifest curve, keyed by its label, in `segmented_curves_<run
 identifier>.csv`; the total averages are in `total_average_R_T_<run identifier>.csv`.
+
+The tables of a dataset are named by the stem of its input file, which for a retrieved dataset is
+`<accession>_<Author>_<year>`: `R_T_vs_A_H_segmented_<accession>_<Author>_<year>.csv`. The label
+stays `Author year`, and [`curve_accessions`](@ref) gives the accession of each.
 """
 function write_results(result::ExtractionResult, directory::AbstractString)
     isdir(directory) &&
@@ -806,6 +857,8 @@ function write_results(result::ExtractionResult, directory::AbstractString)
     mkpath(directory)
     digits = configuration.output.significant_digits
     written = Dict{String,String}()
+    tokens = _file_tokens(result)
+    accessions = curve_accessions(result)
 
     for (curves, name, quantity) in (
         (result.r_ν, "r_nu_vs_A_H", "r_nu"),
@@ -814,14 +867,14 @@ function write_results(result::ExtractionResult, directory::AbstractString)
     )
         for curve in curves
             isempty(curve) && continue
-            path = joinpath(directory, "$(name)_$(_file_token(curve.label)).csv")
+            path = joinpath(directory, "$(name)_$(tokens[curve.label]).csv")
             CSV.write(path, _ratio_table(curve, quantity, digits))
             written["$(name)/$(curve.label)"] = path
         end
     end
 
     for curve in result.segmented_curves
-        token = _file_token(curve.label)
+        token = tokens[curve.label]
         points = pivots(curve.fit)
         pivot_table = DataFrame(;
             A_H = [point[1] for point in points],
@@ -853,6 +906,7 @@ function write_results(result::ExtractionResult, directory::AbstractString)
     rows = [
         (
             label = curve.label,
+            accession = accessions[curve.label],
             kind = curve.kind,
             pooled = curve.kind == "systematic_trend" || !haskey(excluded, curve.label),
             segments = segments(curve.fit),
@@ -949,6 +1003,7 @@ function write_results(result::ExtractionResult, directory::AbstractString)
         rows = [
             (
                 dataset = d.label,
+                accession = accessions[d.label],
                 points = d.points,
                 pairs = d.pairs,
                 first_pair = d.first_pair,

@@ -445,9 +445,10 @@ function FissionTemperatureRatio.write_figures(
             ),
         )
 
+        tokens = FissionTemperatureRatio._file_tokens(result)
         for curve in result.segmented_curves
             curve.label == SYSTEMATIC_TREND_LABEL && continue
-            token = FissionTemperatureRatio._file_token(curve.label)
+            token = tokens[curve.label]
             annotation = _fit_annotation(curve)
 
             index = findfirst(c -> c.label == curve.label, result.r_ν)

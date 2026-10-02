@@ -129,6 +129,40 @@ DATA_AVAILABLE && @testset "the handoff to a consuming code" begin
             @test count(contains(identifier), readdir(directory)) == 3
         end
 
+        @testset "the files of a dataset carry its accession, its label does not" begin
+            accessions = curve_accessions(result)
+            @test accessions[SYSTEMATIC_TREND_LABEL] == ""
+            table = CSV.read(
+                joinpath(directory, "segmented_curves_$(run_identifier(configuration)).csv"),
+                DataFrame,
+            )
+            for curve in manifest.curves
+                curve.kind == "dataset" || continue
+                accession = accessions[curve.label]
+                @test occursin(r"^[0-9]{8,9}$", accession)
+                @test !occursin(accession, curve.label)
+                # Named by the stem of the input file, <accession>_<Author>_<year>.
+                source = only(d.source for d in result.datasets if d.label == curve.label)
+                stem = first(splitext(basename(source)))
+                @test startswith(stem, "$(accession)_")
+                @test curve.temperature_ratio_file == "R_T_vs_A_H_segmented_$(stem).csv"
+                @test curve.multiplicity_ratio_pivots_file == "r_nu_vs_A_H_pivots_$(stem).csv"
+                @test isfile(joinpath(directory, curve.temperature_ratio_file))
+                @test isfile(joinpath(directory, "r_nu_vs_A_H_segmented_$(stem).csv"))
+                @test isfile(joinpath(directory, "R_T_vs_A_H_$(stem).csv"))
+                row = only(filter(r -> r.label == curve.label, eachrow(table)))
+                @test string(row.accession) == accession
+            end
+            trend = manifest_curve(manifest, SYSTEMATIC_TREND_LABEL)
+            @test trend.temperature_ratio_file == "R_T_vs_A_H_segmented_systematic_trend.csv"
+            @test ismissing(
+                only(filter(r -> r.label == SYSTEMATIC_TREND_LABEL, table).accession)
+            )
+            diagnostics = CSV.read(joinpath(directory, "dataset_diagnostics.csv"), DataFrame)
+            @test string.(diagnostics.accession) ==
+                [accessions[d.label] for d in result.datasets]
+        end
+
         @testset "excluded, unfitted and qualified datasets are visible, not missing" begin
             table = CSV.read(joinpath(directory, "dataset_diagnostics.csv"), DataFrame)
             @test nrow(table) == length(result.datasets)

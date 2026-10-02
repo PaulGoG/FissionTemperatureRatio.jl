@@ -153,6 +153,8 @@ end
         @testset "the run directory is written once and never into" begin
             @test isfile(joinpath(run_directory, "dataset_diagnostics.csv"))
             @test isfile(joinpath(run_directory, "r_nu_vs_A_H_pivots_full.csv"))
+            # A tabulation from no archive has no accession, and its files keep its name.
+            @test all(isempty, values(curve_accessions(result)))
             @test !any(contains("Cf252"), readdir(run_directory))
             @test_throws ArgumentError write_results(result, run_directory)
             # A run without yields reports the range mean and no total average.
@@ -305,6 +307,17 @@ end
                 (:breakpoints, :coefficients, :wrss, :dof, :bic, :selection, :covariance)
                 @test getfield(trend, field) == getfield(dataset, field)
             end
+            # The label is the display name; the accession is in the record and in the names of
+            # the files.
+            @test curve_accessions(one) ==
+                Dict("A. Interp 2001" => "10000009", SYSTEMATIC_TREND_LABEL => "")
+            files = readdir(
+                dirname(write_results(one, joinpath(directory, "output", "one"))["manifest"])
+            )
+            for name in ("R_T_vs_A_H_segmented", "r_nu_vs_A_H_pivots", "r_nu_vs_A_H")
+                @test "$(name)_10000009_A.Interp_2001.csv" in files
+            end
+            @test "R_T_vs_A_H_segmented_systematic_trend.csv" in files
             # The combined curve states the standard error, which carries the fraction.
             @test all(one.consensus_r_ν.σ .≈ only(one.r_ν).σ ./ sqrt(20 / 29))
         end

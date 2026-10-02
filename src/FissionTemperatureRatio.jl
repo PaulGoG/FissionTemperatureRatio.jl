@@ -160,7 +160,13 @@ export ExtractedCurve, TotalAverage, range_mean
 
 # Pipeline
 export ExtractionResult,
-    SymmetryDiagnostics, run_pipeline, write_results, pool, systematic_trend, manifest_domain
+    SymmetryDiagnostics,
+    run_pipeline,
+    write_results,
+    pool,
+    systematic_trend,
+    manifest_domain,
+    curve_accessions
 export run_identifier, run_parameters, run_metadata, RUN_IDENTIFIER_ABBREVIATIONS
 
 # Figures
