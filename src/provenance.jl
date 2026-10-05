@@ -493,7 +493,8 @@ end
 # One experiment pooled as one: its datasets, their accessions, the relation every record
 # states, which decides how its curve was formed, and what each record states.
 function _correlation_group_record(result::ExtractionResult, group::Vector{String})
-    indices = [findfirst(data -> data.label == label, result.datasets) for label in group]
+    position = Dict(data.label => index for (index, data) in enumerate(result.datasets))
+    indices = Int[position[label] for label in group]
     relation = _relation(result.datasets, indices)
     return Dict{String,Any}(
         "datasets" => group,

@@ -778,6 +778,26 @@ end
             @test !("C. Tail 2000" in table.mass_yield)
             @test all(0 .< table.yield_fraction .<= 1)
 
+            # The jackknife over the three refits of this pool, each with one dataset left out:
+            # ⟨R_T⟩ = 1.2187470, 1.2174755, 1.2180882 over the primary yield.
+            spread = leave_one_out_spread(with_yields, "A. Both 2000")
+            θ = [entry.total_average_R_T["A. Both 2000"] for entry in with_yields.leave_one_out]
+            @test θ ≈ [1.2187470483698384, 1.2174755267121293, 1.2180882077943818] rtol = 1e-8
+            @test spread.uncertainty ≈ 7.342745987e-4 rtol = 1e-6
+            @test (spread.min, spread.max, spread.refits) == (minimum(θ), maximum(θ), 3)
+            row = only(
+                filter(
+                    r ->
+                        r.segmented_curve == SYSTEMATIC_TREND_LABEL &&
+                        r.mass_yield == "A. Both 2000",
+                    eachrow(table),
+                ),
+            )
+            @test row.R_T_uncertainty_leave_one_out ≈ spread.uncertainty rtol = 1e-5
+            record = run_metadata(with_yields)["result"]["trend_uncertainty"]["leave_one_out"]
+            @test record["A. Both 2000"]["refits"] == 3
+            @test record["A. Both 2000"]["uncertainty"] == spread.uncertainty
+
             # A distribution excluded by configuration is read and reported, never averaged.
             write(
                 path,

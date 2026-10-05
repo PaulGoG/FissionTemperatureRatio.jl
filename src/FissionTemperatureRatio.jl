@@ -55,7 +55,7 @@ write_results(result, "data/sims/U233_nth/" * run_identifier(configuration))
 module FissionTemperatureRatio
 
 using CSV: CSV
-using DataFrames: DataFrame, eachrow
+using DataFrames: DataFrame
 using Dates: Dates
 using DrWatson: datadir, savename
 using FissionFragmentsDomain:

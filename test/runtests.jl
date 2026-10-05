@@ -18,6 +18,7 @@ include("fixtures.jl")
     include("test_autocorrelation.jl")
     include("test_configuration.jl")
     include("test_pipeline.jl")
+    include("test_experiments.jl")
     include("test_published_values.jl")
     # Last: this one loads CairoMakie, and asserts the extension is absent until it does.
     include("test_manifest.jl")
