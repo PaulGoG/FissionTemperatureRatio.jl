@@ -676,3 +676,21 @@ function unresolved_minimum(fit::SegmentedFit)
                            $(fit.x_max), the last mass number of its range"
     return "no interior minimum between A_H = $(fit.x₀) and $(fit.x_max)"
 end
+
+"""
+    unresolved_minimum(fit, windows) -> Union{String,Nothing}
+
+Why a segmented multiplicity ratio resolves no minimum although its range covers one of the
+mass-number windows a minimum lies in, or `nothing`: where it resolves one, and where its range
+covers none of `windows`. A curve that begins above the window is limited in range, which its
+coverage already says; one that spans the window and does not turn there tabulates a temperature
+ratio without the minimum, and the reason names the window.
+"""
+function unresolved_minimum(fit::SegmentedFit, windows::AbstractVector{<:AbstractUnitRange})
+    covered = [w for w in windows if fit.x₀ ≤ first(w) && last(w) ≤ fit.x_max]
+    isempty(covered) && return nothing
+    shape = unresolved_minimum(fit)
+    shape === nothing && return nothing
+    spans = join(("$(first(w)):$(last(w))" for w in covered), ", ")
+    return "$(shape), which covers the window $(spans)"
+end

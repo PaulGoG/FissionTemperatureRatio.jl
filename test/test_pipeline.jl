@@ -245,17 +245,18 @@ function test_experiments_pooled_as_one(directory, configuration, result, writte
         write_offset("20000002_B.First_1979.dat", 0.03)
         write_offset("20000003_C.Other_2000.dat", -0.03)
         # The relation is named from one side only, and holds for both.
-        record(correlated) = """
+        record(correlated; qualifiers = "[]", second = "") = """
             [[accepted]]
             file = "20000001_A.First_1979.dat"
             identifier = "20000001"
-            qualifiers = []
+            qualifiers = $(qualifiers)
             $(correlated)
 
             [[accepted]]
             file = "20000002_B.First_1979.dat"
             identifier = "20000002"
             qualifiers = []
+            $(second)
 
             [[accepted]]
             file = "20000003_C.Other_2000.dat"
@@ -330,25 +331,102 @@ function test_experiments_pooled_as_one(directory, configuration, result, writte
         @test group["relation"] == "repeated_run"
         @test metadata["leave_one_out"][1]["accessions"] == ["20000001", "20000002"]
         @test isempty(run_metadata(apart)["result"]["correlation_groups"])
+
+        # Two reductions of the same events share their statistical errors: the mean, at the
+        # larger uncertainty with half their difference added in quadrature.
+        write(
+            joinpath(experiments, "retrieval.toml"),
+            record(
+                "correlated_with = [\"20000002\"]\ncorrelation_relation = \"alternative_analysis\"";
+                second = "correlated_with = [\"20000001\"]\ncorrelation_relation = \"alternative_analysis\"",
+            ),
+        )
+        reductions = run_pipeline(load_configuration(path; data_directory = directory))
+        @test reductions.correlation_groups == [["A. First 1979", "B. First 1979"]]
+        @test only(run_metadata(reductions)["result"]["correlation_groups"])["relation"] ==
+            "alternative_analysis"
+        halves = abs.(first_.ratio .- second.ratio) ./ 2
+        either = RatioCurve(
+            first_.A_H,
+            (first_.ratio .+ second.ratio) ./ 2,
+            hypot.(max.(first_.σ, second.σ), halves),
+            "either",
+        )
+        @test reductions.consensus_r_ν.ratio ≈ consensus([either, other]).ratio
+        @test reductions.consensus_r_ν.σ[2:end] ≈ consensus([either, other]).σ[2:end]
+        # Wider than the inverse-variance combination of two independent values.
+        @test all(either.σ[A] .> experiment.σ[A])
+        @test [entry.datasets for entry in reductions.leave_one_out] == [["A. First 1979", "B. First 1979"], ["C. Other 2000"]]
+
+        # One result published twice: the earlier, marked superseded, enters through its
+        # successor alone, and still offers its own curve.
+        write(
+            joinpath(experiments, "retrieval.toml"),
+            record(
+                "correlated_with = [\"20000002\"]\ncorrelation_relation = \"republication\"";
+                qualifiers = "[\"superseded: by 20000002\"]",
+                second = "correlated_with = [\"20000001\"]\ncorrelation_relation = \"republication\"",
+            ),
+        )
+        republished = run_pipeline(load_configuration(path; data_directory = directory))
+        @test superseded_datasets(republished) == Dict("A. First 1979" => "B. First 1979")
+        @test isempty(superseded_datasets(together))
+        @test pooled_datasets(republished) == ["B. First 1979", "C. Other 2000"]
+        @test isempty(republished.correlation_groups)
+        @test republished.consensus_r_ν.ratio ≈ consensus([second, other]).ratio
+        @test count(c -> c.kind == "dataset", republished.segmented_curves) == 3
+        @test [only(entry.datasets) for entry in republished.leave_one_out] == ["B. First 1979", "C. Other 2000"]
+        table = CSV.read(
+            write_results(republished, joinpath(directory, "output", "republished"))["dataset_diagnostics"],
+            DataFrame,
+        )
+        earlier = only(filter(r -> r.dataset == "A. First 1979", eachrow(table)))
+        @test earlier.pooled == false
+        @test earlier.exclusion_reason == "superseded by B. First 1979"
+        @test run_metadata(republished)["result"]["superseded_datasets"] ==
+            Dict("A. First 1979" => "B. First 1979")
     end
     return nothing
 end
 
 function test_flagged_curves(directory, configuration, result, written)
-    @testset "a dataset curve that resolves no minimum is flagged, and offered" begin
-        # `partial` begins at A_H = 131, above the minimum at 130: its curve only rises.
-        @test collect(keys(result.curve_flags)) == ["partial"]
-        @test occursin("rises from A_H = 131", result.curve_flags["partial"])
-        @test any(c -> c.label == "partial", result.segmented_curves)
-        table = CSV.read(written["dataset_diagnostics"], DataFrame)
+    @testset "a curve without a minimum over a range covering a window is flagged" begin
+        # `partial` begins at A_H = 131, above the minimum at 130: its curve only rises. Without
+        # a required window nothing says where a minimum lies, and nothing is flagged.
+        partial = only(filter(c -> c.label == "partial", result.segmented_curves))
+        @test occursin("rises from A_H = 131", unresolved_minimum(partial.fit))
+        @test isempty(result.curve_flags)
+        # A window the curve begins above: limited in range, which is not a flag.
+        @test unresolved_minimum(partial.fit, [128:132]) === nothing
+        @test occursin("covers the window 132:134", unresolved_minimum(partial.fit, [132:134]))
+        full = only(filter(c -> c.label == "full", result.segmented_curves))
+        @test unresolved_minimum(full.fit, [128:132]) === nothing
+
+        # With the window required, the run flags the curve and still offers it.
+        path = joinpath(directory, "windowed.toml")
+        write(
+            path,
+            replace(
+                PIPELINE_CONFIGURATION,
+                "max_segments = 3" => "max_segments = 3\nrequired_windows = [[132, 134]]",
+            ),
+        )
+        windowed = run_pipeline(load_configuration(path; data_directory = directory))
+        @test collect(keys(windowed.curve_flags)) == ["partial"]
+        reason = windowed.curve_flags["partial"]
+        @test occursin("rises from A_H = 131", reason)
+        @test occursin("covers the window 132:134", reason)
+        @test any(c -> c.label == "partial", windowed.segmented_curves)
+        written_ = write_results(windowed, joinpath(directory, "output", "windowed"))
+        table = CSV.read(written_["dataset_diagnostics"], DataFrame)
         row(label) = only(filter(r -> r.dataset == label, eachrow(table)))
         @test row("partial").curve_flagged
-        @test row("partial").curve_flag_reason == result.curve_flags["partial"]
+        @test row("partial").curve_flag_reason == reason
         @test !row("full").curve_flagged
         @test !row("sparse").curve_flagged
-        @test run_metadata(result)["result"]["flagged_curves"] ==
-            Dict("partial" => result.curve_flags["partial"])
-        manifest = read_temperature_ratio_manifest(written["manifest"])
+        @test run_metadata(windowed)["result"]["flagged_curves"] == Dict("partial" => reason)
+        @test isempty(run_metadata(result)["result"]["flagged_curves"])
+        manifest = read_temperature_ratio_manifest(written_["manifest"])
         @test "partial" in curve_labels(manifest)
     end
     return nothing

@@ -337,5 +337,13 @@ using Statistics: mean, var
         fit = fit_segments(A_H, kinked .+ ripple, σ; max_segments = 3)
         @test segments(fit) ≥ 2
         @test occursin("rises from A_H = 120", unresolved_minimum(fit))
+
+        # Against windows: flagged only where the range covers one of them.
+        @test unresolved_minimum(turning, [128:132]) === nothing
+        @test unresolved_minimum(rising, UnitRange{Int}[]) === nothing
+        @test unresolved_minimum(rising, [110:125]) === nothing
+        @test unresolved_minimum(rising, [140:145]) === nothing
+        @test endswith(unresolved_minimum(rising, [128:132]), "which covers the window 128:132")
+        @test endswith(unresolved_minimum(rising, [110:125, 120:139]), "window 120:139")
     end
 end

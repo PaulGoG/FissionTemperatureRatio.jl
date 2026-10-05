@@ -103,12 +103,15 @@ written to disk by [`write_results`](@ref).
 - `autocorrelation`: the coefficient fitted to its first lags, with which the covariance of the
   systematic trend was formed, [`deviation_autocorrelation`](@ref); `missing` where no lag could
   be estimated.
+- `superseded`: the datasets a republication supersedes, by label, each with the label of its
+  successor, through which alone it enters the pool; [`superseded_datasets`](@ref).
 - `correlation_groups`: the labels of the pooled datasets that belong to one experiment, as
   their retrieval records name one another, one list per experiment. Such datasets are combined
   into one before they are pooled, so that the experiment counts once.
 - `leave_one_out`: one [`LeaveOneOut`](@ref) per pooled dataset or experiment, in the order read;
   empty with fewer than two of them or where the run was asked to skip them.
-- `curve_flags`: for each dataset curve that resolves no minimum, by label, the reason
+- `curve_flags`: for each dataset curve that resolves no minimum over a range covering a
+  required window, by label, the reason
   [`unresolved_minimum`](@ref) gives; such a curve stays in the manifest.
 """
 struct ExtractionResult
@@ -135,6 +138,7 @@ struct ExtractionResult
     segment_count_sensitivity::Dict{String,Vector{Tuple{Int,Float64}}}
     deviation_correlogram::Vector{Union{Missing,Float64}}
     autocorrelation::Union{Missing,Float64}
+    superseded::Dict{String,String}
     correlation_groups::Vector{Vector{String}}
     leave_one_out::Vector{LeaveOneOut}
     curve_flags::Dict{String,String}
@@ -306,19 +310,41 @@ end
     pooled_datasets(result) -> Vector{String}
 
 The labels of the datasets the systematic trend is combined from, in the order read: those that
-provide at least one complete fragment pair within the fragmentation range and that the
-configuration does not exclude. A dataset that forms no pair has nothing to pool, whether or not
-an exclusion names it.
+provide at least one complete fragment pair within the fragmentation range, that the
+configuration does not exclude, and that no republication among them supersedes. A dataset that
+forms no pair has nothing to pool, whether or not an exclusion names it.
 """
 function pooled_datasets(result::ExtractionResult)
-    excluded = _excluded_labels(
-        result.configuration.excluded_datasets, result.datasets, "multiplicity.exclude"
-    )
+    candidates = _candidates(result.configuration, result.datasets, result.r_ν)
     return [
-        data.label for (data, curve) in zip(result.datasets, result.r_ν) if
-        !isempty(curve) && !haskey(excluded, data.label)
+        result.datasets[i].label for
+        i in candidates if !haskey(result.superseded, result.datasets[i].label)
     ]
 end
+
+# The indices of the datasets that form a pair in the range and that the configuration does not
+# exclude.
+function _candidates(
+    configuration::Configuration, datasets::Vector{Multiplicity}, r_ν::Vector{RatioCurve}
+)
+    excluded = _excluded_labels(
+        configuration.excluded_datasets, datasets, "multiplicity.exclude"
+    )
+    return [
+        i for
+        i in eachindex(datasets) if !isempty(r_ν[i]) && !haskey(excluded, datasets[i].label)
+    ]
+end
+
+"""
+    superseded_datasets(result) -> Dict{String,String}
+
+The datasets of a run that a republication supersedes, by label, each with the label of the
+dataset that supersedes it. The retrieval marks the earlier publication of one result with the
+qualifier `superseded`; it is read, fitted and written, and enters the pool through its successor
+alone.
+"""
+superseded_datasets(result::ExtractionResult) = result.superseded
 
 """
     deviation_correlogram(result) -> Vector{Union{Missing,Float64}}
@@ -593,10 +619,11 @@ function run_pipeline(configuration::Configuration; leave_one_out::Bool = true)
         @info "fitted without the pin: no complete pair at the symmetric split" datasets =
             unpinned
     end
-    # A dataset curve that resolves no minimum is offered all the same, and flagged.
+    # A dataset curve that resolves no minimum where its range covers a required window is
+    # offered all the same, and flagged.
     curve_flags = Dict{String,String}()
     for c in segmented_curves
-        reason = unresolved_minimum(c.fit)
+        reason = unresolved_minimum(c.fit, segments_settings.required_windows)
         reason === nothing && continue
         curve_flags[c.label] = reason
         @info "dataset curve flagged" dataset = c.label reason
@@ -610,10 +637,17 @@ function run_pipeline(configuration::Configuration; leave_one_out::Bool = true)
     # Datasets named in the configuration are kept out of the pooling but not out of the run: they
     # are still fitted, written and diagnosed, so an exclusion is visible rather than a silent
     # absence. An exclusion names its dataset by EXFOR accession.
-    admitted = [i for i in usable if !haskey(excluded, datasets[i].label)]
-    isempty(admitted) && throw(
+    candidates = _candidates(configuration, datasets, r_ν)
+    isempty(candidates) && throw(
         ArgumentError("every usable dataset is excluded from the pooling by configuration")
     )
+    # Of one result published twice, the superseding dataset alone enters the pool.
+    superseded = _superseded(datasets, candidates)
+    admitted = [i for i in candidates if !haskey(superseded, i)]
+    for (i, j) in superseded
+        @info "dataset superseded by a republication: pooled through its successor alone" dataset =
+            datasets[i].label superseded_by = datasets[j].label
+    end
     # Interpolated datasets count by their measured points, not their written rows.
     weights = [pooling_weight(retrieval_record(datasets[i].source)) for i in admitted]
     for (i, w) in zip(admitted, weights)
@@ -825,6 +859,7 @@ function run_pipeline(configuration::Configuration; leave_one_out::Bool = true)
         sensitivity,
         fitted.correlogram,
         fitted.autocorrelation,
+        Dict(datasets[i].label => datasets[j].label for (i, j) in superseded),
         [[datasets[i].label for i in unit] for unit in units.members if length(unit) > 1],
         refits,
         curve_flags,
@@ -961,24 +996,14 @@ function _segment(
     return ExtractedCurve(label, fit, curve, relation...)
 end
 
-# What a trend is combined from: each admitted dataset, or, for the datasets of one experiment —
-# those whose retrieval records name one another under `correlated_with` — their combination,
-# formed as a pool is and entering the pool as one curve at the uncertainty of one measurement
-# with the measured fraction of each of its points. Runs or analyses on one apparatus share their
-# systematic errors; pooled side by side they would count as independent measurements in the
-# between-dataset variance and weigh as several. `members` holds, for each curve, the indices of
-# its datasets.
-function _pool_units(
-    datasets::Vector{Multiplicity},
-    r_ν::Vector{RatioCurve},
-    admitted::Vector{Int},
-    weights::Vector{Float64},
-)
-    accessions = [_dataset_accession(datasets[i].source) for i in admitted]
-    partners = [correlated_datasets(retrieval_record(datasets[i].source)) for i in admitted]
-    # The experiments: the connected components of the relation, by position in `admitted`.
-    experiment = collect(eachindex(admitted))
-    for a in eachindex(admitted), b in (a + 1):length(admitted)
+# The experiments among the datasets `candidates` indexes: the connected components of the
+# relation their retrieval records state under `correlated_with`, each a list of positions in
+# `candidates`, in the order of their first members.
+function _experiments(datasets::Vector{Multiplicity}, candidates::Vector{Int})
+    accessions = [_dataset_accession(datasets[i].source) for i in candidates]
+    partners = [correlated_datasets(retrieval_record(datasets[i].source)) for i in candidates]
+    experiment = collect(eachindex(candidates))
+    for a in eachindex(candidates), b in (a + 1):length(candidates)
         named =
             (!isempty(accessions[b]) && accessions[b] in partners[a]) ||
             (!isempty(accessions[a]) && accessions[a] in partners[b])
@@ -986,24 +1011,119 @@ function _pool_units(
         merged, kept = experiment[b], experiment[a]
         replace!(experiment, merged => kept)
     end
+    return [findall(==(first_position), experiment) for first_position in unique(experiment)]
+end
 
+# How the datasets of one experiment are related, where their records agree on it; empty where
+# they state nothing or differ.
+function _relation(datasets::Vector{Multiplicity}, members::Vector{Int})
+    stated = unique(
+        filter(
+            !isempty,
+            [correlation_relation(retrieval_record(datasets[i].source)) for i in members],
+        ),
+    )
+    return length(stated) == 1 ? only(stated) : ""
+end
+
+# The qualifier tags the retrieval records for a data file; none where no record lists it.
+function _qualifier_tags(source::AbstractString)
+    record = retrieval_record(source)
+    return record === nothing ? String[] : record.qualifiers
+end
+
+# The datasets among `candidates` that a republication supersedes, each with the dataset that
+# supersedes it: in an experiment whose records give the relation `republication`, the members
+# carrying the qualifier `superseded`, where exactly one member does not. Such a dataset is the
+# same result published earlier and enters no pool beside its successor.
+function _superseded(datasets::Vector{Multiplicity}, candidates::Vector{Int})
+    superseded = Dict{Int,Int}()
+    for positions in _experiments(datasets, candidates)
+        members = candidates[positions]
+        length(members) > 1 || continue
+        _relation(datasets, members) == "republication" || continue
+        withdrawn = [i for i in members if "superseded" in _qualifier_tags(datasets[i].source)]
+        current = setdiff(members, withdrawn)
+        length(current) == 1 || continue
+        for i in withdrawn
+            superseded[i] = only(current)
+        end
+    end
+    return superseded
+end
+
+# Two or more reductions of one set of events, combined mass number by mass number. Their
+# statistical errors are common, so nothing is gained by averaging them: the value is their mean,
+# and its uncertainty the largest a member quotes with half the difference between the members
+# added in quadrature, which carries the uncertainty of the reduction. A mass number one member
+# alone holds takes that member's value and uncertainty; where no member quotes an uncertainty
+# the point quotes none. Returned with the mean pooling factor of the members at each mass.
+function _alternative_analyses(
+    curves::Vector{RatioCurve}, factors::AbstractVector{<:Real}, label::AbstractString
+)
+    masses = sort!(unique!(reduce(vcat, (curve.A_H for curve in curves); init = Int[])))
+    ratio = Float64[]
+    σ = Union{Missing,Float64}[]
+    measured = Float64[]
+    for mass in masses
+        values = Float64[]
+        quoted = Float64[]
+        held = Float64[]
+        for (curve, factor) in zip(curves, factors)
+            index = findfirst(==(mass), curve.A_H)
+            index === nothing && continue
+            push!(values, curve.ratio[index])
+            ismissing(curve.σ[index]) || push!(quoted, curve.σ[index])
+            push!(held, factor)
+        end
+        half_difference = (maximum(values) - minimum(values)) / 2
+        push!(ratio, mean(values))
+        push!(σ, isempty(quoted) ? missing : hypot(maximum(quoted), half_difference))
+        push!(measured, mean(held))
+    end
+    return RatioCurve(masses, ratio, σ, String(label)), measured
+end
+
+# What a trend is combined from: each admitted dataset, or, for the datasets of one experiment —
+# those whose retrieval records name one another under `correlated_with` — one curve that stands
+# for the experiment, entering the pool at the uncertainty of one measurement with the measured
+# fraction of each of its points. Runs or analyses on one apparatus share their errors; pooled
+# side by side they would count as independent measurements in the between-dataset variance and
+# weigh as several. How the curve is formed follows the relation the records state: alternative
+# analyses of the same events by `_alternative_analyses`; repeated runs, parts of one spectrum
+# and members whose records state no relation, or different ones, as a pool is combined. Of a
+# republication the superseding dataset alone is admitted, `_superseded`. `members` holds, for
+# each curve, the indices of its datasets.
+function _pool_units(
+    datasets::Vector{Multiplicity},
+    r_ν::Vector{RatioCurve},
+    admitted::Vector{Int},
+    weights::Vector{Float64},
+)
     curves = RatioCurve[]
     unit_weights = Union{Float64,Vector{Float64}}[]
     members = Vector{Int}[]
-    for first_position in unique(experiment)
-        positions = findall(==(first_position), experiment)
+    for positions in _experiments(datasets, admitted)
         push!(members, admitted[positions])
         if length(positions) == 1
-            push!(curves, r_ν[admitted[first_position]])
-            push!(unit_weights, weights[first_position])
+            push!(curves, r_ν[admitted[only(positions)]])
+            push!(unit_weights, weights[only(positions)])
             continue
         end
         label = join((datasets[i].label for i in admitted[positions]), " + ")
-        combined, measured, σ_measurement, _, _ = _consensus(
-            r_ν[admitted[positions]], label, weights[positions]
-        )
-        push!(curves, RatioCurve(combined.A_H, combined.ratio, σ_measurement, label))
-        push!(unit_weights, measured)
+        if _relation(datasets, admitted[positions]) == "alternative_analysis"
+            curve, measured = _alternative_analyses(
+                r_ν[admitted[positions]], weights[positions], label
+            )
+            push!(curves, curve)
+            push!(unit_weights, measured)
+        else
+            combined, measured, σ_measurement, _, _ = _consensus(
+                r_ν[admitted[positions]], label, weights[positions]
+            )
+            push!(curves, RatioCurve(combined.A_H, combined.ratio, σ_measurement, label))
+            push!(unit_weights, measured)
+        end
     end
     return (; curves, weights = unit_weights, members)
 end
@@ -1210,7 +1330,7 @@ mean — is one row per manifest curve, keyed by its label, in `segmented_curves
 identifier>.csv`; the total averages are in `total_average_R_T_<run identifier>.csv`, and the
 trend refitted with each pooled dataset left out, where the run made those refits, in
 `leave_one_out_<run identifier>.csv`. `dataset_diagnostics.csv` flags, with the reason, every
-dataset curve that resolves no minimum.
+dataset curve that resolves no minimum over a range covering a required window.
 
 The tables of a dataset are named by the stem of its input file, which for a retrieved dataset is
 `<accession>_<Author>_<year>`: `R_T_vs_A_H_segmented_<accession>_<Author>_<year>.csv`. The label
@@ -1229,12 +1349,7 @@ function write_results(result::ExtractionResult, directory::AbstractString)
     identifier = run_identifier(configuration)
     # The files named by the identifier; a name longer than a file system admits would fail
     # halfway through writing the run, so it is refused before anything is written.
-    for name in (
-        "manifest_$(identifier).toml",
-        "segmented_curves_$(identifier).csv",
-        "total_average_R_T_$(identifier).csv",
-        "leave_one_out_$(identifier).csv",
-    )
+    for name in _identifier_file_names(identifier)
         ncodeunits(name) <= MAX_FILE_NAME_BYTES || throw(
             ArgumentError("the file name $(name) is $(ncodeunits(name)) bytes, beyond the \
                  $(MAX_FILE_NAME_BYTES) a file system admits")
@@ -1292,6 +1407,7 @@ function write_results(result::ExtractionResult, directory::AbstractString)
         configuration.excluded_datasets, result.datasets, "multiplicity.exclude"
     )
     pooled = Set(pooled_datasets(result))
+    superseded = superseded_datasets(result)
     # The other datasets of its experiment, for a dataset pooled as one with them.
     partners = Dict(
         label => filter(!=(label), group) for group in result.correlation_groups for
@@ -1517,7 +1633,17 @@ function write_results(result::ExtractionResult, directory::AbstractString)
                 scale_consistent = _scale_field(result.datasets[i], :consistent, digits),
                 pooled = d.label in pooled,
                 pooled_with = _text_field(join(get(partners, d.label, String[]), " + ")),
-                exclusion_reason = _text_field(get(excluded, d.label, "")),
+                exclusion_reason = _text_field(
+                    get(
+                        excluded,
+                        d.label,
+                        if haskey(superseded, d.label)
+                            "superseded by $(superseded[d.label])"
+                        else
+                            ""
+                        end,
+                    )
+                ),
                 segmented_curve = _text_field(get(result.dataset_outcomes, d.label, "")),
                 curve_flagged = haskey(result.curve_flags, d.label),
                 curve_flag_reason = _text_field(get(result.curve_flags, d.label, "")),
@@ -1535,6 +1661,17 @@ end
 
 # The longest file name, in bytes, that common file systems admit (NAME_MAX).
 const MAX_FILE_NAME_BYTES = 255
+
+# The files of a run directory that carry the run identifier in their names, the longest names a
+# run writes.
+function _identifier_file_names(identifier::AbstractString)
+    return (
+        "manifest_$(identifier).toml",
+        "segmented_curves_$(identifier).csv",
+        "total_average_R_T_$(identifier).csv",
+        "leave_one_out_$(identifier).csv",
+    )
+end
 
 _file_token(label::AbstractString) = replace(strip(label), r"[^A-Za-z0-9.\-]+" => "_")
 

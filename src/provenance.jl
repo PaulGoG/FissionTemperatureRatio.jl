@@ -419,6 +419,9 @@ function run_metadata(result::ExtractionResult)
             "correlation_groups" => [
                 _correlation_group_record(result, group) for group in result.correlation_groups
             ],
+            # Datasets a republication supersedes, each with its successor, through which alone
+            # it enters the pool.
+            "superseded_datasets" => Dict{String,Any}(superseded_datasets(result)),
             # Dataset curves that resolve no minimum, with the reason; they stay in the manifest.
             "flagged_curves" => Dict{String,Any}(result.curve_flags),
             # The trend refitted with each pooled dataset left out, in the order read.

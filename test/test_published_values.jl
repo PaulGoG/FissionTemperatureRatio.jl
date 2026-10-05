@@ -96,6 +96,7 @@ DATA_AVAILABLE && @testset "published total averages" begin
             ("U235_nth", "41738002", true),
             ("U235_nth", "41502005", false),
             ("Pu239_nth", "41502006", false),
+            ("Pu239_nth", "23012008", true),
         )
             haskey(results, system) || continue
             run = results[system]
@@ -133,9 +134,19 @@ DATA_AVAILABLE && @testset "published total averages" begin
             @test any(c -> c.label == "C. Tsuchiya 2000", run.segmented_curves)
         end
         if haskey(results, "Cf252_sf")
-            flags = results["Cf252_sf"].curve_flags
-            @test !haskey(flags, "A. Goeoek 2014")
-            @test !haskey(flags, "C. Budtz-jorgensen 1988")
+            # Bowman, Britt and Mehta begin above the window: limited in range, not flagged.
+            @test isempty(results["Cf252_sf"].curve_flags)
+        end
+        if haskey(results, "U233_nth")
+            @test collect(keys(results["U233_nth"].curve_flags)) == ["J.S. Fraser 1966"]
+        end
+        haskey(results, "U235_nth") && @test isempty(results["U235_nth"].curve_flags)
+
+        # Basova 1979 and Zamyatnin 1979 are two reductions of one experiment: pooled as one.
+        for system in ("Cf252_sf", "Pu239_nth")
+            haskey(results, system) || continue
+            @test results[system].correlation_groups ==
+                [["Yu.S. Zamyatnin 1979", "B.G. Basova 1979"]]
         end
 
         # With one pooled dataset left out in turn: one refit per pooled dataset, and the

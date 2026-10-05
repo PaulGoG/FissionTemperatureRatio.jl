@@ -25,6 +25,7 @@ mean_kinetic_energy_file = "Pu239_nth/TKE_vs_A/21995038_C.Wagemans_1984.dat"  # 
 subdirectory = "Pu239_nth/nu_vs_A"            # under data/; whitespace-separated A nu nu_uncertainty
 # exclude: datasets kept out of the pooled trend, as [{ accession = EXFOR dataset identifier, reason = text }]; one that forms fragment pairs still offers its own curve
 exclude = [
+    { accession = "23012008", reason = "EXFOR 23012008, Nishio 1995 (J. Nucl. Sci. Technol. 32, 404, doi:10.1080/18811248.1995.9731725): nu(m*) is the difference of the pre- and post-neutron fragment masses of a double-velocity double-energy measurement, no neutron being detected; the paper gives its total as 3.2 +- 0.1, about 10 % above the evaluation, and sets it aside; the nu(m*) of Apalin et al., whose 239-Pu set is pooled here, enters its plasma-delay correction; over A_H = 130 to 150, weighted with the Wagemans 1984 yields, its heavy-fragment multiplicity is 1.68 against 1.20 to 1.48 in the other four sets at a light-fragment one of 1.53 against 1.45 to 1.57, and an excess on one wing does not cancel in r_nu" },
     { accession = "41502006", reason = "EXFOR 41502006, Batenkov 2004 (AIP Conf. Proc. 769, 1003, doi:10.1063/1.1945175), preliminary results with statistical uncertainties only: 21 masses on a 4-u grid, 85 to 165, on which no mass has its complement at A0 = 240, so it forms no fragment pair and is not paired against interpolated complements" },
 ]
 

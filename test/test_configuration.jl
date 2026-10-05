@@ -640,6 +640,9 @@ end
     end
 
     @testset "the file names that carry the identifier fit a file system" begin
+        # The longest name a run writes: one of those that repeat the run identifier.
+        longest_name(identifier) =
+            maximum(ncodeunits, FissionTemperatureRatio._identifier_file_names(identifier))
         # The longest the identifier gets: Gilbert-Cameron, a resonance energy, a ⟨TKE⟩(A)
         # dataset, exclusions, windows, a coverage floor with two decimals.
         body = replace(
@@ -667,7 +670,7 @@ end
                 "A nu nu_uncertainty\n126 2.0 0.1\n",
             )
             identifier = run_identifier(load_configuration(path; data_directory = directory))
-            @test ncodeunits("total_average_R_T_$(identifier).csv") <= 255
+            @test longest_name(identifier) <= 255
         end
         # And every shipped configuration, under either level density model.
         if DATA_AVAILABLE
@@ -684,7 +687,18 @@ end
                         ),
                     )
                     identifier = run_identifier(configuration)
-                    @test ncodeunits("total_average_R_T_$(identifier).csv") <= 255
+                    @test longest_name(identifier) <= 255
+                    # The tables and figures of a dataset are named by the stem of its input
+                    # file, and are shorter than any name that carries the identifier.
+                    stems = [
+                        first(splitext(file)) for
+                        file in readdir(configuration.multiplicity_directory) if
+                        endswith(file, ".dat")
+                    ]
+                    per_dataset = maximum(
+                        ncodeunits("r_nu_vs_A_H_segmented_$(stem).csv") for stem in stems
+                    )
+                    @test per_dataset < longest_name(identifier)
                 end
             end
         else
