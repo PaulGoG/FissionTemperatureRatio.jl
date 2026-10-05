@@ -103,6 +103,7 @@ package_version = "0.1.0"
             flagged = retrieval_record(joinpath(directory, "21981008_P.Geltenbort_1985.dat"))
             @test flagged.qualifiers == ["MXW", "DERIV"]
             @test "DERIV" in FLAGGED_QUALIFIERS
+            @test "preliminary" in FLAGGED_QUALIFIERS
             @test "MXW" ∉ FLAGGED_QUALIFIERS
 
             @test retrieval_record(joinpath(directory, "absent.dat")) === nothing

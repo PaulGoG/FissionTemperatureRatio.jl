@@ -26,6 +26,36 @@ struct SymmetryDiagnostics
 end
 
 """
+    LeaveOneOut
+
+The systematic trend refitted with one pooled dataset left out, or with the datasets of one
+experiment left out together. The covariance of the trend follows the errors of a dataset along
+the mass axis but, being built from deviations less their mean, holds no constant offset between
+datasets; how far `⟨R_T⟩`, the number of segments and the breakpoints move when one of them is
+removed is the measure of that.
+
+# Fields
+
+- `datasets`: the label of the pooled dataset left out, or the labels of the datasets of one
+  experiment, which are pooled as one and left out as one.
+- `outcome`: `"segmented curve"`, `"segmented curve, fitted without the required windows"`, or
+  `"no fit: <reason>"`.
+- `segments`, `breakpoints`: of the trend refitted without them; `0` and empty where there is no
+  fit.
+- `reduced_chi_squared`: `wrss/dof` of the refit; `NaN` where there is no fit.
+- `total_average_R_T`: `⟨R_T⟩` of the refit over each yield distribution averaged over, keyed by
+  the distribution's label; empty where there is no fit or no distribution.
+"""
+struct LeaveOneOut
+    datasets::Vector{String}
+    outcome::String
+    segments::Int
+    breakpoints::Vector{Int}
+    reduced_chi_squared::Float64
+    total_average_R_T::Dict{String,Float64}
+end
+
+"""
     ExtractionResult
 
 Everything a run produces, held together so that it can be inspected interactively as well as
@@ -68,6 +98,18 @@ written to disk by [`write_results`](@ref).
 - `segment_count_sensitivity`: for each yield distribution, `(segments, ⟨R_T⟩)` of the
   systematic trend at the selected number of segments and at one and two more, where the
   constraints admit them.
+- `deviation_correlogram`: [`deviation_correlogram`](@ref) of the pooled datasets about the
+  combined curve, lags one to [`CORRELOGRAM_LAGS`](@ref).
+- `autocorrelation`: the coefficient fitted to its first lags, with which the covariance of the
+  systematic trend was formed, [`deviation_autocorrelation`](@ref); `missing` where no lag could
+  be estimated.
+- `correlation_groups`: the labels of the pooled datasets that belong to one experiment, as
+  their retrieval records name one another, one list per experiment. Such datasets are combined
+  into one before they are pooled, so that the experiment counts once.
+- `leave_one_out`: one [`LeaveOneOut`](@ref) per pooled dataset or experiment, in the order read;
+  empty with fewer than two of them or where the run was asked to skip them.
+- `curve_flags`: for each dataset curve that resolves no minimum, by label, the reason
+  [`unresolved_minimum`](@ref) gives; such a curve stays in the manifest.
 """
 struct ExtractionResult
     configuration::Configuration
@@ -91,6 +133,11 @@ struct ExtractionResult
     dataset_outcomes::Dict{String,String}
     symmetry::SymmetryDiagnostics
     segment_count_sensitivity::Dict{String,Vector{Tuple{Int,Float64}}}
+    deviation_correlogram::Vector{Union{Missing,Float64}}
+    autocorrelation::Union{Missing,Float64}
+    correlation_groups::Vector{Vector{String}}
+    leave_one_out::Vector{LeaveOneOut}
+    curve_flags::Dict{String,String}
 end
 
 """
@@ -130,6 +177,9 @@ extension, with underscores replaced by spaces, which is how the measurements ar
 literature. Two files of one author and year — two subentries of one measurement — would share
 that label, and a label selects a curve downstream, so each of them carries its archive identifier
 in parentheses instead.
+
+Throws an `ArgumentError` where the directory does not exist, holds no data file, or holds two
+files of one EXFOR accession: one measurement would be read, fitted and pooled twice.
 """
 function read_multiplicity_directory(directory::AbstractString)
     isdir(directory) || throw(ArgumentError("multiplicity directory not found: $(directory)"))
@@ -211,6 +261,7 @@ end
 # The exclusion key of every data file of a directory, with its label, from the file names and the
 # retrieval record alone.
 function _directory_keys(directory::AbstractString)
+    isdir(directory) || throw(ArgumentError("directory not found: $(directory)"))
     files = _data_files(directory)
     _refuse_shared_accession(directory, files)
     return Dict(
@@ -270,45 +321,59 @@ function pooled_datasets(result::ExtractionResult)
 end
 
 """
+    deviation_correlogram(result) -> Vector{Union{Missing,Float64}}
+
+The correlogram of the pooled datasets' deviations from the combined curve of a run, lags one to
+[`CORRELOGRAM_LAGS`](@ref).
+"""
+deviation_correlogram(result::ExtractionResult) = result.deviation_correlogram
+
+"""
     deviation_autocorrelation(result) -> Union{Float64,Missing}
 
-The lag-one autocorrelation, along the mass axis, of the deviations of the pooled datasets from the
-combined curve: for each pooled dataset the deviation `r_ν(A_H) − r̄_ν(A_H)` less its mean over the
-dataset, correlated between consecutive mass numbers and summed over the datasets,
-`Σ d(A) d(A+1) / Σ d(A)²`. `missing` where no pooled dataset has two consecutive masses or the
-deviations vanish.
+The coefficient `ρ` with which the error of a pooled dataset is taken to be correlated along the
+mass axis, `ρ^|A − A′|` between two of its mass numbers: [`autocorrelation_decay`](@ref) of
+[`deviation_correlogram`](@ref) over the configured number of lags,
+`segments.autocorrelation_lags`.
 
-It measures what the uncertainty of the systematic trend leaves out. The covariance of the trend
-takes the combined points as independent, while a dataset departs from the others by an offset
-and a slow drift rather than point by point. With an autocorrelation `ρ` the variance of a smooth
-curve through the points is larger by about `(1 + ρ)/(1 − ρ)`, so the written uncertainty of the
-trend and of its total average is low by about the square root of that. The written uncertainty
-is not corrected for it.
+A dataset departs from the others by a slow drift along the mass axis rather than point by point;
+with independent points the uncertainty of a smooth curve through the combined values would be
+low by about `√((1 + ρ)/(1 − ρ))`. The covariance of the trend, and with it the uncertainty of
+every tabulated `R_T` of the trend and of its total average, is formed with the correlation
+matrix [`pooled_correlation`](@ref) builds from `ρ` and from the datasets combined at each mass
+number. The curve of a single dataset is fitted to its points as independent ones.
+
+`missing` where no lag could be estimated, the trend then being fitted with independent points.
 """
-function deviation_autocorrelation(result::ExtractionResult)
-    pooled = Set(pooled_datasets(result))
-    combined = Dict(zip(result.consensus_r_ν.A_H, result.consensus_r_ν.ratio))
-    lagged = 0.0
-    squared = 0.0
-    terms = 0
-    for curve in result.r_ν
-        curve.label in pooled || continue
-        masses = [A for A in curve.A_H if haskey(combined, A)]
-        length(masses) < 2 && continue
-        deviation = Dict(
-            A => r - combined[A] for
-            (A, r) in zip(curve.A_H, curve.ratio) if haskey(combined, A)
-        )
-        offset = mean(values(deviation))
-        for A in masses
-            terms += 1
-            squared += (deviation[A] - offset)^2
-            haskey(deviation, A + 1) &&
-                (lagged += (deviation[A] - offset) * (deviation[A + 1] - offset))
-        end
-    end
-    # Deviations at the level of rounding, as between identical datasets, say nothing.
-    return terms > 0 && sqrt(squared / terms) > 1e-12 ? lagged / squared : missing
+deviation_autocorrelation(result::ExtractionResult) = result.autocorrelation
+
+"""
+    leave_one_out_spread(result, mass_yield) -> Union{NamedTuple,Nothing}
+
+The spread of the systematic trend's `⟨R_T⟩` over the yield distribution labelled `mass_yield`
+across the [`LeaveOneOut`](@ref) refits of a run: `(; min, max, uncertainty)`, the least and the
+greatest of the values `θᵢ`, `i = 1, …, k`, of the refits that hold one, and the delete-one
+jackknife standard error over the pooled datasets,
+
+```
+σ = [(k − 1)/k Σᵢ (θᵢ − θ̄)²]^(1/2).
+```
+
+This is the uncertainty of the trend's `⟨R_T⟩` that comes from the datasets differing from one
+another by more than their errors along the mass axis, which the covariance of the trend does not
+contain. `nothing` where fewer than two refits hold a value.
+"""
+function leave_one_out_spread(result::ExtractionResult, mass_yield::AbstractString)
+    θ = Float64[
+        entry.total_average_R_T[mass_yield] for
+        entry in result.leave_one_out if haskey(entry.total_average_R_T, mass_yield)
+    ]
+    k = length(θ)
+    k < 2 && return nothing
+    θ̄ = mean(θ)
+    return (;
+        min = minimum(θ), max = maximum(θ), uncertainty = sqrt((k - 1) / k * sum(abs2, θ .- θ̄))
+    )
 end
 
 """
@@ -367,7 +432,7 @@ function pool(curves::Vector{RatioCurve}; label::AbstractString = "pooled")
 end
 
 """
-    run_pipeline(configuration) -> ExtractionResult
+    run_pipeline(configuration; leave_one_out = true) -> ExtractionResult
 
 Execute the extraction for one configuration.
 
@@ -390,11 +455,15 @@ segments to the temperature ratio a second time. The inversion is exact, whereas
 would discard the uncertainty of the first and impose a piecewise-linear shape on a quantity that
 is not piecewise-linear.
 
+`leave_one_out` refits the systematic trend once with each pooled dataset left out,
+[`LeaveOneOut`](@ref). The refits cost one trend fit per pooled dataset and can be skipped where
+only the curves are wanted; the result then carries none.
+
 Nothing is written. [`write_results`](@ref) writes the tables and the manifest of a result into a
 directory of the caller's choosing; `scripts/run.jl` names that directory by the run identifier
 and adds the provenance record and the figures.
 """
-function run_pipeline(configuration::Configuration)
+function run_pipeline(configuration::Configuration; leave_one_out::Bool = true)
     @info "reading input" configuration = configuration.source
     system = configuration.system
     settings = configuration.level_density
@@ -425,7 +494,18 @@ function run_pipeline(configuration::Configuration)
     excluded = _excluded_labels(
         configuration.excluded_datasets, datasets, "multiplicity.exclude"
     )
-    if configuration.yield_directory !== nothing
+    if configuration.yield_directory === nothing
+        # No directory, so the primary distribution alone is averaged over; an exclusion would be
+        # written to the run record without having been applied.
+        isempty(configuration.excluded_mass_yields) || throw(
+            ArgumentError(
+                "yield.exclude names \
+                 $(join(sort!(collect(keys(configuration.excluded_mass_yields))), ", ")) \
+                 without yield.subdirectory: the primary distribution alone is averaged over, \
+                 and an exclusion has nothing to act on",
+            ),
+        )
+    else
         held = _directory_keys(configuration.yield_directory)
         for key in sort!(collect(keys(configuration.excluded_mass_yields)))
             haskey(held, key) || throw(
@@ -513,6 +593,14 @@ function run_pipeline(configuration::Configuration)
         @info "fitted without the pin: no complete pair at the symmetric split" datasets =
             unpinned
     end
+    # A dataset curve that resolves no minimum is offered all the same, and flagged.
+    curve_flags = Dict{String,String}()
+    for c in segmented_curves
+        reason = unresolved_minimum(c.fit)
+        reason === nothing && continue
+        curve_flags[c.label] = reason
+        @info "dataset curve flagged" dataset = c.label reason
+    end
 
     # One curve following the systematic behaviour of the ratio: the minimum at the heavy magic
     # fragment placed rather than fitted, and the rise above the most probable fragmentation taken
@@ -533,35 +621,19 @@ function run_pipeline(configuration::Configuration)
             @info "interpolated dataset pooled at reduced weight" dataset = datasets[i].label weight =
                 w
     end
-    pooled, measured, σ_measurement = _consensus(r_ν[admitted], SYSTEMATIC_TREND_LABEL, weights)
-    # The trend is fitted to the combined values at the uncertainty of one measurement, with the
-    # measured fraction beside it, as a dataset is: the standard error of `pooled` carries the
-    # fraction already, and fitting to it would count the fraction twice.
-    combined = RatioCurve(pooled.A_H, pooled.ratio, σ_measurement, pooled.label)
-    windows = segments_settings.required_windows
-    trend = _segment(
-        combined,
-        relation,
-        segments_settings,
-        SYSTEMATIC_TREND_LABEL,
-        windows,
-        A₀;
-        measured = measured,
-    )
-    if !(trend isa ExtractedCurve) && !isempty(windows)
-        @warn "no segmented curve satisfies the required windows; the systematic-trend curve \
-               was fitted without them" windows reason = trend
-        windows = UnitRange{Int}[]
-        trend = _segment(
-            combined,
-            relation,
-            segments_settings,
-            SYSTEMATIC_TREND_LABEL,
-            windows,
-            A₀;
-            measured = measured,
-        )
+    # Datasets of one experiment are combined into one before they are pooled.
+    units = _pool_units(datasets, r_ν, admitted, weights)
+    for unit in units.members
+        length(unit) > 1 && @info "datasets of one experiment pooled as one" datasets = [
+            datasets[i].label for i in unit
+        ]
     end
+    fitted = _fit_trend(units.curves, units.weights, relation, segments_settings, A₀)
+    pooled = fitted.pooled
+    combined = fitted.combined
+    measured = fitted.measured
+    windows = fitted.windows
+    trend = fitted.trend
     trend isa ExtractedCurve && push!(segmented_curves, trend)
 
     isempty(segmented_curves) &&
@@ -678,6 +750,57 @@ function run_pipeline(configuration::Configuration)
         end
     end
 
+    # The trend refitted with each pooled dataset left out in turn, the datasets of one experiment
+    # together: how far ⟨R_T⟩, the number of segments and the breakpoints rest on one of them.
+    # Only the values of a refit are used, so it takes the points as independent.
+    refits = LeaveOneOut[]
+    if leave_one_out && trend isa ExtractedCurve && length(units.curves) ≥ 2
+        @info "leave-one-out refits of the systematic trend" refits = length(units.curves)
+        for j in eachindex(units.curves)
+            others = setdiff(eachindex(units.curves), j)
+            refitted = _fit_trend(
+                units.curves[others],
+                units.weights[others],
+                relation,
+                segments_settings,
+                A₀;
+                estimate_autocorrelation = false,
+                quiet = true,
+            )
+            left_out = [datasets[i].label for i in units.members[j]]
+            refit = refitted.trend
+            if !(refit isa ExtractedCurve)
+                push!(
+                    refits,
+                    LeaveOneOut(
+                        left_out, "no fit: $(refit)", 0, Int[], NaN, Dict{String,Float64}()
+                    ),
+                )
+                continue
+            end
+            outcome = if refitted.windows == segments_settings.required_windows
+                "segmented curve"
+            else
+                "segmented curve, fitted without the required windows"
+            end
+            averages = Dict{String,Float64}(
+                distribution.label => first(total_average(refit, distribution)) for
+                distribution in averaged_yields if _overlaps(refit.R_T, distribution)
+            )
+            push!(
+                refits,
+                LeaveOneOut(
+                    left_out,
+                    outcome,
+                    segments(refit.fit),
+                    copy(refit.fit.breakpoints),
+                    refit.fit.wrss / refit.fit.dof,
+                    averages,
+                ),
+            )
+        end
+    end
+
     return ExtractionResult(
         configuration,
         datasets,
@@ -700,6 +823,11 @@ function run_pipeline(configuration::Configuration)
         outcomes,
         symmetry,
         sensitivity,
+        fitted.correlogram,
+        fitted.autocorrelation,
+        [[datasets[i].label for i in unit] for unit in units.members if length(unit) > 1],
+        refits,
+        curve_flags,
     )
 end
 
@@ -789,7 +917,7 @@ end
 
 # Fit one ratio curve and carry it through to the temperature ratio. Returns the reason, as a
 # string, when the curve cannot support a fit at all, which happens for datasets covering only a
-# few mass pairs.
+# few mass pairs; `quiet` keeps that from the log where the caller reports it otherwise.
 #
 # `fit_segments` pins at the first abscissa it is given. r_ν = 1/2 is an identity at A₀/2 only, so
 # the pin is applied to a curve whose first complete pair is the symmetric split and to no other;
@@ -803,6 +931,8 @@ function _segment(
     A₀::Integer;
     measured::AbstractVector{<:Real} = ones(length(curve)),
     order::Union{Integer,Nothing} = nothing,
+    correlation::Union{Nothing,AbstractMatrix{<:Real}} = nothing,
+    quiet::Bool = false,
 )
     pinned = settings.pin_symmetric_split && !isempty(curve) && 2 * first(curve.A_H) == A₀
     fit = try
@@ -818,15 +948,128 @@ function _segment(
             pinned_value = pinned ? 0.5 : nothing,
             required_windows = windows,
             bounds = (0.0, 1.0),
+            correlation = correlation,
         )
     catch exception
         exception isa InsufficientDataError || rethrow()
         order === nothing &&
+            !quiet &&
             @warn "no segmented curve for this dataset" dataset = label reason =
                 exception.msg
         return exception.msg
     end
     return ExtractedCurve(label, fit, curve, relation...)
+end
+
+# What a trend is combined from: each admitted dataset, or, for the datasets of one experiment —
+# those whose retrieval records name one another under `correlated_with` — their combination,
+# formed as a pool is and entering the pool as one curve at the uncertainty of one measurement
+# with the measured fraction of each of its points. Runs or analyses on one apparatus share their
+# systematic errors; pooled side by side they would count as independent measurements in the
+# between-dataset variance and weigh as several. `members` holds, for each curve, the indices of
+# its datasets.
+function _pool_units(
+    datasets::Vector{Multiplicity},
+    r_ν::Vector{RatioCurve},
+    admitted::Vector{Int},
+    weights::Vector{Float64},
+)
+    accessions = [_dataset_accession(datasets[i].source) for i in admitted]
+    partners = [correlated_datasets(retrieval_record(datasets[i].source)) for i in admitted]
+    # The experiments: the connected components of the relation, by position in `admitted`.
+    experiment = collect(eachindex(admitted))
+    for a in eachindex(admitted), b in (a + 1):length(admitted)
+        named =
+            (!isempty(accessions[b]) && accessions[b] in partners[a]) ||
+            (!isempty(accessions[a]) && accessions[a] in partners[b])
+        named || continue
+        merged, kept = experiment[b], experiment[a]
+        replace!(experiment, merged => kept)
+    end
+
+    curves = RatioCurve[]
+    unit_weights = Union{Float64,Vector{Float64}}[]
+    members = Vector{Int}[]
+    for first_position in unique(experiment)
+        positions = findall(==(first_position), experiment)
+        push!(members, admitted[positions])
+        if length(positions) == 1
+            push!(curves, r_ν[admitted[first_position]])
+            push!(unit_weights, weights[first_position])
+            continue
+        end
+        label = join((datasets[i].label for i in admitted[positions]), " + ")
+        combined, measured, σ_measurement, _, _ = _consensus(
+            r_ν[admitted[positions]], label, weights[positions]
+        )
+        push!(curves, RatioCurve(combined.A_H, combined.ratio, σ_measurement, label))
+        push!(unit_weights, measured)
+    end
+    return (; curves, weights = unit_weights, members)
+end
+
+# The systematic trend of a pool of datasets: their combined curve, the correlogram of their
+# deviations from it, the autocorrelation fitted to that, and the segmented curve, fitted with the
+# required windows and, where no curve satisfies them, without. The trend is the curve, or the
+# reason there is none; `windows` are those it was fitted with, and `autocorrelation` is
+# `missing` where no lag of the correlogram could be estimated. Without `estimate_autocorrelation`
+# the points are taken as independent, which suffices where only the values of the fit are used.
+function _fit_trend(
+    curves::Vector{RatioCurve},
+    weights::AbstractVector,
+    relation::Tuple{RatioAveraging,LevelDensityModel,FragmentationDomain},
+    settings::SegmentSettings,
+    A₀::Integer;
+    estimate_autocorrelation::Bool = true,
+    quiet::Bool = false,
+)
+    pooled, measured, σ_measurement, members, shares = _consensus(
+        curves, SYSTEMATIC_TREND_LABEL, weights
+    )
+    # The trend is fitted to the combined values at the uncertainty of one measurement, with the
+    # measured fraction beside it, as a dataset is: the standard error of `pooled` carries the
+    # fraction already, and fitting to it would count the fraction twice.
+    combined = RatioCurve(pooled.A_H, pooled.ratio, σ_measurement, pooled.label)
+    # A curve that is itself a combination enters the correlogram with its mean factor.
+    factors = Float64[w isa Real ? w : mean(w) for w in weights]
+    correlogram = deviation_correlogram(curves, pooled; weights = factors)
+    lags = min(settings.autocorrelation_lags, length(correlogram))
+    estimated = estimate_autocorrelation && !all(ismissing, view(correlogram, 1:lags))
+    ρ = estimated ? autocorrelation_decay(correlogram; lags = lags) : 0.0
+    # The errors of the combined points: correlated along the mass axis within a dataset,
+    # independent between datasets.
+    correlation = ρ > 0 ? pooled_correlation(pooled.A_H, members, shares, ρ) : nothing
+    windows = settings.required_windows
+    trend = _segment(
+        combined,
+        relation,
+        settings,
+        SYSTEMATIC_TREND_LABEL,
+        windows,
+        A₀;
+        measured = measured,
+        correlation = correlation,
+        quiet = quiet,
+    )
+    if !(trend isa ExtractedCurve) && !isempty(windows)
+        quiet ||
+            @warn "no segmented curve satisfies the required windows; the systematic-trend \
+                   curve was fitted without them" windows reason = trend
+        windows = UnitRange{Int}[]
+        trend = _segment(
+            combined,
+            relation,
+            settings,
+            SYSTEMATIC_TREND_LABEL,
+            windows,
+            A₀;
+            measured = measured,
+            correlation = correlation,
+            quiet = quiet,
+        )
+    end
+    autocorrelation = estimated ? ρ : missing
+    return (; pooled, combined, measured, correlogram, autocorrelation, trend, windows)
 end
 
 # The identities that hold by construction at the symmetric split, checked rather than assumed.
@@ -948,8 +1191,8 @@ end
     write_results(result, directory) -> Dict{String,String}
 
 Write the tabulated ratios, the segment pivots, the segmented-curve summary, the total averages,
-the dataset diagnostics and the manifest of a run into `directory`, and return the paths written,
-keyed by content.
+the leave-one-out refits of the systematic trend, the dataset diagnostics and the manifest of a
+run into `directory`, and return the paths written, keyed by content.
 
 `directory` is created. One that already holds files is refused rather than written into, so a
 caller that wants a second run of one configuration beside the first moves the first aside;
@@ -964,7 +1207,10 @@ domain and, per segmented curve, the label, the kind, the two files and the acce
 curve, and nothing else. What else
 a run reports about each curve — segments, pin, span, pairs, coverage, reduced chi-squared, range
 mean — is one row per manifest curve, keyed by its label, in `segmented_curves_<run
-identifier>.csv`; the total averages are in `total_average_R_T_<run identifier>.csv`.
+identifier>.csv`; the total averages are in `total_average_R_T_<run identifier>.csv`, and the
+trend refitted with each pooled dataset left out, where the run made those refits, in
+`leave_one_out_<run identifier>.csv`. `dataset_diagnostics.csv` flags, with the reason, every
+dataset curve that resolves no minimum.
 
 The tables of a dataset are named by the stem of its input file, which for a retrieved dataset is
 `<accession>_<Author>_<year>`: `R_T_vs_A_H_segmented_<accession>_<Author>_<year>.csv`. The label
@@ -981,12 +1227,13 @@ function write_results(result::ExtractionResult, directory::AbstractString)
         )
     configuration = result.configuration
     identifier = run_identifier(configuration)
-    # The three files named by the identifier; a name longer than a file system admits would fail
+    # The files named by the identifier; a name longer than a file system admits would fail
     # halfway through writing the run, so it is refused before anything is written.
     for name in (
         "manifest_$(identifier).toml",
         "segmented_curves_$(identifier).csv",
         "total_average_R_T_$(identifier).csv",
+        "leave_one_out_$(identifier).csv",
     )
         ncodeunits(name) <= MAX_FILE_NAME_BYTES || throw(
             ArgumentError("the file name $(name) is $(ncodeunits(name)) bytes, beyond the \
@@ -1045,11 +1292,16 @@ function write_results(result::ExtractionResult, directory::AbstractString)
         configuration.excluded_datasets, result.datasets, "multiplicity.exclude"
     )
     pooled = Set(pooled_datasets(result))
+    # The other datasets of its experiment, for a dataset pooled as one with them.
+    partners = Dict(
+        label => filter(!=(label), group) for group in result.correlation_groups for
+        label in group
+    )
     autocorrelation = deviation_autocorrelation(result)
     rows = [
         (
             label = curve.label,
-            accession = accessions[curve.label],
+            accession = _text_field(accessions[curve.label]),
             kind = curve.kind,
             pooled = curve.kind == "systematic_trend" || curve.label in pooled,
             segments = segments(curve.fit),
@@ -1060,6 +1312,9 @@ function write_results(result::ExtractionResult, directory::AbstractString)
             measured_points = round(curve.fit.measured_points; sigdigits = digits),
             coverage = round(curve.coverage; sigdigits = digits),
             reduced_chi_squared = round(curve.fit.wrss / curve.fit.dof; sigdigits = digits),
+            chi_squared_over_expectation = round(
+                curve.fit.wrss / curve.fit.expected_wrss; sigdigits = digits
+            ),
             weights_imputed = curve.fit.weights_imputed,
             range_mean_R_T = round(
                 first(result.range_mean_R_T[curve.label]); sigdigits = digits
@@ -1067,8 +1322,7 @@ function write_results(result::ExtractionResult, directory::AbstractString)
             range_mean_R_T_uncertainty = round(
                 last(result.range_mean_R_T[curve.label]); sigdigits = digits
             ),
-            # The trend's uncertainty takes the combined points as independent; this is the
-            # autocorrelation of the datasets' deviations it leaves out.
+            # The autocorrelation the covariance of the trend was formed with.
             deviation_autocorrelation = if curve.kind == "systematic_trend"
                 if ismissing(autocorrelation)
                     missing
@@ -1088,7 +1342,8 @@ function write_results(result::ExtractionResult, directory::AbstractString)
     # distribution, which is how the literature tabulates it. The covariance-propagated
     # uncertainty first; the independent-points one, the published approximation, beside it; then
     # the fraction of the distribution's yield the curve takes in. For the systematic trend,
-    # ⟨R_T⟩ refitted with one and two segments more than selected.
+    # ⟨R_T⟩ refitted with one and two segments more than selected, and the jackknife uncertainty
+    # over the pooled datasets with the extremes of ⟨R_T⟩ with one of them left out.
     if !isempty(result.total_average_R_T)
         rows = NamedTuple{
             (
@@ -1097,6 +1352,9 @@ function write_results(result::ExtractionResult, directory::AbstractString)
                 :R_T,
                 :R_T_uncertainty,
                 :R_T_uncertainty_independent_points,
+                :R_T_uncertainty_leave_one_out,
+                :R_T_leave_one_out_min,
+                :R_T_leave_one_out_max,
                 :yield_fraction,
                 :R_T_one_more_segment,
                 :R_T_two_more_segments,
@@ -1107,6 +1365,9 @@ function write_results(result::ExtractionResult, directory::AbstractString)
                 Float64,
                 Float64,
                 Float64,
+                Union{Missing,Float64},
+                Union{Missing,Float64},
+                Union{Missing,Float64},
                 Float64,
                 Union{Missing,Float64},
                 Union{Missing,Float64},
@@ -1127,6 +1388,13 @@ function write_results(result::ExtractionResult, directory::AbstractString)
                     found = findfirst(t -> t[1] == segments(curve.fit) + extra, more)
                     found === nothing ? missing : round(more[found][2]; sigdigits = digits)
                 end
+                spread = if curve.kind == "systematic_trend"
+                    leave_one_out_spread(result, distribution.label)
+                else
+                    nothing
+                end
+                spread_field(field) =
+                    spread === nothing ? missing : round(spread[field]; sigdigits = digits)
                 push!(
                     rows,
                     (
@@ -1137,6 +1405,9 @@ function write_results(result::ExtractionResult, directory::AbstractString)
                         R_T_uncertainty_independent_points = round(
                             entry.uncertainty_independent_points; sigdigits = digits
                         ),
+                        R_T_uncertainty_leave_one_out = spread_field(:uncertainty),
+                        R_T_leave_one_out_min = spread_field(:min),
+                        R_T_leave_one_out_max = spread_field(:max),
                         yield_fraction = round(entry.yield_fraction; sigdigits = digits),
                         R_T_one_more_segment = alternative(1),
                         R_T_two_more_segments = alternative(2),
@@ -1151,13 +1422,81 @@ function write_results(result::ExtractionResult, directory::AbstractString)
         end
     end
 
+    # The systematic trend refitted with each pooled dataset left out: one row per dataset and
+    # yield distribution it has ⟨R_T⟩ over, a single row without a distribution where the refit
+    # has none, so that every refit, a failed one included, is on record.
+    if !isempty(result.leave_one_out)
+        rows = NamedTuple{
+            (
+                :dataset_left_out,
+                :accession,
+                :mass_yield,
+                :R_T,
+                :segments,
+                :breakpoints,
+                :reduced_chi_squared,
+                :outcome,
+            ),
+            Tuple{
+                String,
+                Union{Missing,String},
+                Union{Missing,String},
+                Union{Missing,Float64},
+                Union{Missing,Int},
+                Union{Missing,String},
+                Union{Missing,Float64},
+                String,
+            },
+        }[]
+        for entry in result.leave_one_out
+            common = (
+                dataset_left_out = join(entry.datasets, " + "),
+                accession = _text_field(
+                    join(
+                        filter(!isempty, [get(accessions, l, "") for l in entry.datasets]), " "
+                    ),
+                ),
+            )
+            refit = (
+                segments = entry.segments == 0 ? missing : entry.segments,
+                breakpoints = _text_field(join(entry.breakpoints, " ")),
+                reduced_chi_squared = if isnan(entry.reduced_chi_squared)
+                    missing
+                else
+                    round(entry.reduced_chi_squared; sigdigits = digits)
+                end,
+                outcome = entry.outcome,
+            )
+            if isempty(entry.total_average_R_T)
+                push!(rows, (; common..., mass_yield = missing, R_T = missing, refit...))
+                continue
+            end
+            for distribution in result.mass_yields
+                value = get(entry.total_average_R_T, distribution.label, nothing)
+                value === nothing && continue
+                push!(
+                    rows,
+                    (;
+                        common...,
+                        mass_yield = distribution.label,
+                        R_T = round(value; sigdigits = digits),
+                        refit...,
+                    ),
+                )
+            end
+        end
+        path = joinpath(directory, "leave_one_out_$(identifier).csv")
+        CSV.write(path, DataFrame(rows))
+        written["leave_one_out"] = path
+    end
+
     # Per-dataset diagnostics, written for every dataset whether or not it was pooled or fitted,
     # with the reaction-code qualifiers the retrieval recorded for it.
     if !isempty(result.dataset_diagnostics)
         rows = [
             (
                 dataset = d.label,
-                accession = accessions[d.label],
+                accession = _text_field(accessions[d.label]),
                 points = d.points,
                 pairs = d.pairs,
                 first_pair = d.first_pair,
@@ -1168,7 +1507,7 @@ function write_results(result::ExtractionResult, directory::AbstractString)
                 complement_sum = d.complement_sum,
                 complement_spread = d.complement_spread,
                 without_uncertainties = d.without_uncertainties,
-                qualifiers = join(get(result.qualifiers, d.label, String[]), " "),
+                qualifiers = _text_field(join(get(result.qualifiers, d.label, String[]), " ")),
                 pooling_weight = round(
                     pooling_weight(retrieval_record(result.datasets[i].source));
                     sigdigits = digits,
@@ -1177,8 +1516,11 @@ function write_results(result::ExtractionResult, directory::AbstractString)
                 pair_sum_deviation = _scale_field(result.datasets[i], :deviation, digits),
                 scale_consistent = _scale_field(result.datasets[i], :consistent, digits),
                 pooled = d.label in pooled,
-                exclusion_reason = get(excluded, d.label, ""),
-                segmented_curve = get(result.dataset_outcomes, d.label, ""),
+                pooled_with = _text_field(join(get(partners, d.label, String[]), " + ")),
+                exclusion_reason = _text_field(get(excluded, d.label, "")),
+                segmented_curve = _text_field(get(result.dataset_outcomes, d.label, "")),
+                curve_flagged = haskey(result.curve_flags, d.label),
+                curve_flag_reason = _text_field(get(result.curve_flags, d.label, "")),
             ) for (i, d) in enumerate(result.dataset_diagnostics)
         ]
         path = joinpath(directory, "dataset_diagnostics.csv")
@@ -1195,3 +1537,7 @@ end
 const MAX_FILE_NAME_BYTES = 255
 
 _file_token(label::AbstractString) = replace(strip(label), r"[^A-Za-z0-9.\-]+" => "_")
+
+# A text field of a table: one that holds nothing is written as an empty field, as an absent
+# number is, and not as a quoted empty string.
+_text_field(text::AbstractString) = isempty(text) ? missing : String(text)

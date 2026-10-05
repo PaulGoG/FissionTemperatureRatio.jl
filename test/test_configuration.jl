@@ -382,17 +382,21 @@ end
             configuration = load_configuration(path; data_directory = directory)
             tokens = run_parameters(configuration)
             # The Gilbert-Cameron keys change a Gilbert-Cameron result only, the yield source
-            # is a directory or one file, and the yield coverage floor needs a yield.
+            # is a directory or one file, the yield coverage floor needs a yield, and the number
+            # of correlogram lags is a token only away from its default.
             gilbert_cameron = Set(["sc", "def"])
             @test Set(keys(tokens)) == setdiff(
-                Set(values(RUN_IDENTIFIER_ABBREVIATIONS)), gilbert_cameron, Set(["Yf", "Ycov"])
+                Set(values(RUN_IDENTIFIER_ABBREVIATIONS)),
+                gilbert_cameron,
+                Set(["Yf", "Ycov", "lags"]),
             )
             other = write_beside(
                 path, replace(MINIMAL_CONFIGURATION, "model = \"BSFG\"" => "model = \"GC\"")
             )
             gc_tokens = run_parameters(load_configuration(other; data_directory = directory))
-            @test Set(keys(gc_tokens)) ==
-                setdiff(Set(values(RUN_IDENTIFIER_ABBREVIATIONS)), Set(["Yf", "Ycov"]))
+            @test Set(keys(gc_tokens)) == setdiff(
+                Set(values(RUN_IDENTIFIER_ABBREVIATIONS)), Set(["Yf", "Ycov", "lags"])
+            )
             @test gc_tokens["sc"] == "gc1965"
             @test allunique(values(RUN_IDENTIFIER_ABBREVIATIONS))
             identifier = run_identifier(configuration)
@@ -401,6 +405,22 @@ end
             end
             # The system names the directory the identifier sits in, and is not a token.
             @test !occursin("Cf252", identifier)
+
+            # The number of correlogram lags changes the uncertainty of the trend: a token, and
+            # another run, where it is not the default.
+            other = write_beside(
+                path,
+                replace(
+                    MINIMAL_CONFIGURATION,
+                    "max_segments = 3" => "max_segments = 3\nautocorrelation_lags = 2",
+                ),
+            )
+            lagged = load_configuration(other; data_directory = directory)
+            @test lagged.segments.autocorrelation_lags == 2
+            @test configuration.segments.autocorrelation_lags == 4
+            @test run_parameters(lagged)["lags"] == 2
+            @test run_identifier(lagged) == "$(identifier)_lags=2" ||
+                occursin("_lags=2_", run_identifier(lagged))
 
             # A list enters as a content hash, so two window sets are two runs.
             other = joinpath(directory, "windows.toml")
@@ -443,18 +463,24 @@ end
             @test configuration.yield_directory === nothing
             tokens = run_parameters(configuration)
             @test haskey(tokens, "Yf") && !haskey(tokens, "Y")
-            # An exclusion changes nothing where no directory is read, and carries no token.
+            # An exclusion has nothing to act on where no directory is read, and is refused.
             excluding = write_beside(
                 path,
                 MINIMAL_CONFIGURATION *
                 "\n[yield]\nmass_yield_file = \"Y_vs_A/1_A.Author_2000.dat\"\nexclude = [{ dataset = \"B. Other 2001\", reason = \"partial\" }]\n",
             )
-            # It is read for its form, said to have no effect, and not recorded.
-            excluding = @test_logs (:warn, r"no effect") match_mode = :any load_configuration(
+            @test_throws "yield.exclude needs yield.subdirectory" load_configuration(
                 excluding; data_directory = directory
             )
-            @test isempty(excluding.excluded_mass_yields)
-            @test run_parameters(excluding) == tokens
+            # A malformed entry is reported for its form first.
+            malformed = write_beside(
+                path,
+                MINIMAL_CONFIGURATION *
+                "\n[yield]\nmass_yield_file = \"Y_vs_A/1_A.Author_2000.dat\"\nexclude = [{ dataset = \"B. Other 2001\" }]\n",
+            )
+            @test_throws "must be a table with a string `reason`" load_configuration(
+                malformed; data_directory = directory
+            )
             # A directory is averaged over with the primary as its coverage reference.
             both = write_beside(
                 path,
@@ -501,6 +527,26 @@ end
             )
             @test_throws "two files of the accession 41739002" read_multiplicity_directory(
                 joinpath(directory, "datasets")
+            )
+        end
+        # A directory of yield distributions alike: one distribution would be averaged over
+        # twice.
+        with_configuration(MINIMAL_CONFIGURATION) do path, directory
+            mkpath(joinpath(directory, "Y_vs_A"))
+            write(joinpath(directory, "Y_vs_A", "1_A.Author_2000.dat"), "A Y\n130 5.0\n")
+            for name in ("41739004_A.Set_1999.dat", "41739004_A.Sett_1999.dat")
+                write(joinpath(directory, "Y_vs_A", name), "A Y Y_uncertainty\n134 2.0 0.1\n")
+            end
+            @test_throws "two files of the accession 41739004" read_mass_yield_directory(
+                joinpath(directory, "Y_vs_A")
+            )
+            with_yields = write_beside(
+                path,
+                MINIMAL_CONFIGURATION *
+                "\n[yield]\nsubdirectory = \"Y_vs_A\"\nmass_yield_file = \"Y_vs_A/1_A.Author_2000.dat\"\nexclude = [{ accession = \"41739004\", reason = \"x\" }]\n",
+            )
+            @test_throws "two files of the accession 41739004" load_configuration(
+                with_yields; data_directory = directory
             )
         end
     end
@@ -705,13 +751,13 @@ end
             )
         end
 
-        # The label still names a dataset that has an accession, deprecated, under its accession.
+        # A dataset that has an accession is excluded by it; its label is refused, with the
+        # accession to write.
         with_configuration(excluding(by_label)) do path, directory
             write_dataset(directory, "41739002_A.Set_1999.dat")
-            configuration = @test_logs (:warn, r"deprecated") match_mode = :any begin
-                load_configuration(path; data_directory = directory)
-            end
-            @test configuration.excluded_datasets == Dict("41739002" => "too sparse")
+            @test_throws "accession = \"41739002\"" load_configuration(
+                path; data_directory = directory
+            )
         end
 
         # A tabulation that carries no accession is named by its label.

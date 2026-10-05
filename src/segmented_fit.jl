@@ -27,8 +27,10 @@ A continuous piecewise-linear fit with breakpoints selected from the data.
 - `breakpoints`: interior breakpoints `ψ`, ascending; `length(breakpoints) + 1` segments.
 - `coefficients`: `[β₀,] β₁, γ₁, …` in the truncated-power basis; `β₀` is absent when the fit is
   pinned.
-- `covariance`: covariance of `coefficients`, scaled by `max(1, χ²/dof)` where the data quote
-  uncertainties and by `χ²/dof` alone where none does; see [`fit_segments`](@ref).
+- `covariance`: covariance of `coefficients`: `(XᵀWX)⁻¹` for independent points and the sandwich
+  `(XᵀWX)⁻¹ XᵀW Σ W X (XᵀWX)⁻¹` with `Σ = W^(-1/2) R W^(-1/2)` for points whose errors have the
+  correlation matrix `R`, scaled by `max(1, wrss/expected_wrss)` where the data quote
+  uncertainties and by `wrss/expected_wrss` alone where none does; see [`fit_segments`](@ref).
 - `pinned_value`: the value the fit was pinned to at `x₀`, or `nothing`.
 - `points`, `measured_points`: the points fitted, and how many measurements they amount to,
   `Σ f` over the measured fractions `f` of the points; equal unless the data were interpolated.
@@ -40,6 +42,12 @@ A continuous piecewise-linear fit with breakpoints selected from the data.
   so that the chosen order can be audited.
 - `weights_imputed`: number of points that carried no uncertainty and were given the median
   weight.
+- `correlated`: whether the covariance was formed with a correlation matrix of the points'
+  errors, or with the points taken as independent.
+- `expected_wrss`: the expectation of `wrss` the covariance scale refers to. `dof` for
+  independent points; for correlated ones `dof · tr(PR)/tr(P)`, with `P` the residual projector
+  of the weighted fit, smaller than `dof` for positively correlated errors because a smooth fit
+  absorbs part of them.
 """
 struct SegmentedFit
     x₀::Int
@@ -55,6 +63,8 @@ struct SegmentedFit
     bic::Float64
     selection::Vector{Tuple{Int,Float64}}
     weights_imputed::Int
+    correlated::Bool
+    expected_wrss::Float64
 end
 
 """
@@ -149,15 +159,59 @@ function _solve(X::Matrix{Float64}, y::Vector{Float64}, w::Vector{Float64})
     return (β, wrss, gram)
 end
 
-# The factor the coefficient covariance (XᵀWX)⁻¹ is scaled by. Where the data quote
-# uncertainties the weights are inverse variances and wrss/dof is a reduced chi-squared: the
-# covariance is inflated where the residuals exceed what the quoted uncertainties predict and left
-# alone where they do not, since shrinking it below the quoted scale would claim a precision the
-# data do not carry. Where no point quotes an uncertainty the weights are uniform and carry no
-# scale at all; the noise is then estimated from the residuals, which is ordinary least squares.
-function _covariance_scale(wrss::Float64, dof::Real, imputed::Int, n::Int)
-    imputed == n && return wrss / dof
-    return max(1.0, wrss / dof)
+# The factor the coefficient covariance is scaled by: wrss over its expectation, which is the
+# degrees of freedom for independent points. Where the data quote uncertainties the weights are
+# inverse variances and the ratio is a reduced chi-squared: the covariance is inflated where the
+# residuals exceed what the quoted uncertainties predict and left alone where they do not, since
+# shrinking it below the quoted scale would claim a precision the data do not carry. Where no
+# point quotes an uncertainty the weights are uniform and carry no scale at all; the noise is then
+# estimated from the residuals, which is ordinary least squares.
+function _covariance_scale(wrss::Float64, expected::Real, imputed::Int, n::Int)
+    imputed == n && return wrss / expected
+    return max(1.0, wrss / expected)
+end
+
+# A correlation matrix of the errors of n points, checked for what the covariance relies on: its
+# size, its symmetry, a unit diagonal and entries within [-1, 1].
+function _correlation_matrix(correlation::AbstractMatrix{<:Real}, n::Int)
+    size(correlation) == (n, n) || throw(
+        DimensionMismatch(
+            "the correlation matrix of $(n) points is $(n) × $(n), got $(size(correlation))"
+        ),
+    )
+    R = Matrix{Float64}(correlation)
+    tolerance = 1e-8
+    all(abs(R[m, m] - 1) ≤ tolerance for m in 1:n) ||
+        throw(ArgumentError("the diagonal of a correlation matrix is one"))
+    isapprox(R, R'; atol = tolerance) ||
+        throw(ArgumentError("a correlation matrix is symmetric"))
+    all(abs(r) ≤ 1 + tolerance for r in R) ||
+        throw(ArgumentError("the entries of a correlation matrix lie in [-1, 1]"))
+    return R
+end
+
+# The covariance of the coefficients before scaling, and the expectation of wrss the scale refers
+# to. For independent points these are (XᵀWX)⁻¹ and the degrees of freedom. With the weights W and
+# errors of covariance Σ = W^(-1/2) R W^(-1/2), the weighted least-squares estimate keeps its
+# value and its covariance is the sandwich (XᵀWX)⁻¹ XᵀWΣWX (XᵀWX)⁻¹. What a fit to such errors
+# leaves of the residual sum of squares is tr(MᵀWMΣ) = tr(PR), with M = I − X(XᵀWX)⁻¹XᵀW and P
+# the residual projector of the weighted design; it is referred to the fit's own degrees of
+# freedom, which count measurements and breakpoints, through the ratio tr(PR)/tr(P), so that the
+# two coincide for R = I.
+function _coefficient_covariance(
+    xs::Vector{Int}, w::Vector{Float64}, best, pinned::Bool, R::Union{Nothing,Matrix{Float64}}
+)
+    R === nothing && return (Symmetric(inv(best.gram)), best.dof)
+    X = _design_matrix(xs, first(xs), best.ψ, pinned)
+    Xw = sqrt.(w) .* X
+    n = length(xs)
+    p = size(X, 2)
+    G⁻¹ = inv(best.gram)
+    B = Xw' * R * Xw
+    C = G⁻¹ * B * G⁻¹
+    # R has unit diagonal, so tr(P) = n − p and tr(PR) = n − tr(G⁻¹B).
+    retained = (n - tr(G⁻¹ * B)) / (n - p)
+    return (Symmetric((C + C') / 2), best.dof * retained)
 end
 
 # A continuous piecewise-linear function is monotone on each segment, so its extrema over the
@@ -205,7 +259,8 @@ end
 #
 # The first segment runs from the first abscissa to the first breakpoint and the last from the
 # last breakpoint to the last abscissa, so every segment has an extent to test, not only the
-# interior ones.
+# interior ones. A model without breakpoints places none in a window, so it is admissible only
+# where no window is required.
 function _each_breakpoint_set(
     f::Function,
     x::Vector{Int},
@@ -215,7 +270,10 @@ function _each_breakpoint_set(
     min_span::Int,
     windows::Vector{UnitRange{Int}},
 )
-    count == 0 && return (last(x) - first(x) ≥ min_span ? f(Int[]) : nothing)
+    if count == 0
+        isempty(windows) && last(x) - first(x) ≥ min_span && f(Int[])
+        return nothing
+    end
     chosen = Vector{Int}(undef, count)
 
     function recurse(depth::Int, start::Int)
@@ -271,10 +329,14 @@ search, returns the global optimum of the criterion. The number of segments is c
 Bayesian information criterion, which prices each additional segment and each additional
 breakpoint; the criterion for every order examined is retained in the result.
 
-The coefficient covariance is `(XᵀWX)⁻¹` scaled by `max(1, χ²/dof)` where the data quote
-uncertainties — inflated where the residuals exceed what the quoted uncertainties predict, never
-shrunk below the quoted scale — and by `χ²/dof` alone where no point quotes one, since uniform
-weights carry no scale and the noise must then be estimated from the residuals.
+The coefficient covariance is `(XᵀWX)⁻¹` for independent points and, for points whose errors
+have the correlation matrix `R` given as `correlation`, the sandwich
+`(XᵀWX)⁻¹ XᵀW Σ W X (XᵀWX)⁻¹` with `Σ = W^(-1/2) R W^(-1/2)`. It is scaled by `max(1, χ²/E[χ²])`
+where the data quote uncertainties — inflated where the residuals exceed what the quoted
+uncertainties predict, never shrunk below the quoted scale — and by `χ²/E[χ²]` alone where no
+point quotes one, since uniform weights carry no scale and the noise must then be estimated from
+the residuals. The expectation `E[χ²]` is `dof` for independent points and `dof · tr(PR)/tr(P)`
+for correlated ones, `P` being the residual projector of the weighted fit.
 
 # Arguments
 
@@ -303,6 +365,12 @@ weights carry no scale and the noise must then be estimated from the residuals.
   they are and divides their covariance by it. Without this, correlated interpolated points
   would buy extra segments and a precision their measurements do not carry. `σ` must not carry
   the fraction already, or it enters twice.
+- `correlation`: the correlation matrix `R` of the errors of the points, in their order,
+  symmetric with a unit diagonal; `nothing`, the default, takes the points as independent. It
+  leaves the coefficients, the breakpoints and the selected order as they are, and changes the
+  covariance to the sandwich form and the reference of its scale to the expectation of `wrss`
+  under `R`. An AR(1) error along the abscissa has `R[m, n] = ρ^|xₘ − xₙ|`;
+  [`pooled_correlation`](@ref) gives the matrix of a curve combined from several datasets.
 - `bounds`: open interval the fitted function must remain within over the whole range. For a
   ratio of the form `ν_H/(ν_L + ν_H)` the physical range is `(0, 1)`, and a fit leaving it would
   make the temperature ratio relation undefined; candidates that do are rejected outright rather
@@ -360,6 +428,7 @@ function fit_segments(
     required_windows::Vector{UnitRange{Int}} = UnitRange{Int}[],
     bounds::Union{Tuple{Real,Real},Nothing} = nothing,
     measured::Union{AbstractVector{<:Real},Nothing} = nothing,
+    correlation::Union{Nothing,AbstractMatrix{<:Real}} = nothing,
 )
     length(x) == length(y) == length(σ) ||
         throw(DimensionMismatch("x, y and σ must have equal lengths, got \
@@ -378,6 +447,7 @@ function fit_segments(
     min_segment_span ≥ 1 ||
         throw(ArgumentError("min_segment_span must be at least 1, got $(min_segment_span)"))
     issorted(x) || throw(ArgumentError("x must be sorted in ascending order"))
+    R = correlation === nothing ? nothing : _correlation_matrix(correlation, length(x))
 
     n = length(x)
     fraction = measured === nothing ? ones(n) : collect(Float64, measured)
@@ -440,14 +510,8 @@ function fit_segments(
             _within_bounds(bounds, xs, ψ, β, pinned, pinned_value) || return nothing
             criterion = _bic(wrss, n_measured, parameters)
             if best_for_order === nothing || criterion < best_for_order.bic
-                covariance = Symmetric(inv(gram)) * _covariance_scale(wrss, dof, imputed, n)
                 best_for_order = (
-                    ψ = ψ,
-                    β = β,
-                    covariance = Matrix(covariance),
-                    wrss = wrss,
-                    dof = dof,
-                    bic = criterion,
+                    ψ = ψ, β = β, gram = gram, wrss = wrss, dof = dof, bic = criterion
                 )
             end
             return nothing
@@ -470,12 +534,15 @@ function fit_segments(
         ),
     )
 
+    Σ_β, expected = _coefficient_covariance(xs, w, best, pinned, R)
+    scale = _covariance_scale(best.wrss, expected, imputed, n)
+
     return SegmentedFit(
         first(xs),
         last(xs),
         best.ψ,
         best.β,
-        best.covariance,
+        Matrix(Σ_β * scale),
         pinned ? Float64(pinned_value) : nothing,
         n,
         n_measured,
@@ -484,6 +551,8 @@ function fit_segments(
         best.bic,
         selection,
         imputed,
+        R !== nothing,
+        expected,
     )
 end
 
@@ -580,4 +649,30 @@ form written to the segment output file.
 function pivots(fit::SegmentedFit)
     abscissae = [fit.x₀; fit.breakpoints; fit.x_max]
     return [(x, first(evaluate(fit, Float64(x)))) for x in abscissae]
+end
+
+"""
+    unresolved_minimum(fit) -> Union{String,Nothing}
+
+Why a segmented multiplicity ratio resolves no minimum, or `nothing` where it resolves one.
+
+The multiplicity ratio falls from the symmetric split to a minimum at the heavy magic fragment and
+rises beyond it. A segmented curve whose pivots show no such turn — one segment, or a range that
+begins at or above the minimum — tabulates a temperature ratio without it, and the reason is
+returned: a curve rising from the first mass number of its range, one falling to the last, or
+neither. The test is of the shape of the fitted curve, an interior pivot below both of its
+neighbours, and not of its `χ²`, which has no common scale across datasets.
+"""
+function unresolved_minimum(fit::SegmentedFit)
+    points = pivots(fit)
+    values = last.(points)
+    m = length(values)
+    any(j -> values[j] < values[j - 1] && values[j] < values[j + 1], 2:(m - 1)) &&
+        return nothing
+    lowest = argmin(values)
+    lowest == 1 && return "no interior minimum: the segmented ratio rises from A_H = \
+                           $(fit.x₀), the first mass number of its range"
+    lowest == m && return "no interior minimum: the segmented ratio falls to A_H = \
+                           $(fit.x_max), the last mass number of its range"
+    return "no interior minimum between A_H = $(fit.x₀) and $(fit.x_max)"
 end

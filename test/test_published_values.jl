@@ -12,19 +12,24 @@
 # table names. The 239-Pu rows are compared over Nishio 1995, a yield distribution inferred by
 # agreement, since the table's caption names none.
 #
-# Both need the measured input, so both are reported as skipped on a bare clone. A row is skipped, not failed,
-# when the local data holds no dataset of that label: what the archive returns for a query changes
-# over time.
+# Both need the measured input, so both are reported as skipped on a bare clone. Where the input
+# of a system is held, every row of that system must be found: a dataset or a distribution the
+# archive no longer returns takes its row out of `fixtures.jl` by an edit that states why, not by
+# a skip.
 
 function published_rows_hold(results; widened = Dict())
     for (system, dataset, distribution, published, tolerance) in PUBLISHED_TOTAL_AVERAGES
-        tolerance = get(widened, (system, dataset, distribution), tolerance)
-        averages = haskey(results, system) ? results[system].total_average_R_T : Dict()
-        if haskey(averages, dataset) && haskey(averages[dataset], distribution)
-            @test averages[dataset][distribution].value ≈ published rtol = tolerance
-        else
+        # The input of this system is not held: nothing to compare.
+        if !haskey(results, system)
             @test_skip false
+            continue
         end
+        tolerance = get(widened, (system, dataset, distribution), tolerance)
+        averages = results[system].total_average_R_T
+        held = haskey(averages, dataset) && haskey(averages[dataset], distribution)
+        held || @error "no total average for a row of Table 1" system dataset distribution
+        @test held
+        held && @test averages[dataset][distribution].value ≈ published rtol = tolerance
     end
 end
 
@@ -49,7 +54,7 @@ DATA_AVAILABLE && @testset "published total averages" begin
                     configuration = variant_configuration(
                         system, directory; set = settings.set, remove = settings.remove
                     )
-                    results[system] = run_pipeline(configuration)
+                    results[system] = run_pipeline(configuration; leave_one_out = false)
                     @test manifest_domain(results[system]).ratio_averaging == "ratio_of_means"
                 end
             end
@@ -68,7 +73,10 @@ DATA_AVAILABLE && @testset "published total averages" begin
                     directory;
                     set = Dict("yield" => Dict("subdirectory" => "$(system)/Y_vs_A")),
                 )
-                results[system] = run_pipeline(configuration)
+                # The refits of the trend with a dataset left out, for the smallest pool only.
+                results[system] = run_pipeline(
+                    configuration; leave_one_out = system == "U233_nth"
+                )
                 domain = manifest_domain(results[system])
                 @test domain.ratio_averaging == "charge_resolved"
                 @test domain.excitation_weighted
@@ -103,6 +111,45 @@ DATA_AVAILABLE && @testset "published total averages" begin
             excluded = run_metadata(run)["configuration"]["excluded_datasets"]
             @test occursin(accession, excluded[accession])
         end
+
+        # The covariance of every trend carries the autocorrelation of the pooled datasets'
+        # deviations, and its scale refers to what a fit to such errors leaves in the residuals.
+        for run in values(results)
+            trend = systematic_trend(run)
+            @test 0.6 < deviation_autocorrelation(run) < 0.95
+            @test trend.fit.correlated
+            @test trend.fit.expected_wrss < trend.fit.dof
+            @test all(
+                !c.fit.correlated && c.fit.expected_wrss == c.fit.dof for
+                c in run.segmented_curves if c.kind == "dataset"
+            )
+        end
+
+        # A dataset curve that resolves no minimum is flagged and stays offered; a large χ² under
+        # small quoted uncertainties flags nothing.
+        if haskey(results, "Pu239_nth")
+            run = results["Pu239_nth"]
+            @test occursin("no interior minimum", run.curve_flags["C. Tsuchiya 2000"])
+            @test any(c -> c.label == "C. Tsuchiya 2000", run.segmented_curves)
+        end
+        if haskey(results, "Cf252_sf")
+            flags = results["Cf252_sf"].curve_flags
+            @test !haskey(flags, "A. Goeoek 2014")
+            @test !haskey(flags, "C. Budtz-jorgensen 1988")
+        end
+
+        # With one pooled dataset left out in turn: one refit per pooled dataset, and the
+        # jackknife uncertainty of the trend's ⟨R_T⟩ over the primary distribution.
+        if haskey(results, "U233_nth")
+            run = results["U233_nth"]
+            @test reduce(vcat, [entry.datasets for entry in run.leave_one_out]) == pooled_datasets(run)
+            @test all(entry.outcome == "segmented curve" for entry in run.leave_one_out)
+            spread = leave_one_out_spread(run, "V.M. Surin 1972")
+            trend = run.total_average_R_T[SYSTEMATIC_TREND_LABEL]["V.M. Surin 1972"]
+            @test spread.min < trend.value < spread.max
+            @test spread.uncertainty > 0
+        end
+        haskey(results, "Cf252_sf") && @test isempty(results["Cf252_sf"].leave_one_out)
 
         # Straede's 235-U yields are spectrum-averaged: used, and flagged. Only a distribution the
         # run read is reported, whatever else the retrieval record lists.

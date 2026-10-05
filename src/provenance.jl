@@ -39,6 +39,7 @@ const RUN_IDENTIFIER_ABBREVIATIONS = Dict(
     "segments.required_windows" => "win",
     "segments.windows_apply_to_datasets" => "wdat",
     "segments.min_pair_coverage" => "cov",
+    "segments.autocorrelation_lags" => "lags",
 )
 
 # Keys that change the result of a Gilbert-Cameron run only; a back-shifted Fermi gas run carries
@@ -80,8 +81,11 @@ shell-correction table other than the shipped one, the `⟨TKE⟩(A)` dataset, t
 enters as a content-hash token and is written in full into the run metadata, with the reason; a named source
 enters as its name, the shipped Table III as `gc1965`. The Gilbert-Cameron branch and shell
 corrections change a Gilbert-Cameron result only, and are tokens of such a run alone. The yield
-coverage floor is a token of a run that names a yield distribution, and of no other. The system is
-not a token: it names the directory the identifier sits in. `significant_digits` changes how a
+coverage floor is a token of a run that names a yield distribution, and of no other. The number
+of correlogram lags changes the uncertainty of the systematic trend and none of its values; it is
+a token only where it departs from its default of four, since one more token on every run would
+carry the file names of a Gilbert-Cameron run beyond the 255 bytes a file system admits. The
+system is not a token: it names the directory the identifier sits in. `significant_digits` changes how a
 number is rendered, not the number, and is left out.
 
 The identifier is kept short enough that the file names that carry it stay within the 255 bytes a
@@ -126,6 +130,7 @@ function run_parameters(configuration::Configuration)
         "segments.required_windows" => _hash_token(_canonical(segments.required_windows)),
         "segments.windows_apply_to_datasets" => segments.windows_apply_to_datasets,
         "segments.min_pair_coverage" => segments.min_pair_coverage,
+        "segments.autocorrelation_lags" => segments.autocorrelation_lags,
     ]
     parameters = Dict{String,Any}()
     for (key, value) in entries
@@ -141,6 +146,9 @@ function run_parameters(configuration::Configuration)
             (directory || configuration.yield_file === nothing) &&
             continue
         key == "yield.min_yield_coverage" && configuration.yield_file === nothing && continue
+        key == "segments.autocorrelation_lags" &&
+            value == DEFAULT_AUTOCORRELATION_LAGS &&
+            continue
         haskey(RUN_IDENTIFIER_ABBREVIATIONS, key) || throw(
             ArgumentError("no entry in RUN_IDENTIFIER_ABBREVIATIONS for the key $(repr(key))"),
         )
@@ -264,7 +272,9 @@ fragmentation domain as the manifest records it together with the charge model t
 the input files and the retrievals that produced them — the parser revision and the record of the
 `⟨TKE⟩(A)` dataset in particular, with the heavy masses it was interpolated or extrapolated to —
 the package and dependency versions, and a summary of the result: each segmented curve, the
-identities checked at the symmetric split, and what became of every dataset.
+identities checked at the symmetric split, what became of every dataset, the autocorrelation the
+covariance of the trend was built with, the leave-one-out refits of the trend, and the flagged
+dataset curves.
 
 The caller adds what only it knows — the run identifier's place on disk, the configuration path,
 the files written, the commit, the platform — and writes the whole; `scripts/run.jl` does.
@@ -283,6 +293,8 @@ function run_metadata(result::ExtractionResult)
             "breakpoints" => curve.fit.breakpoints,
             "pivots" => [[point[1], point[2]] for point in pivots(curve.fit)],
             "reduced_chi_squared" => curve.fit.wrss / curve.fit.dof,
+            "chi_squared_over_expectation" => curve.fit.wrss / curve.fit.expected_wrss,
+            "correlated_points" => curve.fit.correlated,
             "bic" => curve.fit.bic,
             "bic_by_order" => [[order, value] for (order, value) in curve.fit.selection],
             "weights_imputed" => curve.fit.weights_imputed,
@@ -295,6 +307,7 @@ function run_metadata(result::ExtractionResult)
     )
     domain = manifest_domain(result)
     symmetry = result.symmetry
+    accessions = curve_accessions(result)
     flagged = Dict{String,Any}(
         label => tags for (label, tags) in result.qualifiers if !isempty(_flagged(tags))
     )
@@ -323,6 +336,7 @@ function run_metadata(result::ExtractionResult)
             "required_windows" => [[first(w), last(w)] for w in segments.required_windows],
             "windows_apply_to_datasets" => segments.windows_apply_to_datasets,
             "min_pair_coverage" => segments.min_pair_coverage,
+            "autocorrelation_lags" => segments.autocorrelation_lags,
             "symmetrize_yields" => configuration.symmetrize_yields,
             "min_yield_coverage" => configuration.min_yield_coverage,
             "min_package_version" => string(configuration.min_retrieval_version),
@@ -396,13 +410,21 @@ function run_metadata(result::ExtractionResult)
             # covers, and the ones not averaged over, with the reason.
             "mass_yield_coverage" => Dict{String,Any}(result.mass_yield_coverage),
             "mass_yields_not_averaged" => _not_averaged(result),
+            # How the covariance of the systematic trend was built: the correlogram of the pooled
+            # datasets' deviations, the autocorrelation fitted to it, the scale of the covariance
+            # against the expectation of χ², and the leave-one-out spread of ⟨R_T⟩ per yield.
+            "trend_uncertainty" => _trend_uncertainty_record(result),
+            # The pooled datasets that belong to one experiment and were combined into one before
+            # pooling, by label, one list per experiment.
+            "correlation_groups" => result.correlation_groups,
+            # Dataset curves that resolve no minimum, with the reason; they stay in the manifest.
+            "flagged_curves" => Dict{String,Any}(result.curve_flags),
+            # The trend refitted with each pooled dataset left out, in the order read.
+            "leave_one_out" => [
+                _leave_one_out_record(entry, accessions) for entry in result.leave_one_out
+            ],
             # ⟨R_T⟩ of the systematic trend at the selected number of segments and one and two
             # more, per yield distribution: [segments, ⟨R_T⟩].
-            # What the uncertainty of the systematic trend leaves out: it takes the combined
-            # points as independent, and this is the lag-one autocorrelation of the pooled
-            # datasets' deviations from the combined curve, with the factor by which the written
-            # uncertainty is low for it, √((1 + ρ)/(1 − ρ)).
-            "trend_uncertainty" => _trend_uncertainty_record(result),
             "segment_count_sensitivity" => Dict{String,Any}(
                 label => [[k, value] for (k, value) in entries] for
                 (label, entries) in result.segment_count_sensitivity
@@ -425,15 +447,53 @@ function run_metadata(result::ExtractionResult)
     )
 end
 
+# The correlogram, with NaN at a lag that holds no value, whether an autocorrelation could be
+# fitted to it and the coefficient the covariance was formed with, zero where none could, the
+# scale of the trend's covariance against the expectation of χ², and the leave-one-out spread of
+# ⟨R_T⟩ over each yield distribution it was formed for.
 function _trend_uncertainty_record(result::ExtractionResult)
     ρ = deviation_autocorrelation(result)
-    record = Dict{String,Any}("treats_combined_points_as_independent" => true)
-    if ismissing(ρ)
-        record["deviation_autocorrelation"] = "not estimated"
-    else
-        record["deviation_autocorrelation"] = ρ
-        0 <= ρ < 1 && (record["understated_by_about"] = sqrt((1 + ρ) / (1 - ρ)))
+    record = Dict{String,Any}(
+        "deviation_correlogram" =>
+            Float64[coalesce(c, NaN) for c in result.deviation_correlogram],
+        "autocorrelation_lags" => result.configuration.segments.autocorrelation_lags,
+        "autocorrelation_estimated" => !ismissing(ρ),
+        "deviation_autocorrelation" => coalesce(ρ, 0.0),
+    )
+    index = findfirst(c -> c.label == SYSTEMATIC_TREND_LABEL, result.segmented_curves)
+    if index !== nothing
+        fit = result.segmented_curves[index].fit
+        record["reduced_chi_squared"] = fit.wrss / fit.dof
+        record["expected_wrss"] = fit.expected_wrss
+        record["chi_squared_over_expectation"] = fit.wrss / fit.expected_wrss
+        record["covariance_scale"] = _covariance_scale(
+            fit.wrss, fit.expected_wrss, fit.weights_imputed, fit.points
+        )
     end
+    spreads = Dict{String,Any}()
+    for distribution in result.mass_yields
+        spread = leave_one_out_spread(result, distribution.label)
+        spread === nothing && continue
+        spreads[distribution.label] = Dict{String,Any}(
+            "min" => spread.min, "max" => spread.max, "uncertainty" => spread.uncertainty
+        )
+    end
+    record["leave_one_out"] = spreads
+    return record
+end
+
+# One leave-one-out refit of the trend; the reduced chi-squared is omitted where there is no fit.
+function _leave_one_out_record(entry::LeaveOneOut, accessions::AbstractDict)
+    record = Dict{String,Any}(
+        "datasets" => entry.datasets,
+        "accessions" => [get(accessions, label, "") for label in entry.datasets],
+        "outcome" => entry.outcome,
+        "segments" => entry.segments,
+        "breakpoints" => entry.breakpoints,
+        "total_average_R_T" => Dict{String,Any}(entry.total_average_R_T),
+    )
+    isnan(entry.reduced_chi_squared) ||
+        (record["reduced_chi_squared"] = entry.reduced_chi_squared)
     return record
 end
 

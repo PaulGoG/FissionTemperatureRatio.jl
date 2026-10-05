@@ -7,10 +7,11 @@
 
 Reaction-code qualifiers that mark a dataset as other than a direct measurement of the quantity
 at the entrance channel's energy: `DERIV`, derived from other data, and `SPA`, averaged over an
-unspecified neutron spectrum. A dataset carrying either is used, but flagged in the log, in the
+unspecified neutron spectrum; and `preliminary`, which marks a dataset whose publication calls
+its results preliminary. A dataset carrying any of them is used, but flagged in the log, in the
 dataset diagnostics and in the run metadata.
 """
-const FLAGGED_QUALIFIERS = ("DERIV", "SPA")
+const FLAGGED_QUALIFIERS = ("DERIV", "SPA", "preliminary")
 
 """
     RetrievalRecord
@@ -146,6 +147,20 @@ function pooling_weight(record::RetrievalRecord)
     rows = get(record.entry, "rows_written", nothing)
     (points isa Integer && rows isa Integer && 0 < points <= rows) || return 1.0
     return points / rows
+end
+
+"""
+    correlated_datasets(record) -> Vector{String}
+
+The EXFOR identifiers of the other datasets of the experiment a dataset belongs to, as its
+retrieval record names them under `correlated_with`: runs or analyses on one apparatus, whose
+values are not independent measurements. Empty where the record names none or no record is held.
+"""
+correlated_datasets(::Nothing) = String[]
+function correlated_datasets(record::RetrievalRecord)
+    listed = get(record.entry, "correlated_with", nothing)
+    listed isa AbstractVector || return String[]
+    return String[string(identifier) for identifier in listed]
 end
 
 """

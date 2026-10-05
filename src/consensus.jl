@@ -144,51 +144,70 @@ function consensus(
     return first(_consensus(curves, label, weights))
 end
 
-# The combined curve, the measured fraction of each of its points, and the uncertainty each point
-# has as one measurement. The fraction is the pooling weights of the values combined there,
-# averaged with the weights they were combined with: a point resting on measured values counts as
-# one measurement; one resting on interpolated values, as their share. The standard error of the
-# curve already carries that fraction, as `σ/√f`; the uncertainty of one measurement is the same
-# quantity with the fraction taken out, so that `f/σ²` is the weight of the point however it is
-# split between the two, and a fit that takes both applies the fraction once.
-function _consensus(
-    curves::Vector{RatioCurve}, label::AbstractString, weights::AbstractVector{<:Real}
-)
+# The combined curve, the measured fraction of each of its points, the uncertainty each point
+# has as one measurement, and, for each point, the curves combined there with the share of the
+# combination each of them carries. The fraction is the pooling weights of the values combined
+# there, averaged with the weights they were combined with: a point resting on measured values
+# counts as one measurement; one resting on interpolated values, as their share. The standard
+# error of the curve already carries that fraction, as `σ/√f`; the uncertainty of one measurement
+# is the same quantity with the fraction taken out, so that `f/σ²` is the weight of the point
+# however it is split between the two, and a fit that takes both applies the fraction once. The
+# shares are the normalized weights `w/Σw`, which are also the parts of the variance `1/Σw` of
+# the combined value that the curves contribute; `members` indexes `curves`. The weight of a
+# curve is one factor for all its points or one factor per point, as a curve that is itself a
+# combination carries them.
+function _consensus(curves::Vector{RatioCurve}, label::AbstractString, weights::AbstractVector)
     length(weights) == length(curves) || throw(
         DimensionMismatch("one weight per curve: $(length(weights)) for $(length(curves))")
     )
-    all(w -> 0 < w <= 1, weights) ||
-        throw(ArgumentError("a pooling weight lies in (0, 1], got $(weights)"))
+    for (curve, weight) in zip(curves, weights)
+        weight isa Real ||
+            length(weight) == length(curve) ||
+            throw(DimensionMismatch("one pooling weight per point of $(repr(curve.label)): \
+                     $(length(weight)) for $(length(curve))"))
+        all(f -> 0 < f <= 1, weight) ||
+            throw(ArgumentError("a pooling weight lies in (0, 1], got $(weight)"))
+    end
     masses = sort!(unique!(reduce(vcat, (curve.A_H for curve in curves); init = Int[])))
     A_H = Int[]
     ratio = Float64[]
     σ = Union{Missing,Float64}[]
     measured = Float64[]
     σ_measurement = Union{Missing,Float64}[]
+    members = Vector{Int}[]
+    shares = Vector{Float64}[]
 
     for mass in masses
         values = Float64[]
         uncertainties = Union{Missing,Float64}[]
         factors = Float64[]
-        for (curve, factor) in zip(curves, weights)
+        present = Int[]
+        for (position, (curve, weight)) in enumerate(zip(curves, weights))
             index = findfirst(==(mass), curve.A_H)
             index === nothing && continue
             push!(values, curve.ratio[index])
             push!(uncertainties, curve.σ[index])
-            push!(factors, factor)
+            push!(factors, weight isa Real ? weight : weight[index])
+            push!(present, position)
         end
         isempty(values) && continue
 
-        combined, spread, fraction, single = _combine(values, uncertainties, factors)
+        combined, spread, fraction, single, share = _combine(values, uncertainties, factors)
         push!(A_H, mass)
         push!(ratio, combined)
         push!(σ, spread)
         push!(measured, fraction)
         push!(σ_measurement, single)
+        push!(members, present)
+        push!(shares, share)
     end
 
-    return RatioCurve(A_H, ratio, σ, String(label)), measured, σ_measurement
+    return RatioCurve(A_H, ratio, σ, String(label)), measured, σ_measurement, members, shares
 end
+
+# The dispersion of unquoted values, relative to the largest of them, below which they are taken
+# as identical: far above rounding, far below the last digit a tabulation carries.
+const UNRESOLVED_DISPERSION = 1e-10
 
 function _combine(
     values::Vector{Float64},
@@ -197,8 +216,9 @@ function _combine(
 )
     k = length(values)
     # One value: its own uncertainty is that of one measurement, exactly.
-    k == 1 &&
-        return (values[1], uncertainties[1] / sqrt(factors[1]), factors[1], uncertainties[1])
+    k == 1 && return (
+        values[1], uncertainties[1] / sqrt(factors[1]), factors[1], uncertainties[1], [1.0]
+    )
 
     quoted = .!ismissing.(uncertainties)
     if !any(quoted)
@@ -215,10 +235,15 @@ function _combine(
         dispersion = sqrt(sum(factors .* (values .- μ) .^ 2) / (total - fraction))
         # Identical values leave no dispersion to estimate from. The point then quotes no
         # uncertainty, as none of its values does, and takes the median weight in a fit; a zero
-        # would claim an exact value.
-        dispersion > 0 || return (μ, missing, fraction, missing)
+        # would claim an exact value. With unequal fractions the weighted mean of identical
+        # values differs from them by rounding, so the dispersion is held against the size of
+        # the values and not against zero: tabulated values that differ at all do so in their
+        # seventh significant digit or before.
+        share = factors ./ total
+        dispersion > UNRESOLVED_DISPERSION * maximum(abs, values) ||
+            return (μ, missing, fraction, missing, share)
         spread = dispersion / sqrt(total)
-        return (μ, spread, fraction, spread * sqrt(fraction))
+        return (μ, spread, fraction, spread * sqrt(fraction), share)
     end
 
     σ = Float64[coalesce(u, NaN) for u in uncertainties]
@@ -243,5 +268,5 @@ function _combine(
     w = factors ./ (σ .^ 2 .+ τ²)
     spread = 1 / sqrt(sum(w))
     fraction = sum(w .* factors) / sum(w)
-    return (sum(w .* values) / sum(w), spread, fraction, spread * sqrt(fraction))
+    return (sum(w .* values) / sum(w), spread, fraction, spread * sqrt(fraction), w ./ sum(w))
 end

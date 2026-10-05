@@ -308,6 +308,28 @@ using LinearAlgebra: LinearAlgebra
         @test sum(estimates) / draws ≈ τ² atol = 0.1
     end
 
+    @testset "identical unquoted values of unequal fractions leave the point unquoted" begin
+        # The weighted mean of identical values differs from them by rounding where the
+        # fractions are unequal; that is no dispersion, and no uncertainty is quoted from it.
+        unquoted = Union{Missing,Float64}[missing, missing]
+        for factors in ([0.3, 0.7], [0.5, 0.5], [1.0, 0.417])
+            value, spread, _, single = FissionTemperatureRatio._combine(
+                [0.1, 0.1], unquoted, factors
+            )
+            @test value ≈ 0.1
+            @test ismissing(spread)
+            @test ismissing(single)
+        end
+        # Values that differ in their seventh significant digit do have a dispersion.
+        _, spread, _, _ = FissionTemperatureRatio._combine(
+            [0.1, 0.1000001], unquoted, [0.3, 0.7]
+        )
+        @test spread > 1e-9
+        # The shares of the combination are the normalized fractions.
+        @test last(FissionTemperatureRatio._combine([0.1, 0.2], unquoted, [0.3, 0.7])) ≈
+            [0.3, 0.7]
+    end
+
     @testset "identical unquoted values leave the combined point unquoted" begin
         masses = collect(126:150)
         base = reference_ratio.(masses)

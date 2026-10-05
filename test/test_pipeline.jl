@@ -44,6 +44,312 @@ function write_multiplicity(path::AbstractString, heavy_masses; A₀ = 252)
     return path
 end
 
+# The testsets below are functions of their own: as part of the one closure that holds the rest
+# of this file they made it too long to compile in reasonable time.
+function test_trend_covariance(directory, configuration, result, written)
+    @testset "the autocorrelation of the datasets' deviations enters the trend's covariance" begin
+        # Two datasets that depart from their common mean in opposite directions: point by
+        # point in one pair, by a slow drift in the other.
+        function write_departing(path, departure)
+            rows = Dict{Int,Float64}()
+            for A_H in 127:140
+                r = reference_ratio(A_H) + departure(A_H)
+                rows[A_H] = 4 * r
+                rows[252 - A_H] = 4 * (1 - r)
+            end
+            rows[126] = 2.0
+            open(path, "w") do io
+                println(io, "A nu nu_uncertainty")
+                for A in sort!(collect(keys(rows)))
+                    println(io, A, " ", rows[A], " 0.05")
+                end
+            end
+        end
+        function autocorrelation(name, departure)
+            directory_ = joinpath(directory, name)
+            mkpath(directory_)
+            write_departing(joinpath(directory_, "up.dat"), A -> departure(A))
+            write_departing(joinpath(directory_, "down.dat"), A -> -departure(A))
+            path = joinpath(directory, "$(name).toml")
+            write(
+                path,
+                replace(
+                    PIPELINE_CONFIGURATION,
+                    "subdirectory = \"datasets\"" => "subdirectory = \"$(name)\"",
+                ),
+            )
+            return run_pipeline(load_configuration(path; data_directory = directory))
+        end
+        alternating = autocorrelation("alternating", A -> 0.01 * (-1)^A)
+        drifting = autocorrelation("drifting", A -> 0.002 * (A - 133))
+        fit_of(run) = systematic_trend(run).fit
+
+        # Point by point: a negative first lag, taken as no correlation.
+        @test first(deviation_correlogram(alternating)) < -0.8
+        @test deviation_autocorrelation(alternating) == 0.0
+        @test !fit_of(alternating).correlated
+        @test fit_of(alternating).expected_wrss == fit_of(alternating).dof
+
+        # A slow drift: the decay fitted to the first four lags enters the trend's covariance.
+        ρ = deviation_autocorrelation(drifting)
+        @test first(deviation_correlogram(drifting)) > 0.6
+        @test ρ == autocorrelation_decay(deviation_correlogram(drifting); lags = 4)
+        @test ρ > 0.6
+        @test drifting.autocorrelation == ρ
+        @test fit_of(drifting).correlated
+        @test fit_of(drifting).expected_wrss < fit_of(drifting).dof
+        # The values are those of the fit that takes the points as independent; the
+        # uncertainty is larger at every mass number but the pinned one.
+        independent = FissionTemperatureRatio._fit_trend(
+            drifting.r_ν,
+            ones(length(drifting.r_ν)),
+            (drifting.averaging, drifting.model, drifting.domain),
+            drifting.configuration.segments,
+            252;
+            estimate_autocorrelation = false,
+        ).trend
+        trend = systematic_trend(drifting)
+        @test trend.R_T.ratio == independent.R_T.ratio
+        @test trend.fit.breakpoints == independent.fit.breakpoints
+        @test trend.R_T.σ[1] ≈ 0 atol = 1e-12
+        @test all(trend.R_T.σ[2:end] .> independent.R_T.σ[2:end])
+        # The curve of a dataset is fitted to points measured one by one.
+        @test all(
+            !c.fit.correlated && c.fit.expected_wrss == c.fit.dof for
+            c in drifting.segmented_curves if c.kind == "dataset"
+        )
+
+        # Identical datasets do not deviate: nothing to estimate, and independent points.
+        @test all(ismissing, deviation_correlogram(result))
+        @test ismissing(deviation_autocorrelation(result))
+        @test !fit_of(result).correlated
+
+        metadata = run_metadata(drifting)["result"]
+        record = metadata["trend_uncertainty"]
+        @test record["deviation_autocorrelation"] == ρ
+        @test record["autocorrelation_estimated"]
+        @test record["autocorrelation_lags"] == 4
+        @test length(record["deviation_correlogram"]) == CORRELOGRAM_LAGS
+        @test record["deviation_correlogram"][1] == first(deviation_correlogram(drifting))
+        @test record["reduced_chi_squared"] == trend.fit.wrss / trend.fit.dof
+        @test record["expected_wrss"] == trend.fit.expected_wrss
+        @test record["chi_squared_over_expectation"] == trend.fit.wrss / trend.fit.expected_wrss
+        @test record["covariance_scale"] == max(1, record["chi_squared_over_expectation"])
+        @test !haskey(record, "understated_by_about")
+        @test metadata["segmented_curves"][SYSTEMATIC_TREND_LABEL]["correlated_points"]
+        @test !metadata["segmented_curves"]["up"]["correlated_points"]
+        @test run_metadata(drifting)["configuration"]["autocorrelation_lags"] == 4
+        # At its default the number of lags is no token of the identifier.
+        @test !haskey(run_metadata(drifting)["identifier"]["tokens"], "lags")
+        unestimated = run_metadata(result)["result"]["trend_uncertainty"]
+        # One type per key: a flag for whether a coefficient could be fitted, and the number
+        # the covariance was formed with.
+        @test !unestimated["autocorrelation_estimated"]
+        @test unestimated["deviation_autocorrelation"] == 0.0
+        @test all(isnan, unestimated["deviation_correlogram"])
+
+        table = CSV.read(
+            write_results(drifting, joinpath(directory, "output", "drifting"))["segmented_curves"],
+            DataFrame,
+        )
+        row = only(filter(r -> r.label == SYSTEMATIC_TREND_LABEL, eachrow(table)))
+        @test row.deviation_autocorrelation ≈ ρ rtol = 1e-5
+        @test row.chi_squared_over_expectation ≈ trend.fit.wrss / trend.fit.expected_wrss rtol =
+            1e-5
+        @test row.chi_squared_over_expectation > row.reduced_chi_squared
+        datasets_ = filter(r -> r.kind == "dataset", table)
+        @test all(ismissing, datasets_.deviation_autocorrelation)
+        @test datasets_.chi_squared_over_expectation == datasets_.reduced_chi_squared
+
+        # The number of lags is a key of the configuration, bounded by the correlogram.
+        one_lag = joinpath(directory, "one_lag.toml")
+        write(
+            one_lag,
+            replace(
+                PIPELINE_CONFIGURATION,
+                "subdirectory = \"datasets\"" => "subdirectory = \"drifting\"",
+                "max_segments = 3" => "max_segments = 3\nautocorrelation_lags = 1",
+            ),
+        )
+        first_lag = run_pipeline(load_configuration(one_lag; data_directory = directory))
+        @test deviation_autocorrelation(first_lag) ≈ first(deviation_correlogram(drifting)) atol =
+            1e-6
+        @test run_parameters(first_lag.configuration)["lags"] == 1
+        @test run_identifier(first_lag.configuration) != run_identifier(drifting.configuration)
+        write(
+            one_lag,
+            replace(
+                PIPELINE_CONFIGURATION,
+                "max_segments = 3" => "max_segments = 3\nautocorrelation_lags = 9",
+            ),
+        )
+        @test_throws "segments.autocorrelation_lags" load_configuration(
+            one_lag; data_directory = directory
+        )
+    end
+    return nothing
+end
+
+function test_leave_one_out(directory, configuration, result, written)
+    @testset "the trend is refitted with each pooled dataset left out" begin
+        @test [only(entry.datasets) for entry in result.leave_one_out] == pooled_datasets(result)
+        @test all(entry.outcome == "segmented curve" for entry in result.leave_one_out)
+        @test all(entry.segments ≥ 1 for entry in result.leave_one_out)
+        # No yield distribution, so no total average and no spread of one.
+        @test all(isempty(entry.total_average_R_T) for entry in result.leave_one_out)
+        @test leave_one_out_spread(result, "any") === nothing
+        table = CSV.read(written["leave_one_out"], DataFrame)
+        @test table.dataset_left_out == pooled_datasets(result)
+        @test all(ismissing, table.mass_yield)
+        @test all(ismissing, table.R_T)
+        @test table.segments == [entry.segments for entry in result.leave_one_out]
+        @test basename(written["leave_one_out"]) ==
+            "leave_one_out_$(run_identifier(configuration)).csv"
+        record = run_metadata(result)["result"]["leave_one_out"]
+        @test [only(entry["datasets"]) for entry in record] == pooled_datasets(result)
+        @test record[1]["breakpoints"] == result.leave_one_out[1].breakpoints
+
+        # Skipped on request: the curves are the same, and no table is written.
+        without = run_pipeline(configuration; leave_one_out = false)
+        @test isempty(without.leave_one_out)
+        @test systematic_trend(without).R_T.ratio == systematic_trend(result).R_T.ratio
+        @test systematic_trend(without).R_T.σ == systematic_trend(result).R_T.σ
+        @test !haskey(
+            write_results(without, joinpath(directory, "output", "without")), "leave_one_out"
+        )
+    end
+    return nothing
+end
+
+function test_experiments_pooled_as_one(directory, configuration, result, written)
+    @testset "the datasets of one experiment are pooled as one" begin
+        # Two analyses of one experiment and an independent measurement, each departing from
+        # the reference by a constant: side by side the experiment would weigh twice.
+        experiments = joinpath(directory, "experiments")
+        mkpath(experiments)
+        function write_offset(name, offset)
+            rows = Dict{Int,Float64}(126 => 2.0)
+            for A_H in 127:140
+                r = reference_ratio(A_H) + offset + 0.002 * iseven(A_H)
+                rows[A_H] = 4 * r
+                rows[252 - A_H] = 4 * (1 - r)
+            end
+            open(joinpath(experiments, name), "w") do io
+                println(io, "A nu nu_uncertainty")
+                for A in sort!(collect(keys(rows)))
+                    println(io, A, " ", rows[A], " 0.05")
+                end
+            end
+        end
+        write_offset("20000001_A.First_1979.dat", 0.02)
+        write_offset("20000002_B.First_1979.dat", 0.03)
+        write_offset("20000003_C.Other_2000.dat", -0.03)
+        # The relation is named from one side only, and holds for both.
+        record(correlated) = """
+            [[accepted]]
+            file = "20000001_A.First_1979.dat"
+            identifier = "20000001"
+            qualifiers = []
+            $(correlated)
+
+            [[accepted]]
+            file = "20000002_B.First_1979.dat"
+            identifier = "20000002"
+            qualifiers = []
+
+            [[accepted]]
+            file = "20000003_C.Other_2000.dat"
+            identifier = "20000003"
+            qualifiers = []
+
+            [run]
+            package_version = "0.2.7"
+            """
+        path = joinpath(directory, "experiments.toml")
+        write(
+            path,
+            replace(
+                PIPELINE_CONFIGURATION,
+                "subdirectory = \"datasets\"" => "subdirectory = \"experiments\"",
+            ),
+        )
+        write(joinpath(experiments, "retrieval.toml"), record(""))
+        apart = run_pipeline(load_configuration(path; data_directory = directory))
+        write(
+            joinpath(experiments, "retrieval.toml"), record("correlated_with = [\"20000002\"]")
+        )
+        together = run_pipeline(load_configuration(path; data_directory = directory))
+        @test correlated_datasets(
+            retrieval_record(joinpath(experiments, "20000001_A.First_1979.dat"))
+        ) == ["20000002"]
+        @test isempty(
+            correlated_datasets(
+                retrieval_record(joinpath(experiments, "20000003_C.Other_2000.dat"))
+            ),
+        )
+
+        first_, second, other = together.r_ν
+        @test isempty(apart.correlation_groups)
+        @test together.correlation_groups == [["A. First 1979", "B. First 1979"]]
+        # All three are pooled, and each still offers its own curve.
+        @test pooled_datasets(together) == ["A. First 1979", "B. First 1979", "C. Other 2000"]
+        @test count(c -> c.kind == "dataset", together.segmented_curves) == 3
+        # Side by side: the combination of three. As one: the two of the experiment first,
+        # then their combination with the third as two measurements.
+        @test apart.consensus_r_ν.ratio ≈ consensus([first_, second, other]).ratio
+        experiment = consensus([first_, second])
+        expected = consensus([experiment, other])
+        @test together.consensus_r_ν.ratio ≈ expected.ratio
+        @test together.consensus_r_ν.σ[2:end] ≈ expected.σ[2:end]
+        # The independent measurement weighs as much as the experiment, not half as much.
+        A = 2:length(other)
+        @test all(
+            abs.(together.consensus_r_ν.ratio[A] .- other.ratio[A]) .<
+            abs.(apart.consensus_r_ν.ratio[A] .- other.ratio[A]),
+        )
+        @test together.consensus_r_ν.ratio[A] ≈ (experiment.ratio[A] .+ other.ratio[A]) ./ 2 atol =
+            2e-3
+
+        # Left out as one, and written as one.
+        @test [entry.datasets for entry in together.leave_one_out] == [["A. First 1979", "B. First 1979"], ["C. Other 2000"]]
+        @test length(apart.leave_one_out) == 3
+        written_ = write_results(together, joinpath(directory, "output", "experiments"))
+        refits = CSV.read(written_["leave_one_out"], DataFrame)
+        @test refits.dataset_left_out == ["A. First 1979 + B. First 1979", "C. Other 2000"]
+        @test string.(refits.accession) == ["20000001 20000002", "20000003"]
+        diagnostics = CSV.read(written_["dataset_diagnostics"], DataFrame)
+        row(label) = only(filter(r -> r.dataset == label, eachrow(diagnostics)))
+        @test row("A. First 1979").pooled_with == "B. First 1979"
+        @test row("B. First 1979").pooled_with == "A. First 1979"
+        @test ismissing(row("C. Other 2000").pooled_with)
+        metadata = run_metadata(together)["result"]
+        @test metadata["correlation_groups"] == [["A. First 1979", "B. First 1979"]]
+        @test metadata["leave_one_out"][1]["accessions"] == ["20000001", "20000002"]
+        @test isempty(run_metadata(apart)["result"]["correlation_groups"])
+    end
+    return nothing
+end
+
+function test_flagged_curves(directory, configuration, result, written)
+    @testset "a dataset curve that resolves no minimum is flagged, and offered" begin
+        # `partial` begins at A_H = 131, above the minimum at 130: its curve only rises.
+        @test collect(keys(result.curve_flags)) == ["partial"]
+        @test occursin("rises from A_H = 131", result.curve_flags["partial"])
+        @test any(c -> c.label == "partial", result.segmented_curves)
+        table = CSV.read(written["dataset_diagnostics"], DataFrame)
+        row(label) = only(filter(r -> r.dataset == label, eachrow(table)))
+        @test row("partial").curve_flagged
+        @test row("partial").curve_flag_reason == result.curve_flags["partial"]
+        @test !row("full").curve_flagged
+        @test !row("sparse").curve_flagged
+        @test run_metadata(result)["result"]["flagged_curves"] ==
+            Dict("partial" => result.curve_flags["partial"])
+        manifest = read_temperature_ratio_manifest(written["manifest"])
+        @test "partial" in curve_labels(manifest)
+    end
+    return nothing
+end
+
 @testset "pipeline" begin
     mktempdir() do directory
         # Vanishing shell corrections, with eq. (20) throughout, make a ∝ A, so every
@@ -161,7 +467,14 @@ end
                     end for name in fieldnames(Configuration)
                 )...
             )
-            @test_throws "which names no dataset read" run_pipeline(absent)
+            # Refused before anything is fitted: the log of the run holds no curve yet.
+            logger = Test.TestLogger(; min_level = Base.CoreLogging.Info)
+            @test_throws "which names no dataset read" Base.CoreLogging.with_logger(logger) do
+                return run_pipeline(absent)
+            end
+            messages = [string(record.message) for record in logger.logs]
+            @test any(contains("reading input"), messages)
+            @test !any(contains("segmented curve"), messages)
             # A tabulation from no archive is excluded under its label.
             by_label = Configuration(
                 (
@@ -185,62 +498,10 @@ end
             @test pooled_datasets(result) == ["full", "partial", "sparse"]
         end
 
-        @testset "the autocorrelation of the datasets' deviations is reported" begin
-            # Two datasets that depart from their common mean in opposite directions: point by
-            # point in one pair, by a slow drift in the other.
-            function write_departing(path, departure)
-                rows = Dict{Int,Float64}()
-                for A_H in 127:140
-                    r = reference_ratio(A_H) + departure(A_H)
-                    rows[A_H] = 4 * r
-                    rows[252 - A_H] = 4 * (1 - r)
-                end
-                rows[126] = 2.0
-                open(path, "w") do io
-                    println(io, "A nu nu_uncertainty")
-                    for A in sort!(collect(keys(rows)))
-                        println(io, A, " ", rows[A], " 0.05")
-                    end
-                end
-            end
-            function autocorrelation(name, departure)
-                directory_ = joinpath(directory, name)
-                mkpath(directory_)
-                write_departing(joinpath(directory_, "up.dat"), A -> departure(A))
-                write_departing(joinpath(directory_, "down.dat"), A -> -departure(A))
-                path = joinpath(directory, "$(name).toml")
-                write(
-                    path,
-                    replace(
-                        PIPELINE_CONFIGURATION,
-                        "subdirectory = \"datasets\"" => "subdirectory = \"$(name)\"",
-                    ),
-                )
-                return run_pipeline(load_configuration(path; data_directory = directory))
-            end
-            alternating = autocorrelation("alternating", A -> 0.01 * (-1)^A)
-            drifting = autocorrelation("drifting", A -> 0.002 * (A - 133))
-            @test deviation_autocorrelation(alternating) < -0.8
-            @test deviation_autocorrelation(drifting) > 0.6
-            # Identical datasets do not deviate, and there is nothing to estimate.
-            @test ismissing(deviation_autocorrelation(result))
-
-            record = run_metadata(drifting)["result"]["trend_uncertainty"]
-            @test record["treats_combined_points_as_independent"]
-            ρ = record["deviation_autocorrelation"]
-            @test record["understated_by_about"] ≈ sqrt((1 + ρ) / (1 - ρ))
-            @test run_metadata(result)["result"]["trend_uncertainty"]["deviation_autocorrelation"] ==
-                "not estimated"
-            table = CSV.read(
-                write_results(drifting, joinpath(directory, "output", "drifting"))["segmented_curves"],
-                DataFrame,
-            )
-            trend = only(filter(r -> r.label == SYSTEMATIC_TREND_LABEL, eachrow(table)))
-            @test trend.deviation_autocorrelation ≈ ρ rtol = 1e-5
-            @test all(
-                ismissing, filter(r -> r.kind == "dataset", table).deviation_autocorrelation
-            )
-        end
+        test_trend_covariance(directory, configuration, result, written)
+        test_leave_one_out(directory, configuration, result, written)
+        test_experiments_pooled_as_one(directory, configuration, result, written)
+        test_flagged_curves(directory, configuration, result, written)
 
         @testset "a yield exclusion that names no distribution is refused at the start" begin
             yields = joinpath(directory, "yields-check")
@@ -265,7 +526,38 @@ end
                     end for name in fieldnames(Configuration)
                 )...
             )
-            @test_throws "which names no distribution" run_pipeline(absent)
+            logger = Test.TestLogger(; min_level = Base.CoreLogging.Info)
+            @test_throws "which names no distribution" Base.CoreLogging.with_logger(logger) do
+                return run_pipeline(absent)
+            end
+            @test !any(contains("segmented curve"), [string(r.message) for r in logger.logs])
+
+            # A configuration built by hand with an exclusion and no directory to apply it to
+            # would write to the run record an exclusion that was never made.
+            inapplicable = Configuration(
+                (
+                    if name === :excluded_mass_yields
+                        Dict("10000001" => "x")
+                    elseif name === :yield_directory
+                        nothing
+                    else
+                        getfield(loaded, name)
+                    end for name in fieldnames(Configuration)
+                )...
+            )
+            @test_throws "without yield.subdirectory" run_pipeline(inapplicable)
+            # And one whose directory is not there is refused as an argument, not by the file
+            # system.
+            misplaced = Configuration(
+                (
+                    if name === :yield_directory
+                        joinpath(directory, "no-such-directory")
+                    else
+                        getfield(loaded, name)
+                    end for name in fieldnames(Configuration)
+                )...,
+            )
+            @test_throws ArgumentError run_pipeline(misplaced)
         end
 
         @testset "a dataset that forms no pair is not pooled, excluded or not" begin

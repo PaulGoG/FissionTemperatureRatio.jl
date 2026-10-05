@@ -43,6 +43,7 @@ pin_symmetric_split = true                    # fix r_nu = 1/2 at A0/2; requires
 required_windows = [[128, 132]]               # windows the trend curve must break in, inside heavy_mass_min:heavy_mass_max
 windows_apply_to_datasets = false             # apply the windows to each dataset too, not only to the trend
 min_pair_coverage = 0.3                       # fraction of the range's heavy masses a nu(A) dataset must pair to offer a curve of its own, 0 to 1
+autocorrelation_lags = 4                      # lags of the deviation correlogram the trend's autocorrelation is fitted to, 1 to 8
 
 [retrieval]
 min_package_version = "0.2.3"                 # lowest ExforFissionData version whose retrieval records are accepted; a record below it, or stating none, is refused

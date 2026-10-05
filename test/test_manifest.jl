@@ -110,6 +110,9 @@ DATA_AVAILABLE && @testset "the handoff to a consuming code" begin
                 "R_T",
                 "R_T_uncertainty",
                 "R_T_uncertainty_independent_points",
+                "R_T_uncertainty_leave_one_out",
+                "R_T_leave_one_out_min",
+                "R_T_leave_one_out_max",
                 "yield_fraction",
                 "R_T_one_more_segment",
                 "R_T_two_more_segments",
@@ -122,6 +125,14 @@ DATA_AVAILABLE && @testset "the handoff to a consuming code" begin
             )
             @test !ismissing(trend_row.R_T_one_more_segment)
             @test !ismissing(trend_row.R_T_two_more_segments)
+            # And the spread of ⟨R_T⟩ with one pooled dataset left out, which a dataset curve
+            # has none of.
+            @test trend_row.R_T_uncertainty_leave_one_out > 0
+            @test trend_row.R_T_leave_one_out_min < trend_row.R_T_leave_one_out_max
+            @test all(
+                ismissing,
+                filter(r -> r.segmented_curve != SYSTEMATIC_TREND_LABEL, averages).R_T_uncertainty_leave_one_out,
+            )
             @test all(
                 ismissing,
                 filter(r -> r.segmented_curve != SYSTEMATIC_TREND_LABEL, averages).R_T_one_more_segment,
@@ -129,9 +140,14 @@ DATA_AVAILABLE && @testset "the handoff to a consuming code" begin
             @test all(averages.R_T_uncertainty .≥ 0)
             @test all(0 .< averages.yield_fraction .<= 1)
             @test trend_row.yield_fraction ≈ 1
-            # The token is on the directory, the manifest and these two tables; the per-curve
-            # ratio tables are named by quantity and dataset, and found through the manifest.
-            @test count(contains(identifier), readdir(directory)) == 3
+            # The token is on the directory, the manifest, these two tables and that of the
+            # leave-one-out refits; the per-curve ratio tables are named by quantity and dataset,
+            # and found through the manifest.
+            @test count(contains(identifier), readdir(directory)) == 4
+            refits = CSV.read(joinpath(directory, "leave_one_out_$(identifier).csv"), DataFrame)
+            @test unique(String.(refits.dataset_left_out)) == pooled_datasets(result)
+            @test Set(refits.mass_yield) == Set(["P. Geltenbort 1985"])
+            @test minimum(refits.R_T) == trend_row.R_T_leave_one_out_min
         end
 
         @testset "the files of a dataset carry its accession, its label does not" begin

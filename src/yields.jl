@@ -17,6 +17,9 @@ The label of each distribution is its file name stripped of the leading archive 
 extension, with underscores replaced by spaces. Two files of one author and year carry their
 archive identifier in parentheses instead, as the multiplicity datasets do: total averages are
 keyed by label, and a shared one would let the second distribution replace the first.
+
+Throws an `ArgumentError` where the directory does not exist, holds no data file, or holds two
+files of one EXFOR accession: one distribution would be averaged over twice.
 """
 function read_mass_yield_directory(directory::AbstractString)
     isdir(directory) || throw(ArgumentError("yield directory not found: $(directory)"))

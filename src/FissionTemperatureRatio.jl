@@ -108,7 +108,7 @@ using FissionFragmentsDomain:
     ratio_averaging,
     ratio_averaging_label,
     write_temperature_ratio_manifest
-using LinearAlgebra: Symmetric, cond, dot
+using LinearAlgebra: Symmetric, cond, dot, tr
 using Measurements: uncertainty, value
 using SHA: sha1
 using Statistics: mean, median, std
@@ -129,6 +129,7 @@ include("multiplicity_ratio.jl")
 include("kinetic_energy.jl")
 include("yields.jl")
 include("consensus.jl")
+include("autocorrelation.jl")
 include("temperature_ratio.jl")
 include("segmented_fit.jl")
 include("extracted_curve.jl")
@@ -152,6 +153,7 @@ export RetrievalRecord,
     check_retrieval_versions,
     FLAGGED_QUALIFIERS,
     pooling_weight,
+    correlated_datasets,
     pair_sum_scale
 
 # Physics
@@ -160,7 +162,14 @@ export DatasetDiagnostics, diagnose, consensus
 
 # Segmented description of the ratio
 export SegmentedFit,
-    fit_segments, fit_weights, evaluate, covariance, pivots, segments, InsufficientDataError
+    fit_segments,
+    fit_weights,
+    evaluate,
+    covariance,
+    pivots,
+    segments,
+    unresolved_minimum,
+    InsufficientDataError
 export ExtractedCurve, TotalAverage, range_mean
 
 # Pipeline
@@ -173,7 +182,13 @@ export ExtractionResult,
     manifest_domain,
     curve_accessions,
     pooled_datasets,
-    deviation_autocorrelation
+    deviation_autocorrelation,
+    CORRELOGRAM_LAGS,
+    deviation_correlogram,
+    autocorrelation_decay,
+    pooled_correlation,
+    LeaveOneOut,
+    leave_one_out_spread
 export run_identifier, run_parameters, run_metadata, RUN_IDENTIFIER_ABBREVIATIONS
 
 # Figures

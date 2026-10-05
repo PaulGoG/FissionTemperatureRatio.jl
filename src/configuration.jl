@@ -126,6 +126,9 @@ which a dataset must provide a complete pair. Below it the dataset is read, diag
 but no segmented curve is fitted to it alone: with pairs at few mass numbers the breakpoint search
 cannot place the minimum where the data do not reach, and the curve it returns asserts structure
 between the measurements that a consuming code could not tell from a measured feature.
+
+`autocorrelation_lags` is the number of lags of the deviation correlogram the autocorrelation of
+the systematic trend is fitted to, [`autocorrelation_decay`](@ref).
 """
 struct SegmentSettings
     max_segments::Int
@@ -135,6 +138,7 @@ struct SegmentSettings
     required_windows::Vector{UnitRange{Int}}
     windows_apply_to_datasets::Bool
     min_pair_coverage::Float64
+    autocorrelation_lags::Int
 end
 
 """
@@ -300,6 +304,7 @@ const SEGMENT_KEYS = (
     "required_windows",
     "windows_apply_to_datasets",
     "min_pair_coverage",
+    "autocorrelation_lags",
 )
 const RETRIEVAL_KEYS = ("min_package_version",)
 const OUTPUT_KEYS = ("significant_digits",)
@@ -341,7 +346,7 @@ end
 # excluding a measurement is a judgement, and an unexplained one is indistinguishable from a
 # mistake to anyone reading the configuration later. An exclusion names its dataset by accession,
 # which does not change when a second dataset of the same author and year is retrieved, as a label
-# does.
+# does; the label form is for a dataset that carries no accession.
 function _exclusions(section::AbstractDict, path::String)
     entries = @NamedTuple{by::Symbol, name::String, reason::String}[]
     haskey(section, "exclude") || return entries
@@ -382,7 +387,8 @@ end
 
 # The exclusions of one section against the data files of its directory. Each must name exactly
 # one dataset held there, and is keyed as `_exclusion_key` keys that dataset: by its accession,
-# or by its label where it carries none.
+# or by its label where it carries none. A label that names a dataset with an accession is
+# refused, with the accession to write in its place.
 function _resolve_exclusions(entries, directory::AbstractString, path::String)
     files = _data_files(directory)
     _refuse_shared_accession(directory, files)
@@ -408,15 +414,14 @@ function _resolve_exclusions(entries, directory::AbstractString, path::String)
                 ),
             )
             accession = accessions[position]
-            if isempty(accession)
-                entry.name
-            else
-                @warn "$(path)[$(index)] names a dataset by its label, which changes when a \
-                       second dataset of the same author and year is retrieved; this form is \
-                       deprecated for a dataset that has an accession: write \
-                       accession = \"$(accession)\"" dataset = entry.name
-                accession
-            end
+            isempty(accession) || throw(
+                ArgumentError(
+                    "$(path)[$(index)] names the dataset $(repr(entry.name)) by its label; \
+                     a dataset that has an accession is excluded by it: write \
+                     accession = \"$(accession)\"",
+                ),
+            )
+            entry.name
         end
         haskey(exclusions, key) &&
             throw(ArgumentError("$(path) names $(repr(key)) more than once"))
@@ -745,13 +750,14 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
             )
         else
             # Without a directory the primary distribution alone is averaged over, and an
-            # exclusion has nothing to act on and nothing to be checked against. It is read for
-            # its form and then dropped, so that neither the run identifier nor the metadata
-            # records an exclusion that was not applied.
-            isempty(_exclusions(yield_section, "yield.exclude")) ||
-                @warn "yield.exclude has no effect without yield.subdirectory: the primary \
-                       distribution alone is averaged over, and the exclusions are neither \
-                       applied nor recorded"
+            # exclusion has nothing to act on. It is read for its form first, so that a malformed
+            # entry reports its own error, and then refused.
+            isempty(_exclusions(yield_section, "yield.exclude")) || throw(
+                ArgumentError(
+                    "yield.exclude needs yield.subdirectory: without a directory the primary \
+                     distribution alone is averaged over, and an exclusion has nothing to act on",
+                ),
+            )
         end
     end
     symmetrize_yields = if haskey(document, "yield")
@@ -860,6 +866,20 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
             max = 1,
         ),
     )
+    autocorrelation_lags = Int(
+        _in_bounds(
+            _value(
+                segments_section,
+                "autocorrelation_lags",
+                Integer,
+                "segments.autocorrelation_lags",
+                DEFAULT_AUTOCORRELATION_LAGS,
+            ),
+            "segments.autocorrelation_lags";
+            min = 1,
+            max = CORRELOGRAM_LAGS,
+        ),
+    )
     for (index, window) in enumerate(windows)
         issubset(window, heavy_mass_min:heavy_mass_max) || throw(
             ArgumentError("segments.required_windows[$(index)] = $(window) lies outside the \
@@ -941,7 +961,14 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
         symmetrize_yields,
         min_yield_coverage,
         SegmentSettings(
-            max_segments, min_points, min_span, pin, windows, windows_apply, min_pair_coverage
+            max_segments,
+            min_points,
+            min_span,
+            pin,
+            windows,
+            windows_apply,
+            min_pair_coverage,
+            autocorrelation_lags,
         ),
         OutputSettings(significant_digits),
         min_retrieval_version,
