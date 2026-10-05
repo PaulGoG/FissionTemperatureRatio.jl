@@ -56,6 +56,15 @@ using Statistics: mean, var
         @test deviation_correlogram([longer, below], wider)[1:4] ≈ ρ[1:4]
         @test all(ismissing, deviation_correlogram([above], combined))
 
+        # A dataset sharing two masses with the others is left out: two deviations less their
+        # mean are opposite and equal, a lag of minus one whatever the errors.
+        couple = RatioCurve([2, 3], [0.53, 0.46], unquoted(2), "two masses")
+        @test isequal(
+            deviation_correlogram([above, below, couple], combined),
+            deviation_correlogram([above, below], combined),
+        )
+        @test all(ismissing, deviation_correlogram([couple, couple], combined))
+
         # A constant offset of a dataset is removed with its mean.
         shifted = RatioCurve(above.A_H, above.ratio .+ 0.1, unquoted(5), "shifted")
         @test deviation_correlogram([shifted, below], combined)[1:4] ≈ ρ[1:4]
@@ -307,6 +316,13 @@ using Statistics: mean, var
         beyond = ar1(A_H, 0.5)
         beyond[1, 2] = beyond[2, 1] = 1.5
         @test_throws ArgumentError fit_segments(A_H, r, σ; correlation = beyond)
+        # Symmetric, of unit diagonal, entries within bounds, and no correlation matrix: three
+        # points cannot be pairwise correlated at 0.9, 0.9 and −0.9.
+        indefinite = Matrix{Float64}(LinearAlgebra.I, 20, 20)
+        indefinite[1, 2] = indefinite[2, 1] = 0.9
+        indefinite[2, 3] = indefinite[3, 2] = 0.9
+        indefinite[1, 3] = indefinite[3, 1] = -0.9
+        @test_throws "positive semi-definite" fit_segments(A_H, r, σ; correlation = indefinite)
     end
 
     @testset "a required window is not met by a curve without breakpoints" begin
@@ -320,6 +336,30 @@ using Statistics: mean, var
         @test fit_segments(A_H, r, σ; max_segments = 3, required_windows = [128:132]).breakpoints ==
             [130]
         @test segments(fit_segments(A_H, r, σ; max_segments = 1)) == 1
+    end
+
+    @testset "the jackknife over leave-one-out refits" begin
+        refit(label, values...) =
+            LeaveOneOut([label], "segmented curve", 3, [130, 137], 1.0, Dict(values...))
+        refits = [
+            refit("a", "Y" => 1.0, "Z" => 2.0),
+            refit("b", "Y" => 1.2),
+            refit("c", "Y" => 1.4, "Z" => 2.5),
+            LeaveOneOut(["d"], "no fit: too few points", 0, Int[], NaN, Dict{String,Float64}()),
+        ]
+        spread = leave_one_out_spread(refits, "Y")
+        # θ = 1.0, 1.2, 1.4: mean 1.2, Σ (θ − θ̄)² = 0.08, √(2/3 · 0.08).
+        @test spread.uncertainty ≈ sqrt(0.16 / 3)
+        @test spread.uncertainty ≈ 0.2309401076758503
+        @test (spread.min, spread.max, spread.refits) == (1.0, 1.4, 3)
+        # Two refits: half their difference, each resting on what the other left out.
+        pair = leave_one_out_spread(refits, "Z")
+        @test pair.uncertainty ≈ 0.25
+        @test pair.refits == 2
+        # One value, or none, is no spread; a refit that gave no curve holds none.
+        @test leave_one_out_spread(refits[2:2], "Y") === nothing
+        @test leave_one_out_spread(refits, "X") === nothing
+        @test leave_one_out_spread(LeaveOneOut[], "Y") === nothing
     end
 
     @testset "a curve that resolves no minimum says so" begin
@@ -337,6 +377,10 @@ using Statistics: mean, var
         fit = fit_segments(A_H, kinked .+ ripple, σ; max_segments = 3)
         @test segments(fit) ≥ 2
         @test occursin("rises from A_H = 120", unresolved_minimum(fit))
+
+        # Equal values: neither rising nor falling.
+        level = fit_segments(A_H, fill(0.3, 20), σ; max_segments = 1)
+        @test occursin("is flat between A_H = 120 and 139", unresolved_minimum(level))
 
         # Against windows: flagged only where the range covers one of them.
         @test unresolved_minimum(turning, [128:132]) === nothing

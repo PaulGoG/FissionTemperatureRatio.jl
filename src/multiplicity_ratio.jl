@@ -55,54 +55,60 @@ Read a whitespace-separated `ν(A)` dataset with the column layout
 A  nu  nu_uncertainty
 ```
 
-and a single header line, or `A nu` where the source quotes no uncertainty. An absent,
-non-numeric or non-positive third column is stored as `missing`: an unquoted uncertainty is not
-a datum, and it is never written as zero, which would denote an exact value.
+and a single header line, or `A nu` where the source quotes no uncertainty. An absent third
+field, and one that is zero, negative or not finite (`NaN`), is stored as `missing`: an
+unquoted uncertainty is not a datum, and it is never written as zero, which would denote an exact
+value.
 
 The columns are taken **by position**, not by header text: the header line is skipped, so the
 upstream retrieval may rename it without touching anything here, and nothing in this reader may
-be changed to a lookup by name.
+be changed to a lookup by name. Fields beyond the third are not read, and blank lines are passed
+over.
 
 No point is ever dropped on the basis of its value or uncertainty: filtering experimental data
 requires a documented reason specific to the dataset, which belongs with the data rather than in
 this reader.
 
-Throws an `ArgumentError` naming the file when it cannot be read with this layout, when mass
-numbers repeat, or when a multiplicity is negative.
+Throws an `ArgumentError` naming the file, and the line where one is at fault, when a line holds
+fewer than two fields, when a mass number, a multiplicity or an uncertainty is not numeric, when a
+multiplicity is negative or not finite, when mass numbers repeat, or when the file holds no data.
+A field that cannot be read is refused rather than taken as unquoted: one malformed uncertainty
+must not pass for a dataset that quotes none.
 """
 function read_multiplicity(path::AbstractString; label::AbstractString = "")
     isfile(path) || throw(ArgumentError("multiplicity file not found: $(path)"))
 
-    table = try
-        CSV.read(
-            path,
-            DataFrame;
-            delim = ' ',
-            ignorerepeated = true,
-            header = ["A", "ν", "σν"],
-            skipto = 2,
-            on_error = :collect,
-        )
-    catch exception
-        throw(ArgumentError("multiplicity file $(path) does not have the layout \
-                 `A nu nu_uncertainty`: $(exception)"))
-    end
-
     A = Int[]
     ν = Float64[]
     σν = Union{Missing,Float64}[]
-    for row in eachrow(table)
-        (ismissing(row.A) || ismissing(row.ν)) && continue
-        mass = round(Int, row.A)
-        value = Float64(row.ν)
-        value ≥ 0 || throw(
-            ArgumentError(
-                "multiplicity file $(path) has a negative multiplicity at A = $(mass)"
-            ),
+    for (number, line) in enumerate(eachline(path))
+        number == 1 && continue
+        fields = split(line)
+        isempty(fields) && continue
+        malformed(what) = throw(
+            ArgumentError("multiplicity file $(path), line $(number): $(what); the layout is \
+                 `A nu nu_uncertainty`, got $(repr(line))"),
         )
-        push!(A, mass)
+        length(fields) ≥ 2 || malformed("fewer than two fields")
+        mass = tryparse(Float64, fields[1])
+        (mass === nothing || !isfinite(mass)) &&
+            malformed("the mass number $(repr(fields[1])) is not numeric")
+        value = tryparse(Float64, fields[2])
+        value === nothing && malformed("the multiplicity $(repr(fields[2])) is not numeric")
+        (isfinite(value) && value ≥ 0) ||
+            malformed("the multiplicity $(repr(fields[2])) is negative or not finite")
+        uncertainty = if length(fields) ≥ 3
+            quoted = tryparse(Float64, fields[3])
+            quoted === nothing &&
+                malformed("the uncertainty $(repr(fields[3])) is not numeric")
+            # Zero, a negative number and NaN are how a source writes "none quoted".
+            (isfinite(quoted) && quoted > 0) ? quoted : missing
+        else
+            missing
+        end
+        push!(A, round(Int, mass))
         push!(ν, value)
-        push!(σν, _quoted_uncertainty(table, row, :σν))
+        push!(σν, uncertainty)
     end
 
     allunique(A) || throw(ArgumentError("multiplicity file $(path) has repeated mass numbers"))
@@ -111,16 +117,6 @@ function read_multiplicity(path::AbstractString; label::AbstractString = "")
     order = sortperm(A)
     name = isempty(label) ? splitext(basename(path))[1] : String(label)
     return Multiplicity(A[order], ν[order], σν[order], name, String(path))
-end
-
-# The uncertainty column of a data row, by position. Absent, non-numeric and non-positive values
-# are all "not quoted": a source that writes zero where it has no uncertainty has not quoted one,
-# and no experimental value is exact.
-function _quoted_uncertainty(table::DataFrame, row, column::Symbol)
-    hasproperty(table, column) || return missing
-    value = row[column]
-    (ismissing(value) || !(value isa Real)) && return missing
-    return value > 0 ? Float64(value) : missing
 end
 
 """

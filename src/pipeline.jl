@@ -342,7 +342,8 @@ end
 The datasets of a run that a republication supersedes, by label, each with the label of the
 dataset that supersedes it. The retrieval marks the earlier publication of one result with the
 qualifier `superseded`; it is read, fitted and written, and enters the pool through its successor
-alone.
+alone. Where the successor is excluded or forms no fragment pair, neither is pooled: a withdrawn
+result does not stand in for the one that replaced it.
 """
 superseded_datasets(result::ExtractionResult) = result.superseded
 
@@ -375,30 +376,42 @@ deviation_autocorrelation(result::ExtractionResult) = result.autocorrelation
 
 """
     leave_one_out_spread(result, mass_yield) -> Union{NamedTuple,Nothing}
+    leave_one_out_spread(refits, mass_yield) -> Union{NamedTuple,Nothing}
 
 The spread of the systematic trend's `⟨R_T⟩` over the yield distribution labelled `mass_yield`
-across the [`LeaveOneOut`](@ref) refits of a run: `(; min, max, uncertainty)`, the least and the
-greatest of the values `θᵢ`, `i = 1, …, k`, of the refits that hold one, and the delete-one
-jackknife standard error over the pooled datasets,
+across the [`LeaveOneOut`](@ref) refits of a run: `(; min, max, uncertainty, refits)`, the least
+and the greatest of the values `θᵢ`, `i = 1, …, k`, of the refits that hold one, the delete-one
+jackknife standard error over the pooled datasets or experiments,
 
 ```
-σ = [(k − 1)/k Σᵢ (θᵢ − θ̄)²]^(1/2).
+σ = [(k − 1)/k Σᵢ (θᵢ − θ̄)²]^(1/2),
 ```
 
-This is the uncertainty of the trend's `⟨R_T⟩` that comes from the datasets differing from one
-another by more than their errors along the mass axis, which the covariance of the trend does not
-contain. `nothing` where fewer than two refits hold a value.
+and `k`. This is the uncertainty of the trend's `⟨R_T⟩` that comes from the datasets differing
+from one another by more than their errors along the mass axis, which the covariance of the trend
+does not contain. `nothing` where fewer than two refits hold a value.
+
+A refit that gave no curve holds no value and is not among the `k`. With two refits the standard
+error is half their difference, `|θ₁ − θ₂|/2`: each refit then rests on a single dataset or
+experiment, and the number says how far the two lie apart, not how well their trend is known.
 """
 function leave_one_out_spread(result::ExtractionResult, mass_yield::AbstractString)
+    return leave_one_out_spread(result.leave_one_out, mass_yield)
+end
+
+function leave_one_out_spread(refits::Vector{LeaveOneOut}, mass_yield::AbstractString)
     θ = Float64[
         entry.total_average_R_T[mass_yield] for
-        entry in result.leave_one_out if haskey(entry.total_average_R_T, mass_yield)
+        entry in refits if haskey(entry.total_average_R_T, mass_yield)
     ]
     k = length(θ)
     k < 2 && return nothing
     θ̄ = mean(θ)
     return (;
-        min = minimum(θ), max = maximum(θ), uncertainty = sqrt((k - 1) / k * sum(abs2, θ .- θ̄))
+        min = minimum(θ),
+        max = maximum(θ),
+        uncertainty = sqrt((k - 1) / k * sum(abs2, θ .- θ̄)),
+        refits = k,
     )
 end
 
@@ -481,9 +494,10 @@ segments to the temperature ratio a second time. The inversion is exact, whereas
 would discard the uncertainty of the first and impose a piecewise-linear shape on a quantity that
 is not piecewise-linear.
 
-`leave_one_out` refits the systematic trend once with each pooled dataset left out,
-[`LeaveOneOut`](@ref). The refits cost one trend fit per pooled dataset and can be skipped where
-only the curves are wanted; the result then carries none.
+`leave_one_out` refits the systematic trend once with each pooled dataset left out, the datasets
+of one experiment together, [`LeaveOneOut`](@ref). The refits cost one trend fit per pooled
+dataset or experiment and can be skipped where only the curves are wanted; the result then
+carries none.
 
 Nothing is written. [`write_results`](@ref) writes the tables and the manifest of a result into a
 directory of the caller's choosing; `scripts/run.jl` names that directory by the run identifier
@@ -517,9 +531,7 @@ function run_pipeline(configuration::Configuration; leave_one_out::Bool = true)
     datasets = read_multiplicity_directory(configuration.multiplicity_directory)
     # Before anything is fitted: an exclusion that names no dataset is a configuration the run
     # cannot honour. `load_configuration` has checked it; a configuration built by hand has not.
-    excluded = _excluded_labels(
-        configuration.excluded_datasets, datasets, "multiplicity.exclude"
-    )
+    _excluded_labels(configuration.excluded_datasets, datasets, "multiplicity.exclude")
     if configuration.yield_directory === nothing
         # No directory, so the primary distribution alone is averaged over; an exclusion would be
         # written to the run record without having been applied.
@@ -645,8 +657,14 @@ function run_pipeline(configuration::Configuration; leave_one_out::Bool = true)
     superseded = _superseded(datasets, candidates)
     admitted = [i for i in candidates if !haskey(superseded, i)]
     for (i, j) in superseded
-        @info "dataset superseded by a republication: pooled through its successor alone" dataset =
-            datasets[i].label superseded_by = datasets[j].label
+        if j in candidates
+            @info "dataset superseded by a republication: pooled through its successor alone" dataset =
+                datasets[i].label superseded_by = datasets[j].label
+        else
+            @warn "dataset superseded by a republication that is not pooled itself; neither \
+                   enters the pool" dataset = datasets[i].label superseded_by =
+                datasets[j].label
+        end
     end
     # Interpolated datasets count by their measured points, not their written rows.
     weights = [pooling_weight(retrieval_record(datasets[i].source)) for i in admitted]
@@ -833,6 +851,14 @@ function run_pipeline(configuration::Configuration; leave_one_out::Bool = true)
                 ),
             )
         end
+        # What the jackknife over the refits can and cannot say here.
+        failed = [join(entry.datasets, " + ") for entry in refits if entry.segments == 0]
+        isempty(failed) ||
+            @warn "a leave-one-out refit gave no curve; the jackknife uncertainty of the trend \
+                   is formed over the other refits" left_out = failed
+        length(units.curves) == 2 &&
+            @warn "two pooled experiments: each leave-one-out refit rests on one of them, and \
+                   the jackknife uncertainty of the trend is half the difference of the two"
     end
 
     return ExtractionResult(
@@ -1014,16 +1040,12 @@ function _experiments(datasets::Vector{Multiplicity}, candidates::Vector{Int})
     return [findall(==(first_position), experiment) for first_position in unique(experiment)]
 end
 
-# How the datasets of one experiment are related, where their records agree on it; empty where
-# they state nothing or differ.
+# How the datasets of one experiment are related, where every one of their records states it and
+# they agree; empty where a member states none or two members differ. A relation is a statement
+# about the experiment, and one its records do not share is not acted on.
 function _relation(datasets::Vector{Multiplicity}, members::Vector{Int})
-    stated = unique(
-        filter(
-            !isempty,
-            [correlation_relation(retrieval_record(datasets[i].source)) for i in members],
-        ),
-    )
-    return length(stated) == 1 ? only(stated) : ""
+    stated = [correlation_relation(retrieval_record(datasets[i].source)) for i in members]
+    return (all(!isempty, stated) && allequal(stated)) ? first(stated) : ""
 end
 
 # The qualifier tags the retrieval records for a data file; none where no record lists it.
@@ -1035,18 +1057,20 @@ end
 # The datasets among `candidates` that a republication supersedes, each with the dataset that
 # supersedes it: in an experiment whose records give the relation `republication`, the members
 # carrying the qualifier `superseded`, where exactly one member does not. Such a dataset is the
-# same result published earlier and enters no pool beside its successor.
+# same result published earlier and enters no pool: not beside its successor, and not in its
+# place where the successor is excluded or forms no fragment pair, since a withdrawn result does
+# not stand in for the one that replaced it. The experiments are those of every dataset read, so
+# that a successor outside the pool is still seen.
 function _superseded(datasets::Vector{Multiplicity}, candidates::Vector{Int})
     superseded = Dict{Int,Int}()
-    for positions in _experiments(datasets, candidates)
-        members = candidates[positions]
+    for members in _experiments(datasets, collect(eachindex(datasets)))
         length(members) > 1 || continue
         _relation(datasets, members) == "republication" || continue
         withdrawn = [i for i in members if "superseded" in _qualifier_tags(datasets[i].source)]
         current = setdiff(members, withdrawn)
         length(current) == 1 || continue
         for i in withdrawn
-            superseded[i] = only(current)
+            i in candidates && (superseded[i] = only(current))
         end
     end
     return superseded
@@ -1150,11 +1174,15 @@ function _fit_trend(
     # measured fraction beside it, as a dataset is: the standard error of `pooled` carries the
     # fraction already, and fitting to it would count the fraction twice.
     combined = RatioCurve(pooled.A_H, pooled.ratio, σ_measurement, pooled.label)
-    # A curve that is itself a combination enters the correlogram with its mean factor.
-    factors = Float64[w isa Real ? w : mean(w) for w in weights]
-    correlogram = deviation_correlogram(curves, pooled; weights = factors)
+    correlogram = if estimate_autocorrelation
+        # A curve that is itself a combination enters the correlogram with its mean factor.
+        factors = Float64[w isa Real ? w : mean(w) for w in weights]
+        deviation_correlogram(curves, pooled; weights = factors)
+    else
+        Vector{Union{Missing,Float64}}(missing, CORRELOGRAM_LAGS)
+    end
     lags = min(settings.autocorrelation_lags, length(correlogram))
-    estimated = estimate_autocorrelation && !all(ismissing, view(correlogram, 1:lags))
+    estimated = !all(ismissing, view(correlogram, 1:lags))
     ρ = estimated ? autocorrelation_decay(correlogram; lags = lags) : 0.0
     # The errors of the combined points: correlated along the mass axis within a dataset,
     # independent between datasets.

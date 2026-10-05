@@ -307,6 +307,12 @@ const SEGMENT_KEYS = (
     "autocorrelation_lags",
 )
 const RETRIEVAL_KEYS = ("min_package_version",)
+
+# The lowest ExforFissionData version whose retrieval records a run accepts where the
+# configuration does not say: the first whose records name the datasets of one experiment
+# (`correlated_with`, `correlation_relation`). The pooling of an experiment as one rests on them;
+# inputs retrieved before would pool its datasets side by side, under the same run identifier.
+const DEFAULT_MIN_RETRIEVAL_VERSION = "0.2.7"
 const OUTPUT_KEYS = ("significant_digits",)
 
 function _value(section::AbstractDict, key::String, ::Type{T}, path::String) where {T}
@@ -908,15 +914,15 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
             "min_package_version",
             String,
             "retrieval.min_package_version",
-            "0.2.3",
+            DEFAULT_MIN_RETRIEVAL_VERSION,
         )
     else
-        "0.2.3"
+        DEFAULT_MIN_RETRIEVAL_VERSION
     end
     min_retrieval_version = tryparse(VersionNumber, min_package_version)
     min_retrieval_version === nothing && throw(
         ArgumentError(
-            "retrieval.min_package_version must be a version number such as \"0.2.3\", got \
+            "retrieval.min_package_version must be a version number such as \"0.2.7\", got \
              $(repr(min_package_version))"
         ),
     )

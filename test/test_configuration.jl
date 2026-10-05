@@ -44,7 +44,7 @@ function with_configuration(f, body::AbstractString)
         write(joinpath(directory, "TKE_vs_A", "2_B.Author_2001.dat"), "A TKE\n126 170.0\n")
         write(
             joinpath(directory, "TKE_vs_A", "retrieval.toml"),
-            "[[accepted]]\nfile = \"1_A.Author_2000.dat\"\nqualifiers = []\n\n[run]\npackage_version = \"0.2.3\"\n",
+            "[[accepted]]\nfile = \"1_A.Author_2000.dat\"\nqualifiers = []\n\n[run]\npackage_version = \"0.2.7\"\n",
         )
         path = joinpath(directory, "configuration.toml")
         write(path, body)
@@ -77,7 +77,7 @@ end
             @test configuration.segments.min_segment_span == 3
             @test configuration.segments.min_pair_coverage == 0.3
             @test configuration.min_yield_coverage == 0.3
-            @test configuration.min_retrieval_version == v"0.2.3"
+            @test configuration.min_retrieval_version == v"0.2.7"
             @test configuration.output.significant_digits == 6
             @test configuration.data_directory == directory
         end
@@ -269,7 +269,7 @@ end
             ),
             (
                 "unknown retrieval key",
-                MINIMAL_CONFIGURATION * "\n[retrieval]\nversion = \"0.2.3\"\n",
+                MINIMAL_CONFIGURATION * "\n[retrieval]\nversion = \"0.2.7\"\n",
             ),
             # A key the loader does not read is refused, not ignored: a retired or misspelt key
             # would otherwise leave the run silently on the default.
@@ -598,12 +598,20 @@ end
         accepted = "[[accepted]]\nfile = \"1_A.Author_2000.dat\"\nqualifiers = []\n"
         with_configuration(body) do path, directory
             record = joinpath(directory, "TKE_vs_A", "retrieval.toml")
-            # The fixture's record was written by 0.2.3, the default floor.
+            # The fixture's record was written by 0.2.7, the default floor: the first version
+            # whose records name the datasets of one experiment.
             load_configuration(path; data_directory = directory)
-            versions = check_retrieval_versions([joinpath(directory, "TKE_vs_A")], v"0.2.3")
+            versions = check_retrieval_versions([joinpath(directory, "TKE_vs_A")], v"0.2.7")
             @test length(versions) == 1
-            @test only(values(versions)) == v"0.2.3"
+            @test only(values(versions)) == v"0.2.7"
 
+            # A record of the version before it is refused: its inputs would pool the datasets
+            # of one experiment side by side.
+            write(record, accepted * "\n[run]\npackage_version = \"0.2.6\"\n")
+            @test_throws "below retrieval.min_package_version" load_configuration(
+                path; data_directory = directory
+            )
+            @test_throws "0.2.7" load_configuration(path; data_directory = directory)
             write(record, accepted * "\n[run]\npackage_version = \"0.2.2\"\n")
             @test_throws "below retrieval.min_package_version" load_configuration(
                 path; data_directory = directory
@@ -626,10 +634,10 @@ end
             )
 
             # Input directories written by different versions are admitted, and said to be.
-            write(record, accepted * "\n[run]\npackage_version = \"0.2.3\"\n")
+            write(record, accepted * "\n[run]\npackage_version = \"0.2.7\"\n")
             write(
                 joinpath(directory, "datasets", "retrieval.toml"),
-                "[run]\npackage_version = \"0.2.4\"\n",
+                "[run]\npackage_version = \"0.2.8\"\n",
             )
             @test_logs (:warn, r"different versions") match_mode = :any load_configuration(
                 path; data_directory = directory
@@ -791,8 +799,12 @@ end
         files = filter(endswith(".toml"), readdir(directory))
         @test !isempty(files)
         for file in files
-            system = system_of(TOML.parsefile(joinpath(directory, file)))
+            document = TOML.parsefile(joinpath(directory, file))
+            system = system_of(document)
             @test file == "$(system_label(system)).toml"
+            # The floor of the retrieval is the version whose records name the datasets of
+            # one experiment, in every shipped configuration as in the default.
+            @test document["retrieval"]["min_package_version"] == "0.2.7"
         end
     end
 end

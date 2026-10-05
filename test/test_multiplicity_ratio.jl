@@ -45,6 +45,49 @@
         end
     end
 
+    @testset "reader refuses a field it cannot read, naming the file and the line" begin
+        mktempdir() do directory
+            file(name, body) = (path = joinpath(directory, name); write(path, body); path)
+            header = "A nu nu_uncertainty\n"
+            # A multiplicity that is not a number: an ArgumentError, as the reader promises.
+            value = file("value.dat", header * "100 1.5 0.1\n101 abc 0.1\n102 1.7 0.1\n")
+            @test_throws ArgumentError read_multiplicity(value)
+            @test_throws "value.dat, line 3" read_multiplicity(value)
+            @test_throws "the multiplicity \"abc\" is not numeric" read_multiplicity(value)
+            # One uncertainty that is not a number must not pass for a dataset that quotes none.
+            uncertainty = file("uncertainty.dat", header * "100 1.5 0.1\n101 1.6 n/a\n")
+            @test_throws ArgumentError read_multiplicity(uncertainty)
+            @test_throws "uncertainty.dat, line 3" read_multiplicity(uncertainty)
+            @test_throws "the uncertainty \"n/a\" is not numeric" read_multiplicity(uncertainty)
+            # A mass number that is not a number, and a line that stops after it.
+            mass = file("mass.dat", header * "x 1.5 0.1\n")
+            @test_throws "mass.dat, line 2" read_multiplicity(mass)
+            short = file("short.dat", header * "100 1.5 0.1\n101\n")
+            @test_throws "short.dat, line 3: fewer than two fields" read_multiplicity(short)
+            negative = file("negative.dat", header * "100 -1.5 0.1\n")
+            @test_throws "negative.dat, line 2" read_multiplicity(negative)
+            infinite = file("infinite.dat", header * "100 Inf 0.1\n")
+            @test_throws ArgumentError read_multiplicity(infinite)
+            empty = file("empty.dat", header)
+            @test_throws "contains no usable rows" read_multiplicity(empty)
+            twice = file("twice.dat", header * "100 1.5 0.1\n100 1.6 0.1\n")
+            @test_throws "repeated mass numbers" read_multiplicity(twice)
+
+            # What is read: the quoted uncertainties stay with their points; zero, a negative
+            # number and NaN are "none quoted"; blank lines, tabs and further fields are passed.
+            mixed = file(
+                "mixed.dat",
+                header *
+                "102 1.7 0.2 extra\n\n100\t1.5\t0.1\n101 1.6 NaN\n103 1.8 -1\n104 1.9 0\n105 2.0\n",
+            )
+            data = read_multiplicity(mixed; label = "mixed")
+            @test data.A == [100, 101, 102, 103, 104, 105]
+            @test data.ν == [1.5, 1.6, 1.7, 1.8, 1.9, 2.0]
+            @test isequal(data.σν, [0.1, missing, 0.2, missing, missing, missing])
+            @test data.label == "mixed"
+        end
+    end
+
     @testset "pooled datasets are weighted by their measured points" begin
         a = RatioCurve([130, 131], [0.30, 0.40], [0.01, 0.01], "a")
         b = RatioCurve([130], [0.31], [0.01], "b")

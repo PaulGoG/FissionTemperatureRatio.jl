@@ -172,7 +172,8 @@ function _covariance_scale(wrss::Float64, expected::Real, imputed::Int, n::Int)
 end
 
 # A correlation matrix of the errors of n points, checked for what the covariance relies on: its
-# size, its symmetry, a unit diagonal and entries within [-1, 1].
+# size, its symmetry, a unit diagonal, entries within [-1, 1] and no negative eigenvalue, without
+# which the variance of a fitted value could come out negative.
 function _correlation_matrix(correlation::AbstractMatrix{<:Real}, n::Int)
     size(correlation) == (n, n) || throw(
         DimensionMismatch(
@@ -187,6 +188,13 @@ function _correlation_matrix(correlation::AbstractMatrix{<:Real}, n::Int)
         throw(ArgumentError("a correlation matrix is symmetric"))
     all(abs(r) ≤ 1 + tolerance for r in R) ||
         throw(ArgumentError("the entries of a correlation matrix lie in [-1, 1]"))
+    lowest = eigmin(Symmetric(R))
+    lowest ≥ -tolerance || throw(
+        ArgumentError(
+            "a correlation matrix is positive semi-definite; its smallest eigenvalue is \
+             $(lowest)"
+        ),
+    )
     return R
 end
 
@@ -659,8 +667,8 @@ Why a segmented multiplicity ratio resolves no minimum, or `nothing` where it re
 The multiplicity ratio falls from the symmetric split to a minimum at the heavy magic fragment and
 rises beyond it. A segmented curve whose pivots show no such turn — one segment, or a range that
 begins at or above the minimum — tabulates a temperature ratio without it, and the reason is
-returned: a curve rising from the first mass number of its range, one falling to the last, or
-neither. The test is of the shape of the fitted curve, an interior pivot below both of its
+returned: a curve rising from the first mass number of its range, one falling to the last, a
+flat one, or none of these. The test is of the shape of the fitted curve, an interior pivot below both of its
 neighbours, and not of its `χ²`, which has no common scale across datasets.
 """
 function unresolved_minimum(fit::SegmentedFit)
@@ -669,6 +677,10 @@ function unresolved_minimum(fit::SegmentedFit)
     m = length(values)
     any(j -> values[j] < values[j - 1] && values[j] < values[j + 1], 2:(m - 1)) &&
         return nothing
+    # Flat to rounding: a fitted line through equal values has a slope of rounding size.
+    maximum(values) - minimum(values) ≤ 1e-12 * max(1.0, maximum(abs, values)) &&
+        return "no interior minimum: the segmented ratio is flat between A_H = $(fit.x₀) and \
+                $(fit.x_max)"
     lowest = argmin(values)
     lowest == 1 && return "no interior minimum: the segmented ratio rises from A_H = \
                            $(fit.x₀), the first mass number of its range"

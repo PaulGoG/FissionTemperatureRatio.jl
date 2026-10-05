@@ -43,7 +43,7 @@ min_pair_coverage = 0.3                       # fraction of the range's heavy ma
 autocorrelation_lags = 4                      # lags of the deviation correlogram the trend's autocorrelation is fitted to, 1 to 8
 
 [retrieval]
-min_package_version = "0.2.3"                 # lowest ExforFissionData version whose retrieval records are accepted; a record below it, or stating none, is refused
+min_package_version = "0.2.7"                 # lowest ExforFissionData version whose retrieval records are accepted; a record below it, or stating none, is refused
 
 [output]
 significant_digits = 6                        # significant figures in tabulated output, 1 to 15

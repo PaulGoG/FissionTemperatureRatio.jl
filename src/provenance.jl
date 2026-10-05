@@ -480,26 +480,28 @@ function _trend_uncertainty_record(result::ExtractionResult)
         spread = leave_one_out_spread(result, distribution.label)
         spread === nothing && continue
         spreads[distribution.label] = Dict{String,Any}(
-            "min" => spread.min, "max" => spread.max, "uncertainty" => spread.uncertainty
+            "min" => spread.min,
+            "max" => spread.max,
+            "uncertainty" => spread.uncertainty,
+            "refits" => spread.refits,
         )
     end
     record["leave_one_out"] = spreads
     return record
 end
 
-# One experiment pooled as one: its datasets, their accessions and how the record relates them.
+# One experiment pooled as one: its datasets, their accessions, the relation every record
+# states, which decides how its curve was formed, and what each record states.
 function _correlation_group_record(result::ExtractionResult, group::Vector{String})
-    sources = Dict(data.label => data.source for data in result.datasets)
-    relations = unique(
-        filter(
-            !isempty,
-            [correlation_relation(retrieval_record(sources[label])) for label in group],
-        ),
-    )
+    indices = [findfirst(data -> data.label == label, result.datasets) for label in group]
+    relation = _relation(result.datasets, indices)
     return Dict{String,Any}(
         "datasets" => group,
-        "accessions" => [_dataset_accession(sources[label]) for label in group],
-        "relation" => isempty(relations) ? "not stated" : join(relations, ", "),
+        "accessions" => [_dataset_accession(result.datasets[i].source) for i in indices],
+        "relation" => isempty(relation) ? "unstated or differing" : relation,
+        "relations_stated" => [
+            correlation_relation(retrieval_record(result.datasets[i].source)) for i in indices
+        ],
     )
 end
 

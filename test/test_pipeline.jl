@@ -328,7 +328,10 @@ function test_experiments_pooled_as_one(directory, configuration, result, writte
         group = only(metadata["correlation_groups"])
         @test group["datasets"] == ["A. First 1979", "B. First 1979"]
         @test group["accessions"] == ["20000001", "20000002"]
-        @test group["relation"] == "repeated_run"
+        # Stated by one member alone, the relation is not acted on: the two are pooled as one
+        # by the rule of a pool, which is also what a repeated run asks for.
+        @test group["relation"] == "unstated or differing"
+        @test group["relations_stated"] == ["repeated_run", ""]
         @test metadata["leave_one_out"][1]["accessions"] == ["20000001", "20000002"]
         @test isempty(run_metadata(apart)["result"]["correlation_groups"])
 
@@ -708,7 +711,7 @@ end
             @test metadata["identifier"]["tokens"]["cov"] == 0.3
             @test !haskey(metadata["identifier"]["tokens"], "Ycov")
             @test metadata["configuration"]["min_pair_coverage"] == 0.3
-            @test metadata["configuration"]["min_package_version"] == "0.2.3"
+            @test metadata["configuration"]["min_package_version"] == "0.2.7"
             # The version of the code that ran, as its project file states it now.
             @test metadata["source"]["package_version"] ==
                 string(pkgversion(FissionTemperatureRatio))
@@ -831,7 +834,7 @@ end
                 qualifiers = []
 
                 [run]
-                package_version = "0.2.3"
+                package_version = "0.2.7"
                 """,
             )
             path = joinpath(directory, "single.toml")

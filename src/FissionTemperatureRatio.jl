@@ -108,7 +108,7 @@ using FissionFragmentsDomain:
     ratio_averaging,
     ratio_averaging_label,
     write_temperature_ratio_manifest
-using LinearAlgebra: Symmetric, cond, dot, tr
+using LinearAlgebra: Symmetric, cond, dot, eigmin, tr
 using Measurements: uncertainty, value
 using SHA: sha1
 using Statistics: mean, median, std
