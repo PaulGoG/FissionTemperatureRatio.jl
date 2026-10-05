@@ -97,10 +97,15 @@ parentheses after the label, so that every label is unique.
 
 **Datasets of one experiment.** A retrieval record names, under `correlated_with`, the other
 datasets of the experiment a dataset belongs to, and under `correlation_relation` how they are
-related. Pooled datasets that name one another are combined into one curve and enter the
-systematic trend as one measurement; each still offers its own segmented curve. The staged records
-give Basova 1979 and Zamyatnin 1979 as alternative analyses of one experiment, for 252-Cf
-(41720002 and 41694002) and for 239-Pu (41720004 and 41694003).
+related. Pooled datasets that name one another enter the systematic trend as one curve, formed as
+the relation states: for alternative analyses of one set of events, the mean of the members, with
+the largest uncertainty a member quotes and half the difference between them added in quadrature;
+for a republication, the superseding dataset alone, the superseded one, which its record marks
+with a qualifier beginning `superseded:`, being read, fitted and written but not pooled; for other
+relations, or none stated, as a pool is combined. Each member still offers its own segmented
+curve. The staged records give Basova 1979 and Zamyatnin 1979 as alternative analyses of one
+experiment, for 252-Cf (41720002 and 41694002) and for 239-Pu (41720004 and 41694003), whose tables
+differ by 0.34 and 0.36 neutrons rms; no staged `ν(A)` set is superseded.
 
 EXFOR entries are immutable once published, so a configuration and that package reproduce a
 retrieval exactly.
@@ -183,6 +188,16 @@ wings: over `A_H` = 130 to 150 its light fragments emit 1.02 neutrons against 1.
 comparable sets, its heavy fragments 1.36 against 1.02 to 1.17. The shipped configuration
 excludes it from the pooled trend by its accession, with the reason; its own curve is still
 written.
+
+**One 239-Pu multiplicity dataset is kept out of the pool.** Nishio 1995 (23012008) is not a
+neutron measurement: its `ν(m*)` is the difference of the pre- and post-neutron fragment masses
+of a measurement of the velocities and energies of both fragments, and no neutron is detected.
+Its paper gives the total as 3.2 ± 0.1, about 10 % above the evaluated value, and its correction
+for the plasma delay of the detectors takes the `ν(m*)` of Apalin et al., whose 239-Pu set is
+pooled. Over `A_H` = 130 to 150 its heavy fragments emit 1.68 neutrons against 1.20 to 1.48 in
+Fraser 1966, Tsuchiya 2000, Apalin 1965 and Zamyatnin 1979, its light fragments 1.53 against 1.45
+to 1.57. The shipped configuration excludes it from the pooled trend by its accession, with the
+reason; its own curve is still written. The main README gives the attribution.
 
 **Two 239-Pu multiplicity datasets are off the scale of ν̄.** Tsuchiya 2000 (22650004) and
 Batenkov 2004 (41502006) are read per fragment, with pair sums 3.9 ± 0.6 % above and 10.7 ± 1.3 %

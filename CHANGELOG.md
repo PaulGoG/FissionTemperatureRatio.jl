@@ -11,11 +11,13 @@ the minor version and a patch release carries none.
 
 The uncertainty of every systematic trend grows: its covariance takes the error of a pooled
 dataset as correlated along the mass axis, and the tabulated `σ(R_T)` of the trend rises by a
-median factor of 3.7, 1.8, 2.1 and 2.7 for ²⁵²Cf, ²³⁵U, ²³⁹Pu and ²³³U. The ²⁵²Cf and ²³⁹Pu trend
-values move, Basova 1979 and Zamyatnin 1979 being pooled as one experiment: `⟨R_T⟩` 1.0878 to
-1.0824 and 1.0268 to 1.0131. The ²³⁵U and ²³³U trends keep their values, no dataset curve changes
-in value or in uncertainty, and the run identifiers of the shipped configurations are unchanged.
-The results quoted rest on inputs retrieved with ExforFissionData.jl v0.2.7.
+median factor of 3.7, 1.8, 2.6 and 2.7 for ²⁵²Cf, ²³⁵U, ²³⁹Pu and ²³³U. The ²⁵²Cf trend moves
+from `⟨R_T⟩` = 1.0878 to 1.0821, Basova 1979 and Zamyatnin 1979 being pooled as one experiment;
+the ²³⁹Pu trend from 1.0268 to 1.0388, through the same pooling and the exclusion of Nishio 1995.
+The ²³⁵U and ²³³U trends keep their values, and no dataset curve changes in value or in
+uncertainty. The run identifiers of the shipped ²⁵²Cf, ²³⁵U and ²³³U configurations are those of
+0.2.3; that of ²³⁹Pu changes in its `excl` token, its exclusion list having gained an entry. The
+results quoted rest on inputs retrieved with ExforFissionData.jl v0.2.7.
 
 0.2.3, a patch release, carried two changes that break an accepted input and belonged in this
 release: `read_multiplicity_directory`, `read_mass_yield_directory` and `load_configuration` throw
@@ -27,8 +29,9 @@ run metadata changed for a `[yield] exclude` without `subdirectory`.
 - `[segments] autocorrelation_lags`, an integer from 1 to 8, default 4: the number of lags of the
   deviation correlogram the autocorrelation of the systematic trend is fitted to. It is a token of
   the run identifier, `lags`, only where it differs from the default, since one more token on
-  every run would carry the file names of a Gilbert-Cameron run beyond 255 bytes.
-  `CORRELOGRAM_LAGS`, `deviation_correlogram`, `autocorrelation_decay`, `pooled_correlation`;
+  every run would carry the file names of a Gilbert-Cameron run beyond 255 bytes. The test suite
+  checks the longest file name a run writes against the 255 bytes a file system admits, for every
+  shipped configuration under both level density models. `CORRELOGRAM_LAGS`, `deviation_correlogram`, `autocorrelation_decay`, `pooled_correlation`;
   `fit_segments(...; correlation = R)` takes a correlation matrix of the errors of the points, and
   `SegmentedFit` has the fields `correlated` and `expected_wrss`.
 - Leave-one-out refits of the systematic trend: the trend is refitted with each pooled dataset,
@@ -46,15 +49,27 @@ run metadata changed for a `[yield] exclude` without `subdirectory`.
   `metadata.toml`. `run_pipeline(configuration; leave_one_out = false)` skips the refits, which
   cost one trend fit per pooled dataset.
 - A dataset curve whose segmented `r_ν` has no interior minimum, no interior pivot below both of
-  its neighbours, is flagged with the reason: `unresolved_minimum(fit)`,
-  `ExtractionResult.curve_flags`, the `curve_flagged` and `curve_flag_reason` columns of
-  `dataset_diagnostics.csv` and `[result.flagged_curves]` in `metadata.toml`. It stays in the
-  manifest. The test is of the shape of the fitted curve, not of `χ²/dof`, which has no common
-  scale across datasets: in the shipped runs it runs from 2 × 10⁻⁵ for a dataset quoting no
-  uncertainties to 26 for one quoting small ones. Flagged there are ²⁵²Cf Bowman 1963, Britt 1964
-  and Mehta 1973, whose pairs begin at `A_H` = 133, 132 and 135, above the minimum; ²³⁹Pu Tsuchiya
-  2000, one segment from `A_H` = 123; and ²³³U Fraser 1966, which rises from its first pair at
-  `A_H` = 126. None is flagged for ²³⁵U.
+  its neighbours, although its range covers a required window (`[segments] required_windows`, the
+  window the minimum lies in, 128 to 132 in the shipped configurations), is flagged with the
+  reason, which ends "which covers the window 128:132": `unresolved_minimum(fit, windows)`, and
+  `unresolved_minimum(fit)` for the test of the shape alone; `ExtractionResult.curve_flags`, the
+  `curve_flagged` and `curve_flag_reason` columns of `dataset_diagnostics.csv` and
+  `[result.flagged_curves]` in `metadata.toml`. A curve that begins above the start of the window
+  is limited in range, which the `coverage` and `first_pair` columns already state, and is not
+  flagged; without a required window nothing is flagged. A flagged curve stays in the manifest.
+  The test is of the shape of the fitted curve, not of `χ²/dof`, which has no common scale across
+  datasets: in the shipped runs it runs from 2 × 10⁻⁵ for a dataset quoting no uncertainties to 26
+  for one quoting small ones. Flagged there are ²³⁹Pu Tsuchiya 2000, one segment from `A_H` = 123,
+  and ²³³U Fraser 1966, which rises from its first pair at `A_H` = 126. None is flagged for ²⁵²Cf
+  and ²³⁵U: Bowman 1963, Britt 1964 and Mehta 1973 of ²⁵²Cf begin at `A_H` = 133, 132 and 135,
+  past the start of the window.
+- `superseded_datasets(result)` and `ExtractionResult.superseded`: the datasets a republication
+  supersedes, each with its successor. Of an experiment whose records give the relation
+  `republication`, the superseding dataset alone enters the pool; the superseded one, which its
+  record marks with a qualifier beginning `superseded:`, is read, fitted and written and offers its
+  own curve, and is not pooled. `[result.superseded_datasets]` in `metadata.toml`; the
+  `exclusion_reason` column of `dataset_diagnostics.csv` reads "superseded by <label>" for it and
+  `pooled` is false. None of the shipped `ν(A)` sets is superseded.
 - `correlated_datasets(record)` and `correlation_relation(record)`, the other datasets of the
   experiment a dataset belongs to and how they are related, as a retrieval record of
   ExforFissionData 0.2.7 or later states them under `correlated_with` and `correlation_relation`
@@ -83,25 +98,43 @@ run metadata changed for a `[yield] exclude` without `subdirectory`.
 
   | System | `ρ` | `χ²/dof` | `χ²/E[χ²]` | `⟨R_T⟩` | `σ` with independent points | Jackknife |
   |---|---|---|---|---|---|---|
-  | ²⁵²Cf(sf) | 0.871 | 1.88 | 3.57 | 1.0824 ± 0.0155 | 0.0036 | 0.0099 |
+  | ²⁵²Cf(sf) | 0.872 | 2.02 | 3.83 | 1.0821 ± 0.0159 | 0.0037 | 0.0085 |
   | ²³⁵U(nth,f) | 0.690 | 0.44 | 0.63 | 1.1230 ± 0.0153 | 0.0075 | 0.0222 |
-  | ²³⁹Pu(nth,f) | 0.809 | 0.48 | 0.98 | 1.0131 ± 0.0228 | 0.0086 | 0.0303 |
+  | ²³⁹Pu(nth,f) | 0.814 | 0.73 | 1.29 | 1.0388 ± 0.0269 | 0.0091 | 0.0257 |
   | ²³³U(nth,f) | 0.800 | 1.70 | 2.43 | 1.0724 ± 0.0936 | 0.0319 | 0.1381 |
 
-  For ²³³U, ²³⁵U and ²³⁹Pu the jackknife uncertainty exceeds the propagated one: the datasets
-  differ by offsets the kernel does not hold, most of all for ²³³U, whose four datasets give
-  `⟨R_T⟩` from 0.98 to 1.18 with one left out.
+  For ²³⁵U and ²³³U the jackknife uncertainty exceeds the propagated one, by a factor of 1.4 to
+  1.5: the datasets differ by offsets the kernel does not hold, most of all for ²³³U, whose four
+  datasets give `⟨R_T⟩` from 0.98 to 1.18 with one left out. For ²³⁹Pu the two are about equal;
+  for ²⁵²Cf, with thirteen experiments, the jackknife is about half the propagated uncertainty.
 - Pooled datasets of one experiment, those whose retrieval records name one another under
-  `correlated_with`, are combined into one curve first, by the rule a pool is combined with, and
-  that curve enters the pool as one measurement, so that the experiment counts once in the
+  `correlated_with`, enter the pool as one curve, at the uncertainty of one measurement with the
+  measured fraction of each of its points, so that the experiment counts once in the
   between-dataset variance and in the weights; the leave-one-out refits leave it out as one. Each
-  member still offers its own segmented curve and stays in the manifest. In the shipped inputs
-  Basova 1979 and Zamyatnin 1979 are alternative analyses of one experiment, for ²⁵²Cf (EXFOR
-  41720002 and 41694002) and for ²³⁹Pu (41720004 and 41694003). The ²⁵²Cf trend moves from 5 to 4
-  segments, breakpoints 130, 137, 143, 149 to 130, 136, 150, `χ²/dof` 1.53 to 1.88 and `⟨R_T⟩`
-  1.0878 to 1.0824; the ²³⁹Pu trend keeps 6 segments, breakpoints 126, 130, 137, 149, 154 to 126,
-  130, 137, 148, 154, `χ²/dof` 0.44 to 0.48 and `⟨R_T⟩` 1.0268 to 1.0131. With both left out the
-  ²⁵²Cf trend gives 1.0806 and the ²³⁹Pu trend 0.9917.
+  member still offers its own segmented curve and stays in the manifest. The curve follows the
+  relation the records state. Of alternative analyses, which share their statistical errors, it
+  takes at each mass number the mean of the members, with the largest uncertainty a member quotes
+  and half the difference between the members added in quadrature,
+  `σ = [max(σ_a, σ_b)² + ((r_a − r_b)/2)²]^(1/2)` for two; a mass number one member alone holds
+  takes that member's value and uncertainty. Of a republication the superseding dataset alone
+  enters. Repeated runs, complementary ranges, and members whose records state no relation or
+  different ones are combined by the rule a pool is combined with. In the shipped inputs Basova
+  1979 and Zamyatnin 1979 are alternative analyses of one experiment, for ²⁵²Cf (EXFOR 41720002
+  and 41694002) and for ²³⁹Pu (41720004 and 41694003), whose tables differ by 0.34 and 0.36
+  neutrons rms. The ²⁵²Cf trend moves from 5 to 4 segments, breakpoints 130, 137, 143, 149 to 130,
+  136, 150, `χ²/dof` 1.53 to 2.02 and `⟨R_T⟩` 1.0878 to 1.0821, and gives 1.0806 with the
+  experiment left out. The ²³⁹Pu trend, with Nishio 1995 still pooled, keeps 6 segments,
+  breakpoints 126, 130, 137, 149, 154 to 126, 130, 137, 148, 154, `χ²/dof` 0.44 to 0.54 and
+  `⟨R_T⟩` 1.0268 to 1.0113.
+- Nishio 1995 (EXFOR 23012008) is kept out of the ²³⁹Pu pool by the shipped configuration, with
+  the reason; its own curve is still fitted and written, and the published rows resting on it are
+  unaffected. Its `ν(m*)` is a difference of fragment masses, no neutron being detected; the paper,
+  J. Nucl. Sci. Technol. 32, 404 (1995), doi:10.1080/18811248.1995.9731725, gives a total about
+  10 % above the evaluated value and fixes its plasma-delay correction with the pooled `ν(m*)` of
+  Apalin et al. Over `A_H` = 130 to 150 its `⟨ν_H⟩` is 1.68 against 1.20 to 1.48 in the other four
+  sets; the README gives the attribution. With it the ²³⁹Pu trend took 6 segments, `χ²/dof` = 0.54
+  and `⟨R_T⟩` = 1.0113; without it, 4 segments, 0.73 and 1.0388, and 1.0296 with Basova 1979 and
+  Zamyatnin 1979 left out. The `excl` token of its run identifier changes.
 - `FLAGGED_QUALIFIERS` is `("DERIV", "SPA", "preliminary")`. A dataset whose record carries a
   qualifier beginning `preliminary:`, the archive's status code `PRELM` or a publication that
   calls its results preliminary, is flagged and used; no exclusion follows from the flag, and
@@ -125,8 +158,9 @@ run metadata changed for a `[yield] exclude` without `subdirectory`.
   `uncertainty`. Each curve under `[result.segmented_curves]` gains `chi_squared_over_expectation`
   and `correlated_points`, and `[configuration]` gains `autocorrelation_lags`.
 - **Breaking:** `SegmentedFit` gains the fields `correlated` and `expected_wrss`, and
-  `ExtractionResult` the fields `deviation_correlogram`, `autocorrelation`, `correlation_groups`,
-  `leave_one_out` and `curve_flags`, so their positional constructors take more arguments.
+  `ExtractionResult` the fields `deviation_correlogram`, `autocorrelation`, `superseded`,
+  `correlation_groups`, `leave_one_out` and `curve_flags`, so their positional constructors take
+  more arguments.
 - The results quoted rest on the retrieval of the twelve configurations by ExforFissionData.jl
   v0.2.7. Every table is byte-identical to that of the v0.2.4 retrieval; the records differ, by
   the datasets of one experiment and the `preliminary` qualifier. `[retrieval]

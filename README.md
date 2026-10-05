@@ -368,27 +368,44 @@ which carries the factor.
 The between-dataset variance is estimated against what the dispersion statistic is expected to
 be where the datasets do not differ, which for a pool holding interpolated datasets is less than
 the number of datasets less one; and it is why the reduced chi-squared of a trend is below one,
-0.44 and 0.48 for ²³⁵U and ²³⁹Pu, without the trend having too many segments. [The
+0.44 and 0.73 for ²³⁵U and ²³⁹Pu, without the trend having too many segments. [The
 method](docs/src/method.md) gives both.
 
 **One experiment, one measurement.** A retrieval record of ExforFissionData.jl v0.2.7 or later
 names, under `correlated_with`, the other datasets of the experiment a dataset belongs to, and
 under `correlation_relation` how they are related: `republication`, `alternative_analysis`,
-`repeated_run` or `complementary_range`. Pooled datasets that name one another are combined into
-one curve first, by the rule a pool is combined with, and that curve enters the pool as one
-measurement, so that the experiment counts once in the between-dataset variance and in the
-weights; the leave-one-out refits below leave it out as one. Each member still offers its own
-segmented curve and stays in the manifest. `correlated_datasets(record)` and
-`correlation_relation(record)` read the record, and a run lists the groups under
-`[[result.correlation_groups]]` in `metadata.toml`, with `datasets`, `accessions` and `relation`,
-and in the `pooled_with` column of `dataset_diagnostics.csv`. In the shipped inputs Basova 1979
-and Zamyatnin 1979 are alternative analyses of one experiment, for ²⁵²Cf (EXFOR 41720002 and
-41694002) and for ²³⁹Pu (41720004 and 41694003). Pooled as two measurements they would give the
-²⁵²Cf trend 5 segments, breakpoints at 130, 137, 143 and 149, `χ²/dof` = 1.53 and `⟨R_T⟩` =
-1.0878; pooled as one it takes 4 segments, breakpoints at 130, 136 and 150, `χ²/dof` = 1.88 and
-`⟨R_T⟩` = 1.0824. The ²³⁹Pu trend keeps 6 segments, with breakpoints at 126, 130, 137, 148 and 154
-in place of 126, 130, 137, 149 and 154, `χ²/dof` = 0.48 in place of 0.44 and `⟨R_T⟩` = 1.0131 in
-place of 1.0268. With both left out the ²⁵²Cf trend gives 1.0806 and the ²³⁹Pu trend 0.9917.
+`repeated_run` or `complementary_range`. Pooled datasets that name one another enter the pool as
+one curve, at the uncertainty of one measurement with the measured fraction of each of its points,
+so that the experiment counts once in the between-dataset variance and in the weights; the
+leave-one-out refits below leave it out as one. How that curve is formed follows the relation.
+Alternative analyses, two or more reductions of one set of events, share their statistical errors,
+so nothing is gained by averaging them as independent values: at each mass number the curve takes
+the mean of the members, and as its uncertainty the largest a member quotes with half the
+difference between the members added in quadrature, which carries the uncertainty of the
+reduction. A mass number one member alone holds takes that member's value and uncertainty, and
+where no member quotes an uncertainty the point quotes none. Of a republication, one result
+published twice, the superseding dataset alone enters the pool; the superseded one, which its
+record marks with a qualifier beginning `superseded:`, is read, fitted and written and offers its
+own curve, but is not pooled. `superseded_datasets(result)` gives each such dataset with its
+successor, a run lists them under `[result.superseded_datasets]` in `metadata.toml`, and the
+`exclusion_reason` column of `dataset_diagnostics.csv` reads "superseded by <label>" for it, with
+`pooled` false; none of the shipped `ν(A)` sets is one. Repeated runs, complementary ranges, and
+members whose records state no relation or different ones are combined by the rule a pool is
+combined with. Each member still offers its own segmented curve and stays in the manifest.
+`correlated_datasets(record)` and `correlation_relation(record)` read the record, and a run lists
+the groups under `[[result.correlation_groups]]` in `metadata.toml`, with `datasets`, `accessions`
+and `relation`, and in the `pooled_with` column of `dataset_diagnostics.csv`.
+
+In the shipped inputs Basova 1979 and Zamyatnin 1979 are alternative analyses of one experiment,
+for ²⁵²Cf (EXFOR 41720002 and 41694002) and for ²³⁹Pu (41720004 and 41694003); their tables differ
+by 0.34 and 0.36 neutrons rms. Pooled as two measurements they would give the ²⁵²Cf trend 5
+segments, breakpoints at 130, 137, 143 and 149, `χ²/dof` = 1.53 and `⟨R_T⟩` = 1.0878; pooled as
+one it takes 4 segments, breakpoints at 130, 136 and 150, `χ²/dof` = 2.02 and `⟨R_T⟩` = 1.0821,
+and 1.0806 with the experiment left out. For ²³⁹Pu, with Nishio 1995 still pooled, the grouping
+alone keeps 6 segments, with breakpoints at 126, 130, 137, 148 and 154 in place of 126, 130, 137,
+149 and 154, `χ²/dof` = 0.54 in place of 0.44 and `⟨R_T⟩` = 1.0113 in place of 1.0268. The shipped
+²³⁹Pu pool, which excludes Nishio 1995 as well, takes 4 segments, breakpoints at 128, 137 and 143,
+`χ²/dof` = 0.73 and `⟨R_T⟩` = 1.0388, and 1.0296 with the experiment left out.
 
 **The uncertainty of a trend.** A dataset departs from the others by an offset and a slow drift
 along the mass axis, not point by point, so the errors of the combined points are not
@@ -407,15 +424,16 @@ the points taken as independent the uncertainty would be low by about `√((1 + 
 
 | System | `ρ` | `⟨R_T⟩` of the trend | `σ` with independent points | Median factor on `σ(R_T)` |
 |---|---|---|---|---|
-| ²⁵²Cf(sf) | 0.871 | 1.0824 ± 0.0155 | 0.0036 | 3.7 |
+| ²⁵²Cf(sf) | 0.872 | 1.0821 ± 0.0159 | 0.0037 | 3.7 |
 | ²³⁵U(nth,f) | 0.690 | 1.1230 ± 0.0153 | 0.0075 | 1.8 |
-| ²³⁹Pu(nth,f) | 0.809 | 1.0131 ± 0.0228 | 0.0086 | 2.1 |
+| ²³⁹Pu(nth,f) | 0.814 | 1.0388 ± 0.0269 | 0.0091 | 2.6 |
 | ²³³U(nth,f) | 0.800 | 1.0724 ± 0.0936 | 0.0319 | 2.7 |
 
 The last column is the median ratio of the tabulated `σ(R_T)` of the trend to its value with
 independent points. Positively correlated errors under a smooth fit also lower the expectation of
-`χ²` below the degrees of freedom, which is what the reduced chi-squared of 0.44 and 0.48 of
-²³⁵U and ²³⁹Pu reflects: against its expectation `χ²` is 0.63 and 0.98. A run reports the
+`χ²` below the degrees of freedom, which is what the reduced chi-squared of 0.44 of ²³⁵U
+reflects: against its expectation `χ²` is 0.63. For ²³⁹Pu, at 0.73, `χ²` is 1.29 times its
+expectation, and the covariance of that trend is scaled by it. A run reports the
 correlogram, `ρ`, `χ²` against its expectation and the covariance scale under
 `[result.trend_uncertainty]` in `metadata.toml`, `ρ` in the `deviation_autocorrelation` column of
 the curve table and `χ²` against its expectation in its `chi_squared_over_expectation` column;
@@ -435,15 +453,18 @@ returns them:
 
 | System | Jackknife | `⟨R_T⟩` with one left out |
 |---|---|---|
-| ²⁵²Cf(sf) | 0.0099 | 1.0784 to 1.0899 |
+| ²⁵²Cf(sf) | 0.0085 | 1.0779 to 1.0871 |
 | ²³⁵U(nth,f) | 0.0222 | 1.1112 to 1.1356 |
-| ²³⁹Pu(nth,f) | 0.0303 | 0.9917 to 1.0342 |
+| ²³⁹Pu(nth,f) | 0.0257 | 1.0174 to 1.0579 |
 | ²³³U(nth,f) | 0.1381 | 0.9808 to 1.1762 |
 
-For ²³³U, ²³⁵U and ²³⁹Pu the jackknife uncertainty exceeds the propagated one: the datasets differ
-by offsets the kernel does not hold, most of all for ²³³U, four datasets whose trend moves from
-0.98 to 1.18 with one of them left out. `run_pipeline(configuration; leave_one_out = false)` skips
-the refits, which cost one trend fit per pooled dataset.
+For ²³⁵U and ²³³U the jackknife uncertainty exceeds the propagated one, by a factor of 1.4 to 1.5,
+0.0222 against 0.0153 and 0.1381 against 0.0936: the datasets differ by offsets the kernel does
+not hold, most of all for ²³³U, four datasets whose trend moves from 0.98 to 1.18 with one of them
+left out. For ²³⁹Pu the two are about equal, 0.0257 against 0.0269; for ²⁵²Cf, with thirteen
+experiments, the jackknife is about half the propagated uncertainty, 0.0085 against 0.0159.
+`run_pipeline(configuration; leave_one_out = false)` skips the refits, which cost one trend fit per
+pooled dataset or experiment.
 
 **Admission.** For the same reason, a dataset cannot be judged by how far it sits from the others
 in units of its own uncertainty: none is consistent with any other, and a reduced chi-squared
@@ -463,7 +484,8 @@ Ding Shengyao 4.18, Göök 4.17), which is a normalization discrepancy rather th
 one.
 
 Nothing is filtered automatically. A dataset is kept out of the pooling only when the
-configuration names it and says why:
+configuration names it and says why, or when its record marks it as superseded by a republication
+that is pooled:
 
 ```toml
 [multiplicity]
@@ -501,7 +523,7 @@ energies fix the fragment velocities that carry the neutron spectrum into the fr
 a deficit that grows with fragment velocity is what an error there produces. Nothing shows it to
 be the better measurement, and the measurement published from IRMM in 2011 (23118006) is pooled.
 Its own curve is still fitted and written. With it in the pool the ²⁵²Cf trend takes 4 segments,
-with `χ²/dof` = 1.99 and `⟨R_T⟩` = 1.0755; without it, 4 segments, 1.88 and 1.0824.
+with `χ²/dof` = 2.16 and `⟨R_T⟩` = 1.0756; without it, 4 segments, 2.02 and 1.0821.
 
 The shipped ²³⁵U configuration excludes the ²³⁵U result of the same paper and analysis, Zeynalov
 2019 (EXFOR 41738002). Here the total is right and its division between the wings is not.
@@ -515,6 +537,25 @@ above every one of them at 19 of the 21 masses. The subentry gives pre-neutron m
 statistical uncertainties only. Its own curve is still fitted and written. With it in the pool
 the ²³⁵U trend takes 6 segments, with `χ²/dof` = 0.19 and `⟨R_T⟩` = 1.0743; without it, 5 segments,
 0.44 and 1.1230.
+
+The shipped ²³⁹Pu configuration excludes Nishio 1995 (EXFOR 23012008). Its `ν(m*)` is not a
+neutron measurement. The paper, *J. Nucl. Sci. Technol.* **32**, 404 (1995),
+[doi:10.1080/18811248.1995.9731725](https://doi.org/10.1080/18811248.1995.9731725), measures the
+velocities and the energies of both fragments, takes the pre-neutron mass `m*` from the two
+velocities and the post-neutron mass `m` from the energy and velocity of a fragment, and gives
+`ν(m*) = m* − m`; no neutron is detected, where the other pooled ²³⁹Pu sets count neutrons. It
+states its own total, `⟨ν_total⟩` = 3.2 ± 0.1, "about 10 % larger than the evaluated value of
+JENDL-3", and sets the difference aside as not affecting its argument; the EXFOR table quotes no
+uncertainties. Nor is it independent of a set already pooled: the correction for the plasma delay
+of the detectors is fixed through momentum conservation with the `ν(m*)` of Apalin et al. The
+excess lies on the heavy wing alone. Weighted with the Wagemans 1984 yields over `A_H` = 130 to
+150, `⟨ν_H⟩` is 1.68 against 1.20 to 1.48 in Fraser 1966, Tsuchiya 2000, Apalin 1965 and Zamyatnin
+1979, at a `⟨ν_L⟩` of 1.53 against 1.45 to 1.57; the pair sum is 3.21, 12 % above `ν̄` = 2.88. Mass
+by mass its `ν_H` lies within the range of the other four at `A_H` = 126 to 135 and above all four
+at every mass from 136 to 154. An excess on one wing does not cancel in `r_ν`. Its own curve is
+still fitted and written, and the rows of the published table that rest on it, as a `ν(A)` dataset
+and through its yield distribution, are unaffected. With it in the pool the ²³⁹Pu trend takes 6
+segments, with `χ²/dof` = 0.54 and `⟨R_T⟩` = 1.0113; without it, 4 segments, 0.73 and 1.0388.
 
 Two further datasets are excluded by accession although neither could be pooled: Batenkov 2004 for
 ²³⁵U (EXFOR 41502005) and for ²³⁹Pu (41502006), from *AIP Conf. Proc.* **769**, 1003 (2005),
@@ -544,15 +585,20 @@ there is one — the minimum at the heavy magic fragment, `A_H` near 130, fixed 
 dataset.
 
 A dataset curve whose segmented `r_ν` has no interior minimum, no interior pivot below both of its
-neighbours, is flagged with the reason: in the `curve_flagged` and `curve_flag_reason` columns of
-`dataset_diagnostics.csv` and under `[result.flagged_curves]` in `metadata.toml`;
-`unresolved_minimum(fit)` gives the reason. It stays in the manifest: a consuming code selects by
-label and can read the flag. The test is of the shape of the fitted curve, not of `χ²/dof`, which
-has no common scale across datasets; in the shipped runs it runs from 2 × 10⁻⁵ for a dataset
-quoting no uncertainties to 26 for one quoting small ones. The shipped runs flag Bowman 1963,
-Britt 1964 and Mehta 1973 for ²⁵²Cf, whose pairs begin at `A_H` = 133, 132 and 135, above the
-minimum; Tsuchiya 2000 for ²³⁹Pu, one segment from `A_H` = 123; and Fraser 1966 for ²³³U, which
-rises from its first pair at `A_H` = 126. No ²³⁵U curve is flagged.
+neighbours, although its range covers a required window — the window of `required_windows` in
+which the minimum lies, 128 to 132 in the shipped configurations — is flagged with the reason: in
+the `curve_flagged` and `curve_flag_reason` columns of `dataset_diagnostics.csv` and under
+`[result.flagged_curves]` in `metadata.toml`. `unresolved_minimum(fit, windows)` gives the reason,
+which ends "which covers the window 128:132", and `unresolved_minimum(fit)` the test of the shape
+alone. A curve that begins above the start of the window is limited in range, which the
+`coverage` and `first_pair` columns already state, and is not flagged; without a required window
+nothing is flagged. A flagged curve stays in the manifest: a consuming code selects by label and can read the
+flag. The test is of the shape of the fitted curve, not of `χ²/dof`, which has no common scale
+across datasets; in the shipped runs it runs from 2 × 10⁻⁵ for a dataset quoting no uncertainties
+to 26 for one quoting small ones. The shipped runs flag Tsuchiya 2000 for ²³⁹Pu, one segment from
+`A_H` = 123, and Fraser 1966 for ²³³U, which rises from its first pair at `A_H` = 126. No ²⁵²Cf or
+²³⁵U curve is flagged: Bowman 1963, Britt 1964 and Mehta 1973 of ²⁵²Cf begin at `A_H` = 133, 132
+and 135, past the start of the window, and do not cover it.
 
 The `[yield]` section is optional. Given the primary pre-neutron mass yield distribution, or a
 directory of them beside it, the run also reports the total average `⟨R_T⟩ = Σ Y(A_H) R_T(A_H) / Σ Y(A_H)` for every combination of
