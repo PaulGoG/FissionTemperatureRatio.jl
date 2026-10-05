@@ -188,6 +188,15 @@ they do, the temperature ratio can only be determined separately for each of the
 produces one segmented curve per dataset that reaches the coverage floor, fitted to that dataset
 alone.
 
+A dataset curve whose segmented ``r_\nu`` has no interior minimum, no interior pivot below both of
+its neighbours, is flagged with the reason in the dataset diagnostics and in the run metadata. It
+stays in the manifest: a consuming code selects a curve by its label and can read the flag. The
+test is of the shape of the fitted curve and not of its ``\chi^2/\mathrm{dof}``, which has no
+common scale across datasets; in the shipped runs it runs from ``2 \times 10^{-5}`` for a dataset
+quoting no uncertainties to 26 for one quoting small ones. In those runs the flag marks curves
+whose complete pairs begin above the minimum, one of a single segment, and one that rises from its
+first pair.
+
 Alongside them it produces a systematic-trend curve, fitted through the whole body of data with
 the minimum at the heavy magic fragment *placed* rather than fitted — `required_windows` in the
 configuration, defaulting to ``A_H \in [128, 132]``. Its rise above the most probable
@@ -275,6 +284,16 @@ bracketing points; it enters with ``f`` = measured points / rows written, as rec
 retrieval record, so that it counts by what was measured. An uncertainty written as zero is read as
 not quoted.
 
+Datasets of one experiment enter as one. A retrieval record names, under `correlated_with`, the
+other datasets of the experiment a dataset belongs to, and under `correlation_relation` how they
+are related: a republication, an alternative analysis of the same events, a repeated run, or a
+complementary range. Runs or analyses on one apparatus share their systematic errors, and pooled
+side by side they would count as independent measurements in ``Q`` and weigh as several. Pooled
+datasets that name one another are therefore combined into one curve first, by the rule a pool is
+combined with, and that curve enters the pool as one measurement, at the uncertainty of one measurement and with
+the measured fraction of each of its points as its ``f``. Each member still offers its own
+segmented curve.
+
 With such factors the fixed-effect weights are ``a = f/\sigma^2`` while a value keeps the variance
 ``\sigma^2``, and the statistic ``Q = \sum a\,(r - \bar{r}_a)^2`` the variance is estimated from
 has, where the datasets do not differ, the expectation
@@ -319,26 +338,14 @@ disagreement: for 252-Cf it falls from about 16 to about 2.
 A reduced chi-squared of the trend below one is the expected outcome of this, not a sign of too
 many segments. The standard error of a combined value treats the disagreement between datasets as
 independent from one mass number to the next, and it is not: the deviation of a dataset from the
-combined curve is largely an offset and a slow drift, with a lag-one autocorrelation of 0.5 to
-0.9 along the mass axis for 235-U and 239-Pu, so the combined curve scatters about a smooth line
-far less than its standard error says. For those two systems the residuals of the trend give a
-reduced chi-squared of 6.5 and 6.2 against the quoted uncertainties alone and of 0.44 with
-``\tau^2``, which is ten to twenty times ``\sigma^2`` at the median. The selection of the segment
+combined curve is largely an offset and a slow drift, correlated along the mass axis as the next
+section sets out, so the combined curve scatters about a smooth line far less than its standard
+error says. For 235-U the residuals of the trend give a reduced chi-squared of 6.5 against the
+quoted uncertainties alone and of 0.44 with ``\tau^2``, which is ten to twenty times
+``\sigma^2`` at the median; 239-Pu behaves alike, at 0.48 with ``\tau^2``. The selection of the segment
 count does not depend on that scale, the criterion taking the noise from the residuals, and it is
 not held by the limit on the count: with `max_segments` raised from 6 to 12 the 235-U trend still
 selects five segments and the 239-Pu trend six.
-
-The same coherence has a consequence the written uncertainty of the trend does not carry. The
-covariance of the fitted coefficients takes the combined points as independent. With errors that
-are correlated from one mass number to the next with a coefficient ``\rho``, a smooth curve
-through them averages less than it appears to, and its variance is larger by about
-``(1 + \rho)/(1 - \rho)``. The uncertainty written for the trend's ``R_T(A_H)`` and for its
-total average is therefore low by about ``\sqrt{(1 + \rho)/(1 - \rho)}``. A run measures
-``\rho`` as the lag-one autocorrelation of the pooled datasets' deviations from the combined
-curve, each less its own mean, and writes it with that factor to the run metadata and to the
-curve table: 0.71, 0.61, 0.70 and 0.44 for 252-Cf, 235-U, 239-Pu and 233-U, factors of 2.4, 2.0,
-2.4 and 1.6. The written uncertainty is not enlarged by it; the curve of a single dataset is not
-concerned, its points being measured one by one.
 
 The same disagreement is why no dataset is rejected for being far from the others. In units of
 the quoted uncertainties none of them agrees with any other, so such a criterion rejects whatever
@@ -346,3 +353,116 @@ it is tuned to reject. What can be said about a dataset without reference to the
 usable fragment pairs it has, whether its ratio stays inside ``(0,1)``, whether it satisfies the
 identity at the symmetric split, whether complementary multiplicities sum to the total — is
 reported for every dataset, and exclusions are named explicitly rather than inferred.
+
+## The uncertainty of the trend
+
+A dataset departs from the others by an offset and a slow drift along the mass axis, not point by
+point, so the errors of neighbouring combined values are not independent. A smooth curve through
+values that err together averages less than it appears to: for errors correlated between
+neighbours with a coefficient ``\rho`` its variance is larger by about ``(1 + \rho)/(1 - \rho)``
+than for independent ones. The covariance of the systematic trend is therefore formed with a
+correlation matrix of the combined points, built from the pooled datasets themselves.
+
+The correlation of the error of one dataset along the mass axis is estimated from the deviations
+``d(A)`` of its ``r_\nu`` from the combined curve, each less its mean over the dataset, as the
+correlogram
+
+```math
+\rho_k = \frac{\sum f\, d(A)\, d(A + k)}
+              {\left[\sum f\, d(A)^2 \, \sum f\, d(A + k)^2\right]^{1/2}},
+\qquad k = 1, \dots, 8,
+```
+
+every sum running over the pairs of mass numbers ``k`` apart that one dataset holds and over the
+pooled datasets, ``f`` being the pooling factor of a dataset. A mass number held by one dataset
+alone is left out, the deviation there vanishing by construction, and a lag no dataset spans has
+no value. The estimate is low rather than high: the deviations of a short series from its own mean
+are less correlated than its errors, and the combined curve carries a share of every other
+dataset's error into each deviation.
+
+The kernel ``\rho^k`` of an AR(1) error is fitted to the first lags of the correlogram in least
+squares, minimising ``\sum_k (\rho_k - \rho^k)^2`` over `autocorrelation_lags` of them, four by
+default. It is fitted to several lags rather than read from the first, the measured correlograms
+decaying more slowly than the powers of their first lag. ``\rho`` is bounded to ``[0, 0.999]``: a
+negative estimate is taken as no correlation. Where no lag can be estimated the trend is fitted
+with independent points.
+
+Each pooled dataset is taken to err along the mass axis with that correlation and independently
+of the others. The combined value at ``A`` carries the share ``s_i(A)`` of dataset ``i``, its
+normalized weight, the shares at one mass number summing to one, and two combined values are
+correlated as
+
+```math
+R(A, A') = \rho^{|A - A'|} \sum_i \left[s_i(A)\, s_i(A')\right]^{1/2},
+```
+
+the sum running over the datasets that hold both mass numbers. Where the same datasets hold both
+with the same shares, ``R(A, A') = \rho^{|A - A'|}``. A dataset held at one of the two and not at
+the other brings an error the other value does not share, and lowers the entry: a dataset on a
+two-unit mass grid lowers the correlation between neighbouring combined points and not that
+between next-neighbours.
+
+The weighted least-squares fit keeps its coefficients, its breakpoints and its selected number of
+segments. What changes is their covariance, which for errors of covariance ``\Sigma`` is the
+sandwich
+
+```math
+C_\beta = (X^\mathsf{T} W X)^{-1}\, X^\mathsf{T} W \Sigma W X\, (X^\mathsf{T} W X)^{-1},
+\qquad \Sigma = W^{-1/2} R\, W^{-1/2},
+```
+
+with ``W`` the fit weights ``f/\sigma^2`` of the combined points; for ``R = I`` it is
+``(X^\mathsf{T} W X)^{-1}``.
+
+Its scale refers ``\chi^2`` to what a fit to such errors leaves of it. With
+``M = I - X (X^\mathsf{T} W X)^{-1} X^\mathsf{T} W``, the expected residual sum of squares is
+``\mathrm{tr}(M^\mathsf{T} W M \Sigma) = \mathrm{tr}(PR)``, ``P`` being the residual projector of
+the weighted design ``\tilde{X} = W^{1/2} X``, and it is referred to the fit's own degrees of
+freedom, which count measured fractions and breakpoints:
+
+```math
+\mathrm{E}[\chi^2] = \mathrm{dof}\, \frac{\mathrm{tr}(PR)}{\mathrm{tr}(P)},
+\qquad P = I - \tilde{X} \left(\tilde{X}^\mathsf{T} \tilde{X}\right)^{-1} \tilde{X}^\mathsf{T}.
+```
+
+The two coincide for ``R = I``. The covariance is scaled by ``\max(1, \chi^2/\mathrm{E}[\chi^2])``,
+and by ``\chi^2/\mathrm{E}[\chi^2]`` alone where no point quotes an uncertainty. With positively
+correlated errors a smooth fit absorbs part of the error, and ``\mathrm{E}[\chi^2]`` falls below
+the degrees of freedom, to 0.703 of them for 235-U and 0.490 for 239-Pu. The reduced chi-squared
+of those two trends, 0.44 and 0.48, is what correlated errors under a smooth fit give: against its
+expectation ``\chi^2`` is 0.63 and 0.98.
+
+For the four shipped systems, with ``\langle R_T \rangle`` over the primary yield distribution and
+the inputs retrieved by ExforFissionData.jl v0.2.7:
+
+| System | ``\rho`` | ``\chi^2/\mathrm{dof}`` | ``\chi^2/\mathrm{E}[\chi^2]`` | ``\sigma\langle R_T \rangle``, independent points | ``\sigma\langle R_T \rangle``, written | Jackknife |
+| :--- | ---: | ---: | ---: | ---: | ---: | ---: |
+| ``^{252}``Cf(sf) | 0.871 | 1.88 | 3.57 | 0.0036 | 0.0155 | 0.0099 |
+| ``^{235}``U(nth,f) | 0.690 | 0.44 | 0.63 | 0.0075 | 0.0153 | 0.0222 |
+| ``^{239}``Pu(nth,f) | 0.809 | 0.48 | 0.98 | 0.0086 | 0.0228 | 0.0303 |
+| ``^{233}``U(nth,f) | 0.800 | 1.70 | 2.43 | 0.0319 | 0.0936 | 0.1381 |
+
+The tabulated ``\sigma(R_T)`` of each trend is larger than with independent points by a median
+factor of 3.7, 1.8, 2.1 and 2.7, in the order of the table.
+
+What the matrix does not hold is a constant offset of one dataset from the others: the
+correlogram removes the mean of each dataset, so such an offset is in no lag and in no matrix
+built from ``\rho``. Its measure is the leave-one-out refit. The trend is refitted with each
+pooled dataset, or each experiment, left out, and the ``\langle R_T \rangle`` of every refit over
+each yield distribution averaged over, its number of segments, its breakpoints and its
+``\chi^2/\mathrm{dof}`` are written. The values ``\theta_i`` of the ``k`` refits give the
+delete-one jackknife standard error
+
+```math
+\sigma_{\mathrm{jack}} = \left[\frac{k - 1}{k} \sum_{i=1}^{k} \left(\theta_i - \bar{\theta}\right)^2\right]^{1/2},
+```
+
+written beside the propagated uncertainty together with the least and the greatest ``\theta_i``;
+it is the last column of the table. For 233-U, 235-U and 239-Pu it exceeds the propagated
+uncertainty: the datasets differ by offsets the kernel does not hold, most of all for 233-U, whose
+four datasets give ``\langle R_T \rangle`` from 0.98 to 1.18 with one left out.
+
+The curve of a single dataset is fitted with its points taken as independent. For a dataset whose
+masses the retrieval interpolated onto the integers, neighbouring rows share their bracketing
+points; that is accounted for by the measured fraction ``f``, through the weight ``f/\sigma^2`` and
+the ``\sum f`` measurements behind the degrees of freedom, and not by a correlation matrix.

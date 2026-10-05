@@ -220,6 +220,7 @@ data/sims/<system>/<run>/
 ├── r_nu_vs_A_H_pivots_<dataset>.csv
 ├── segmented_curves_<run>.csv                 one row per manifest curve
 ├── total_average_R_T_<run>.csv
+├── leave_one_out_<run>.csv                    the trend refitted with each pooled dataset or experiment left out
 ├── dataset_diagnostics.csv
 ├── metadata.toml                              how it was produced: configuration, commit, machine
 ├── configuration.toml
@@ -247,14 +248,15 @@ in the manifest, and takes the accession only where two datasets would share it:
 | `r_nu_vs_A_H_segmented_<dataset>.csv` | the fitted ratio, tabulated |
 | `R_T_vs_A_H_segmented_<dataset>.csv` | the temperature ratio from the fitted ratio |
 | `r_nu_vs_A_H_pivots_<dataset>.csv` | the fit as its joined points |
-| `segmented_curves_<run>.csv` | per manifest curve, keyed by its label: accession, segments, pin, span, pairs, coverage, reduced chi-squared, range mean |
+| `segmented_curves_<run>.csv` | per manifest curve, keyed by its label: accession, segments, pin, span, pairs, coverage, reduced chi-squared and χ² against its expectation, range mean |
 | `total_average_R_T_<run>.csv` | ⟨R_T⟩ over each yield distribution reaching the coverage floor, with the yield fraction the curve takes in |
+| `leave_one_out_<run>.csv` | the trend refitted with each pooled dataset or experiment left out |
 | `dataset_diagnostics.csv` | one row per dataset read, with the qualifiers its retrieval recorded |
 | `manifest_<run>.toml` | what the run produced, for a consuming code |
 | `metadata.toml` | how it was produced: configuration, commit, machine |
 
-The manifest, the curve table and the total averages repeat the identifier in their names; the
-per-curve ratio tables do not, and are found through the manifest. A consuming code stages the
+The manifest, the curve table, the total averages and the leave-one-out refits repeat the
+identifier in their names; the per-curve ratio tables do not, and are found through the manifest. A consuming code stages the
 whole run directory and selects the manifest by its `manifest_` prefix, and the token keeps a
 staged copy attributable after it has left `data/sims/`. A run directory holds exactly one. The
 manifest holds FissionFragmentsDomain's run record and nothing else: `[system]`, `[run]`, the
@@ -265,11 +267,14 @@ two files. The systematic-trend curve is labelled `systematic_trend`, the same t
 would put some two hundred characters into every directory name, so the keys are abbreviated —
 and abbreviated in one place, [`RUN_IDENTIFIER_ABBREVIATIONS`](@ref), rather than at the point of
 use. That table is keyed by the key's dotted path in the configuration file,
-`segments.min_segment_span => minspan`, so an entry names exactly one key.
+`segments.min_segment_span => span`, so an entry names exactly one key.
 [`run_identifier`](@ref) refuses a key with no entry rather than inventing a token, and the test
 suite asserts that every key it uses has one.
 
-Every key that changes the result is a token. The system is not: it names the directory the
+Every key that changes the result is a token, `segments.autocorrelation_lags` only where it
+differs from its default: it changes the uncertainty of the systematic trend and none of its
+values, and one more token on every run would carry the file names of a Gilbert-Cameron run
+beyond the 255 bytes a file system admits. The system is not: it names the directory the
 identifier sits in. `significant_digits` is not either, since it changes how a number is rendered
 and not the number. A value that is a list or a path — the required windows, the exclusion list,
 a tabulated charge distribution, a mass or shell-correction table, the `⟨TKE⟩(A)` dataset, the

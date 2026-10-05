@@ -226,12 +226,19 @@ it, or one stating no version, is refused when the configuration is loaded, and 
 directories were written by different versions says so in the log. The floor is 0.2.3 because that
 release put the ²³⁹Pu multiplicities of Tsuchiya 2000 (22650004) on the scale of their subentry and
 refuses the ²⁵²Cf yields 41425015 and 41425016; inputs retrieved before it can carry both. A
-directory holding no retrieval record, a tabulation of one's own for instance, is not judged.
+directory holding no retrieval record, a tabulation of one's own for instance, is not judged. The
+results quoted here rest on the retrieval of the twelve configurations by ExforFissionData.jl
+v0.2.7. The datasets of one experiment are read from the records where they carry them, that is
+from a retrieval by v0.2.7 or later.
 
 The run record also lists the reaction-code qualifiers of every dataset. A dataset carrying
-`DERIV` (derived from other data) or `SPA` (averaged over an unspecified neutron spectrum) is used,
-not corrected, and flagged: in the log, in the `qualifiers` and `flagged` columns of
-`dataset_diagnostics.csv`, and in the run metadata. For a multiplicity read by the retrieval's
+`DERIV` (derived from other data), `SPA` (averaged over an unspecified neutron spectrum) or
+`preliminary` (the archive's status code `PRELM`, or a publication that calls its results
+preliminary) is used, not corrected, and flagged: in the log, in the `qualifiers` and `flagged`
+columns of `dataset_diagnostics.csv`, and in the run metadata. No exclusion follows from the flag.
+In the shipped inputs `preliminary` marks Batenkov 2004 (41502005 for ²³⁵U, 41502006 for ²³⁹Pu),
+excluded already and forming no pair, and the ²³⁵U `ν(A)` of Vorobyev 2010 (41516012), which is
+pooled. For a multiplicity read by the retrieval's
 complement test the record also states the scale of the reading, the yield-weighted pair sum
 against `ν̄`; a dataset it finds off that scale is used, since a uniform scale cancels in `r_ν`,
 and flagged in the log, in the `pair_sum_deviation` and `scale_consistent` columns and in the run
@@ -313,7 +320,9 @@ distribution of a directory instead, with the primary distribution as the refere
 is measured against; the published settings do, Surin's ²³³U distribution among them.
 `[yield] exclude` keeps distributions of that directory out of every average, each with its
 reason, as `[multiplicity] exclude` does for the pooling; they are still read and reported. Both
-name a dataset by its accession.
+name a dataset by its accession. Without `[yield] subdirectory` an exclusion has nothing to act on,
+and it is refused when the configuration is loaded, as it is in a run started from a configuration
+built by hand.
 `"ratio_of_means"` is the closed form of the published extraction. The published settings are
 reproduced exactly by `ratio_of_means` over the digitised charge tables with
 `zero_polarization_at_symmetry = true`, or over `"mean"` for 233-U; see
@@ -359,18 +368,82 @@ which carries the factor.
 The between-dataset variance is estimated against what the dispersion statistic is expected to
 be where the datasets do not differ, which for a pool holding interpolated datasets is less than
 the number of datasets less one; and it is why the reduced chi-squared of a trend is below one,
-0.44 for ²³⁵U and ²³⁹Pu, without the trend having too many segments. [The
+0.44 and 0.48 for ²³⁵U and ²³⁹Pu, without the trend having too many segments. [The
 method](docs/src/method.md) gives both.
 
-**The uncertainty of a trend is low.** The covariance of the trend takes the combined points as
-independent, while a dataset departs from the others by an offset and a slow drift: the
-deviations of the pooled datasets from the combined curve have a lag-one autocorrelation `ρ` of
-0.71, 0.61, 0.70 and 0.44 for ²⁵²Cf, ²³⁵U, ²³⁹Pu and ²³³U. The uncertainty written for the
-trend's `R_T(A_H)` and for its `⟨R_T⟩` is then low by about `√((1 + ρ)/(1 − ρ))`, a factor of 1.6
-to 2.4. It is not enlarged for this. A run reports `ρ` and the factor under
-`[result.trend_uncertainty]` in `metadata.toml` and in the `deviation_autocorrelation` column of
-the curve table, and `deviation_autocorrelation(result)` returns it. The curve of a single
-dataset is not concerned.
+**One experiment, one measurement.** A retrieval record of ExforFissionData.jl v0.2.7 or later
+names, under `correlated_with`, the other datasets of the experiment a dataset belongs to, and
+under `correlation_relation` how they are related: `republication`, `alternative_analysis`,
+`repeated_run` or `complementary_range`. Pooled datasets that name one another are combined into
+one curve first, by the rule a pool is combined with, and that curve enters the pool as one
+measurement, so that the experiment counts once in the between-dataset variance and in the
+weights; the leave-one-out refits below leave it out as one. Each member still offers its own
+segmented curve and stays in the manifest. `correlated_datasets(record)` and
+`correlation_relation(record)` read the record, and a run lists the groups under
+`[[result.correlation_groups]]` in `metadata.toml`, with `datasets`, `accessions` and `relation`,
+and in the `pooled_with` column of `dataset_diagnostics.csv`. In the shipped inputs Basova 1979
+and Zamyatnin 1979 are alternative analyses of one experiment, for ²⁵²Cf (EXFOR 41720002 and
+41694002) and for ²³⁹Pu (41720004 and 41694003). Pooled as two measurements they would give the
+²⁵²Cf trend 5 segments, breakpoints at 130, 137, 143 and 149, `χ²/dof` = 1.53 and `⟨R_T⟩` =
+1.0878; pooled as one it takes 4 segments, breakpoints at 130, 136 and 150, `χ²/dof` = 1.88 and
+`⟨R_T⟩` = 1.0824. The ²³⁹Pu trend keeps 6 segments, with breakpoints at 126, 130, 137, 148 and 154
+in place of 126, 130, 137, 149 and 154, `χ²/dof` = 0.48 in place of 0.44 and `⟨R_T⟩` = 1.0131 in
+place of 1.0268. With both left out the ²⁵²Cf trend gives 1.0806 and the ²³⁹Pu trend 0.9917.
+
+**The uncertainty of a trend.** A dataset departs from the others by an offset and a slow drift
+along the mass axis, not point by point, so the errors of the combined points are not
+independent. The covariance of the trend takes the error of each pooled dataset as correlated
+along the mass axis, `ρ^|A − A′|` between two of its mass numbers, and independent of the errors
+of the other datasets; the correlation of two combined points follows from the datasets that hold
+both and the share of each combined value they carry. `ρ` is estimated from the correlogram of
+the pooled datasets' deviations from the combined curve, each less its own mean, at lags of one to
+eight mass units, by fitting `ρ^k` to its first lags in least squares: `[segments]
+autocorrelation_lags` of them, an integer from 1 to 8, default 4. It is bounded to [0, 0.999], a
+negative estimate being taken as no correlation. The coefficients, breakpoints and number of
+segments of the trend do not depend on it; its covariance is the sandwich form for correlated
+errors, scaled by `χ²` over its expectation under that correlation where that exceeds one. With
+the points taken as independent the uncertainty would be low by about `√((1 + ρ)/(1 − ρ))`. With
+`⟨R_T⟩` over the primary yield distribution:
+
+| System | `ρ` | `⟨R_T⟩` of the trend | `σ` with independent points | Median factor on `σ(R_T)` |
+|---|---|---|---|---|
+| ²⁵²Cf(sf) | 0.871 | 1.0824 ± 0.0155 | 0.0036 | 3.7 |
+| ²³⁵U(nth,f) | 0.690 | 1.1230 ± 0.0153 | 0.0075 | 1.8 |
+| ²³⁹Pu(nth,f) | 0.809 | 1.0131 ± 0.0228 | 0.0086 | 2.1 |
+| ²³³U(nth,f) | 0.800 | 1.0724 ± 0.0936 | 0.0319 | 2.7 |
+
+The last column is the median ratio of the tabulated `σ(R_T)` of the trend to its value with
+independent points. Positively correlated errors under a smooth fit also lower the expectation of
+`χ²` below the degrees of freedom, which is what the reduced chi-squared of 0.44 and 0.48 of
+²³⁵U and ²³⁹Pu reflects: against its expectation `χ²` is 0.63 and 0.98. A run reports the
+correlogram, `ρ`, `χ²` against its expectation and the covariance scale under
+`[result.trend_uncertainty]` in `metadata.toml`, `ρ` in the `deviation_autocorrelation` column of
+the curve table and `χ²` against its expectation in its `chi_squared_over_expectation` column;
+`deviation_correlogram(result)` and `deviation_autocorrelation(result)` return the first two. The
+curve of a single dataset is fitted with independent points; for an interpolated dataset, whose
+neighbouring rows share their bracketing points, its measured fraction accounts for that.
+
+**What it leaves out.** The correlogram is formed from deviations less each dataset's mean, so a
+constant offset of one dataset from the others is in no lag and in no matrix built from `ρ`. Its
+measure is the leave-one-out refit: the trend refitted with each pooled dataset, or each
+experiment, left out, written with its `⟨R_T⟩` over each yield distribution, its number of
+segments, its breakpoints and its `χ²/dof` to `leave_one_out_<run identifier>.csv` and under
+`[[result.leave_one_out]]` in `metadata.toml`. The delete-one jackknife standard error over the
+refits and the least and greatest `⟨R_T⟩` among them are written beside each total average of the
+trend in `total_average_R_T_<run identifier>.csv`, and `leave_one_out_spread(result, mass_yield)`
+returns them:
+
+| System | Jackknife | `⟨R_T⟩` with one left out |
+|---|---|---|
+| ²⁵²Cf(sf) | 0.0099 | 1.0784 to 1.0899 |
+| ²³⁵U(nth,f) | 0.0222 | 1.1112 to 1.1356 |
+| ²³⁹Pu(nth,f) | 0.0303 | 0.9917 to 1.0342 |
+| ²³³U(nth,f) | 0.1381 | 0.9808 to 1.1762 |
+
+For ²³³U, ²³⁵U and ²³⁹Pu the jackknife uncertainty exceeds the propagated one: the datasets differ
+by offsets the kernel does not hold, most of all for ²³³U, four datasets whose trend moves from
+0.98 to 1.18 with one of them left out. `run_pipeline(configuration; leave_one_out = false)` skips
+the refits, which cost one trend fit per pooled dataset.
 
 **Admission.** For the same reason, a dataset cannot be judged by how far it sits from the others
 in units of its own uncertainty: none is consistent with any other, and a reduced chi-squared
@@ -408,7 +481,7 @@ each dataset as soon as a second one of the same author and year is retrieved, a
 written against it would then match neither; the accession does not change. An exclusion that
 names no dataset of the directory is refused when the configuration is loaded.
 `dataset = "<label>"` remains for a tabulation that carries no accession; for a dataset that has
-one it still works, with a warning, and is deprecated.
+one it is refused, with the accession to write.
 
 The shipped ²⁵²Cf configuration excludes one dataset, Zeynalov 2019 (EXFOR 41739002). Its `r_ν`
 lies 0.03 to 0.08 above the consensus of the other fourteen sets over `A_H` = 130 to 160, where
@@ -428,7 +501,7 @@ energies fix the fragment velocities that carry the neutron spectrum into the fr
 a deficit that grows with fragment velocity is what an error there produces. Nothing shows it to
 be the better measurement, and the measurement published from IRMM in 2011 (23118006) is pooled.
 Its own curve is still fitted and written. With it in the pool the ²⁵²Cf trend takes 4 segments,
-with `χ²/dof` = 1.86 and `⟨R_T⟩` = 1.0788; without it, 5 segments, 1.53 and 1.0878.
+with `χ²/dof` = 1.99 and `⟨R_T⟩` = 1.0755; without it, 4 segments, 1.88 and 1.0824.
 
 The shipped ²³⁵U configuration excludes the ²³⁵U result of the same paper and analysis, Zeynalov
 2019 (EXFOR 41738002). Here the total is right and its division between the wings is not.
@@ -443,7 +516,7 @@ statistical uncertainties only. Its own curve is still fitted and written. With 
 the ²³⁵U trend takes 6 segments, with `χ²/dof` = 0.19 and `⟨R_T⟩` = 1.0743; without it, 5 segments,
 0.44 and 1.1230.
 
-Two further datasets are excluded by name although neither could be pooled: Batenkov 2004 for
+Two further datasets are excluded by accession although neither could be pooled: Batenkov 2004 for
 ²³⁵U (EXFOR 41502005) and for ²³⁹Pu (41502006), from *AIP Conf. Proc.* **769**, 1003 (2005),
 [doi:10.1063/1.1945175](https://doi.org/10.1063/1.1945175). Each gives 21 masses on a grid of 4 u
 on which no mass has its complement, so neither forms a fragment pair, and they are not paired
@@ -469,6 +542,17 @@ breakpoint where physics says
 there is one — the minimum at the heavy magic fragment, `A_H` near 130, fixed by the `Z = 50`,
 `N = 82` shell closure — and `windows_apply_to_datasets` extends that from the trend curve to every
 dataset.
+
+A dataset curve whose segmented `r_ν` has no interior minimum, no interior pivot below both of its
+neighbours, is flagged with the reason: in the `curve_flagged` and `curve_flag_reason` columns of
+`dataset_diagnostics.csv` and under `[result.flagged_curves]` in `metadata.toml`;
+`unresolved_minimum(fit)` gives the reason. It stays in the manifest: a consuming code selects by
+label and can read the flag. The test is of the shape of the fitted curve, not of `χ²/dof`, which
+has no common scale across datasets; in the shipped runs it runs from 2 × 10⁻⁵ for a dataset
+quoting no uncertainties to 26 for one quoting small ones. The shipped runs flag Bowman 1963,
+Britt 1964 and Mehta 1973 for ²⁵²Cf, whose pairs begin at `A_H` = 133, 132 and 135, above the
+minimum; Tsuchiya 2000 for ²³⁹Pu, one segment from `A_H` = 123; and Fraser 1966 for ²³³U, which
+rises from its first pair at `A_H` = 126. No ²³⁵U curve is flagged.
 
 The `[yield]` section is optional. Given the primary pre-neutron mass yield distribution, or a
 directory of them beside it, the run also reports the total average `⟨R_T⟩ = Σ Y(A_H) R_T(A_H) / Σ Y(A_H)` for every combination of
@@ -529,10 +613,12 @@ configuration, as `configuration.toml`, and of the resolved manifest of the scri
 | `r_nu_vs_A_H_pivots_<dataset>.csv` | the fit as its joined points; `…_systematic_trend.csv` for the trend |
 | `segmented_curves_<run identifier>.csv` | one row per manifest curve, keyed by its label: segments, pin, span, pairs, coverage, reduced chi-squared, range mean |
 | `total_average_R_T_<run identifier>.csv` | `⟨R_T⟩` of every segmented curve over every yield distribution |
+| `leave_one_out_<run identifier>.csv` | the systematic trend refitted with each pooled dataset or experiment left out; written where the run made the refits |
 | `dataset_diagnostics.csv` | one row per dataset read, with its reaction-code qualifiers |
 | `metadata.toml`, `configuration.toml`, `Manifest.toml` | the provenance record, written by the script |
 
-The manifest, the curve table and the total averages carry the run identifier in their names;
+The manifest, the curve table, the total averages and the leave-one-out table carry the run
+identifier in their names;
 every other table is named by its quantity, its abscissa and its dataset, and found through the
 manifest. `<dataset>` is the stem of the input file, `<accession>_<Author>_<year>` as the
 retrieval writes it, so `R_T_vs_A_H_segmented_22660005_K.Nishio_1998.csv` traces to its EXFOR
@@ -545,16 +631,23 @@ and `A_H,R_T,R_T_uncertainty`, the pivot table included; in the point-by-point t
 uncertainty the measurement does not quote is an empty field, never zero.
 `segmented_curves_<run identifier>.csv` has the columns `label, accession, kind, pooled, segments,
 pinned_at_symmetric_split, first_A_H, last_A_H, pairs, measured_points, coverage,
-reduced_chi_squared, weights_imputed, range_mean_R_T, range_mean_R_T_uncertainty,
-deviation_autocorrelation`, all dimensionless, the last filled for the systematic trend only. `total_average_R_T_<run identifier>.csv` has the columns `segmented_curve,
-mass_yield, R_T, R_T_uncertainty, R_T_uncertainty_independent_points, yield_fraction,
-R_T_one_more_segment, R_T_two_more_segments`, the last two filled for the systematic trend only,
-and
+reduced_chi_squared, chi_squared_over_expectation, weights_imputed, range_mean_R_T,
+range_mean_R_T_uncertainty, deviation_autocorrelation`, all dimensionless;
+`chi_squared_over_expectation` equals `reduced_chi_squared` for a dataset curve, and the last,
+filled for the systematic trend only, is the `ρ` its covariance was formed with. `total_average_R_T_<run identifier>.csv` has the columns `segmented_curve,
+mass_yield, R_T, R_T_uncertainty, R_T_uncertainty_independent_points,
+R_T_uncertainty_leave_one_out, R_T_leave_one_out_min, R_T_leave_one_out_max, yield_fraction,
+R_T_one_more_segment, R_T_two_more_segments`, the three leave-one-out columns and the last two
+filled for the systematic trend only;
+`leave_one_out_<run identifier>.csv` the columns `dataset_left_out, accession, mass_yield, R_T,
+segments, breakpoints, reduced_chi_squared, outcome`, one row per dataset or experiment left out
+and yield distribution, the labels of an experiment joined by ` + ` and its accessions, like the
+breakpoints, separated by spaces; and
 `dataset_diagnostics.csv` the columns `dataset, accession, points, pairs, first_pair, last_pair, coverage,
 outside_physical_range, symmetry_departure, complement_sum, complement_spread,
 without_uncertainties, qualifiers, pooling_weight, flagged, pair_sum_deviation, scale_consistent,
-pooled, exclusion_reason, segmented_curve`, the last
-reading "segmented
+pooled, pooled_with, exclusion_reason, segmented_curve, curve_flagged, curve_flag_reason`,
+`segmented_curve` reading "segmented
 curve" or stating why there is none: no complete pair, coverage below the floor, or no fit and the
 reason. The figures are `nu_vs_A.pdf`, `r_nu_vs_A_H.pdf` and `R_T_vs_A_H.pdf`, and
 `r_nu_vs_A_H_segmented_<dataset>.pdf` and `R_T_vs_A_H_segmented_<dataset>.pdf` for every dataset
@@ -570,7 +663,9 @@ directory — enters as the first eight hexadecimal digits of
 the SHA-1 of its canonical spelling, paths relative to the data directory, and is written in full
 into `metadata.toml` under `[identifier.hashed]`; a shipped table enters by name, Table III as
 `gc1965`. The Gilbert-Cameron branch and shell corrections are tokens of a Gilbert-Cameron run
-only. The identifier stays short enough for the file names that repeat it to fit the 255 bytes a
+only. `[segments] autocorrelation_lags` changes the uncertainty of the trend and none of its
+values, and is a token, `lags`, only where it differs from its default of 4: one more token on
+every run would carry the file names of a Gilbert-Cameron run beyond 255 bytes. The identifier stays short enough for the file names that repeat it to fit the 255 bytes a
 file system admits, which the test suite checks for every shipped configuration under both level
 density models. For 233-U:
 
@@ -728,7 +823,7 @@ Verified:
   again near the most probable fragmentation, and a near-linear rise above it.
 - **The published total averages, to within 1.0 %, one measurement aside.** The `⟨R_T⟩` of
   Table 1 of the paper, per `ν(A)` dataset and per `Y(A)` distribution, comes back from
-  independently retrieved archive data (ExforFissionData.jl v0.2.4) with the published settings —
+  independently retrieved archive data (ExforFissionData.jl v0.2.7) with the published settings —
   the ratio of means over the digitised Gaussian charge tables, or the mean values for ²³³U, on the
   shared fragmentation domain:
 
@@ -859,6 +954,7 @@ FissionTemperatureRatio/
 │   ├── Project.toml
 │   └── run.jl                      pipeline entry point
 ├── src/
+│   ├── autocorrelation.jl          errors of pooled datasets along the mass axis: correlogram, decay
 │   ├── configuration.jl            TOML configuration, parsed and validated; model builders
 │   ├── consensus.jl                combining datasets, and the diagnostics describing them
 │   ├── extracted_curve.jl          one extracted curve: fit, R_T, covariance; its averages

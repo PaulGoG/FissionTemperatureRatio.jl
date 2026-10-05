@@ -48,7 +48,8 @@ produced it, naming every dataset it kept or excluded and why. The readers take 
 so the record sits beside the data without interfering.
 
 A run accepts a retrieval record only at or above `[retrieval] min_package_version`, 0.2.3 in the
-shipped configurations, and refuses one that states no `[run] package_version`.
+shipped configurations, and refuses one that states no `[run] package_version`. The datasets of
+one experiment are read where a record names them, which a retrieval by v0.2.7 or later does.
 
 ## Sources
 
@@ -81,8 +82,10 @@ julia scripts/retrieve.jl config/U233_nth_TKE_vs_A.toml /path/to/FissionTemperat
 Check that package out at a named commit before retrieving: the `[run]` table of every
 `retrieval.toml` records the revision and version that wrote it, and a run of this package copies
 that table, for every input directory it reads, into its `metadata.toml`. The results quoted in the
-README rest on the twelve committed configurations of its v0.2.4, `<system>_<observable>.toml`
-for the four systems and `nu_vs_A`, `Y_vs_A`, `TKE_vs_A`.
+README rest on the twelve committed configurations of its v0.2.7, `<system>_<observable>.toml`
+for the four systems and `nu_vs_A`, `Y_vs_A`, `TKE_vs_A`. Every table that retrieval writes is
+byte-identical to that of v0.2.4; the records differ, naming the datasets of one experiment and
+the `preliminary` qualifier.
 
 Masses the archive gives as non-integer values, digitised or binned, are interpolated onto the
 integers by the retrieval, which records `mass_treatment = "interpolated"` and the count of raw
@@ -91,6 +94,13 @@ values. Such a dataset is pooled at the weight of its measured points over its w
 A DatasetID has eight digits, or nine where it points within a subentry; the dataset label drops
 the leading digits either way. Two files of one author and year keep their DatasetID in
 parentheses after the label, so that every label is unique.
+
+**Datasets of one experiment.** A retrieval record names, under `correlated_with`, the other
+datasets of the experiment a dataset belongs to, and under `correlation_relation` how they are
+related. Pooled datasets that name one another are combined into one curve and enter the
+systematic trend as one measurement; each still offers its own segmented curve. The staged records
+give Basova 1979 and Zamyatnin 1979 as alternative analyses of one experiment, for 252-Cf
+(41720002 and 41694002) and for 239-Pu (41720004 and 41694003).
 
 EXFOR entries are immutable once published, so a configuration and that package reproduce a
 retrieval exactly.
@@ -132,13 +142,17 @@ configuration takes Wahl's 1988 parameters for that reaction instead, from Fissi
 not say which edition or fit of Wahl they came from. They serve only the exact reproduction of the
 published extraction; the shipped configurations do not read them.
 
-**Qualified datasets are used, not corrected.** A dataset whose retrieval record lists `DERIV` or
-`SPA` among its reaction-code qualifiers is flagged in the log, in `dataset_diagnostics.csv` and in
-the run metadata. Six staged sets carry `SPA`: the 239-Pu `ν(A)` of Basova 1979 and of
+**Qualified datasets are used, not corrected.** A dataset whose retrieval record lists `DERIV`,
+`SPA` or `preliminary` among its qualifiers is flagged in the log, in `dataset_diagnostics.csv` and
+in the run metadata; no exclusion follows from the flag. Six staged sets carry `SPA`: the 239-Pu
+`ν(A)` of Basova 1979 and of
 Zamyatnin 1979, the 239-Pu `Y(A)` of Walter 1964, and the 235-U `Y(A)` of Romano 2010, Bohn 1969
 and Straede 1987, over the last of which two rows of the published table are averaged. Most
 thermal-neutron sets carry `MXW`, a Maxwellian-averaged spectrum, which is the entrance channel and
-is not flagged.
+is not flagged. `preliminary` marks the archive's status code `PRELM`, or a publication that calls
+its results preliminary. Five staged sets carry it: the `ν(A)` of Batenkov 2004 for 235-U
+(41502005) and 239-Pu (41502006), both excluded already and forming no pair, the 235-U `ν(A)` of
+Vorobyev 2010 (41516012), which is pooled, and the 235-U `Y(A)` 417380041 and 417380042.
 
 **Several yield distributions are partial.** Britt 1963 (252-Cf), Bohn 1969 (235-U) and Akimov
 1971 (239-Pu) are measured on the light wing alone, Barreau 1985 (23717005) on the far heavy wing,
