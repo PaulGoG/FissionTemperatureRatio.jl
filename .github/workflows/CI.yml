@@ -38,6 +38,11 @@ jobs:
       - uses: julia-actions/cache@v3
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1
+        with:
+          # On a Dependabot run the action forces every direct dependency to the latest registered
+          # version its [compat] bound admits. FissionFragmentsDomain is taken from its URL and
+          # has no registered version, so that check cannot pass.
+          force_latest_compatible_version: false
   docs:
     name: Documentation
     runs-on: ubuntu-latest
