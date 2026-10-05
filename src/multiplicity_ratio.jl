@@ -81,7 +81,7 @@ function read_multiplicity(path::AbstractString; label::AbstractString = "")
             ignorerepeated = true,
             header = ["A", "ν", "σν"],
             skipto = 2,
-            silencewarnings = true,
+            on_error = :collect,
         )
     catch exception
         throw(ArgumentError("multiplicity file $(path) does not have the layout \
