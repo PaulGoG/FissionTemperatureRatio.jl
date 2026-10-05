@@ -164,6 +164,19 @@ function correlated_datasets(record::RetrievalRecord)
 end
 
 """
+    correlation_relation(record) -> String
+
+How a dataset is related to those [`correlated_datasets`](@ref) names, as its retrieval record
+states it under `correlation_relation` — a republication, an alternative analysis of the same
+events, a repeated run, a part of one spectrum — or an empty string where the record states
+none or no record is held.
+"""
+correlation_relation(::Nothing) = ""
+function correlation_relation(record::RetrievalRecord)
+    return string(get(record.entry, "correlation_relation", ""))
+end
+
+"""
     pair_sum_scale(record) -> Union{NamedTuple,Nothing}
 
 The scale of a multiplicity dataset as the retrieval states it, for one read by the complement

@@ -276,7 +276,8 @@ function test_experiments_pooled_as_one(directory, configuration, result, writte
         write(joinpath(experiments, "retrieval.toml"), record(""))
         apart = run_pipeline(load_configuration(path; data_directory = directory))
         write(
-            joinpath(experiments, "retrieval.toml"), record("correlated_with = [\"20000002\"]")
+            joinpath(experiments, "retrieval.toml"),
+            record("correlated_with = [\"20000002\"]\ncorrelation_relation = \"repeated_run\""),
         )
         together = run_pipeline(load_configuration(path; data_directory = directory))
         @test correlated_datasets(
@@ -323,7 +324,10 @@ function test_experiments_pooled_as_one(directory, configuration, result, writte
         @test row("B. First 1979").pooled_with == "A. First 1979"
         @test ismissing(row("C. Other 2000").pooled_with)
         metadata = run_metadata(together)["result"]
-        @test metadata["correlation_groups"] == [["A. First 1979", "B. First 1979"]]
+        group = only(metadata["correlation_groups"])
+        @test group["datasets"] == ["A. First 1979", "B. First 1979"]
+        @test group["accessions"] == ["20000001", "20000002"]
+        @test group["relation"] == "repeated_run"
         @test metadata["leave_one_out"][1]["accessions"] == ["20000001", "20000002"]
         @test isempty(run_metadata(apart)["result"]["correlation_groups"])
     end

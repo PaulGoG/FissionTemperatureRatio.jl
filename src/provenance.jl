@@ -415,8 +415,10 @@ function run_metadata(result::ExtractionResult)
             # against the expectation of χ², and the leave-one-out spread of ⟨R_T⟩ per yield.
             "trend_uncertainty" => _trend_uncertainty_record(result),
             # The pooled datasets that belong to one experiment and were combined into one before
-            # pooling, by label, one list per experiment.
-            "correlation_groups" => result.correlation_groups,
+            # pooling, with the relation their retrieval record states.
+            "correlation_groups" => [
+                _correlation_group_record(result, group) for group in result.correlation_groups
+            ],
             # Dataset curves that resolve no minimum, with the reason; they stay in the manifest.
             "flagged_curves" => Dict{String,Any}(result.curve_flags),
             # The trend refitted with each pooled dataset left out, in the order read.
@@ -480,6 +482,22 @@ function _trend_uncertainty_record(result::ExtractionResult)
     end
     record["leave_one_out"] = spreads
     return record
+end
+
+# One experiment pooled as one: its datasets, their accessions and how the record relates them.
+function _correlation_group_record(result::ExtractionResult, group::Vector{String})
+    sources = Dict(data.label => data.source for data in result.datasets)
+    relations = unique(
+        filter(
+            !isempty,
+            [correlation_relation(retrieval_record(sources[label])) for label in group],
+        ),
+    )
+    return Dict{String,Any}(
+        "datasets" => group,
+        "accessions" => [_dataset_accession(sources[label]) for label in group],
+        "relation" => isempty(relations) ? "not stated" : join(relations, ", "),
+    )
 end
 
 # One leave-one-out refit of the trend; the reduced chi-squared is omitted where there is no fit.

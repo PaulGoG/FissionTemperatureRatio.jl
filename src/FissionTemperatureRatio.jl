@@ -154,6 +154,7 @@ export RetrievalRecord,
     FLAGGED_QUALIFIERS,
     pooling_weight,
     correlated_datasets,
+    correlation_relation,
     pair_sum_scale
 
 # Physics
