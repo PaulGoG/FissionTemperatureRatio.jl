@@ -260,8 +260,10 @@ each of them. The
 tabulated points of a fitted curve are functions of a few coefficients and are not independent.
 The independent-points form, which replaces ``w^\mathsf{T} C w`` by
 ``\sum (Y/\sum Y)^2 \sigma_{R_T}^2``, is the approximation of the published tables; it is written
-beside the propagated uncertainty and understates it by a factor of two to five for the curves of
-the four shipped systems. The yield term is common to both, which is why a multiplicity dataset
+beside the propagated uncertainty, as `R_T_uncertainty_independent_points`, and understates it by
+a factor of two to five for the curves of the four shipped systems. It concerns the tabulated
+points of a curve and has nothing to do with the correlation between the combined points of a
+trend, set out below. The yield term is common to both, which is why a multiplicity dataset
 quoting no uncertainties still yields an uncertain average. Correlations between the yields at
 different mass numbers are neglected, the sources not reporting them.
 
@@ -294,7 +296,7 @@ side by side they would count as independent measurements in ``Q`` and weigh as 
 datasets that name one another therefore enter the pool as one curve, at the uncertainty of one
 measurement and with the measured fraction of each of its points as its ``f``, and the
 leave-one-out refits of the next section leave the experiment out as one. How that curve is formed
-follows the relation the records state.
+follows the relation, taken from the records where every member states the same one.
 
 Alternative analyses, two or more reductions of one set of events, share their statistical
 errors, so nothing is gained by averaging them as independent values. At a mass number the curve
@@ -311,8 +313,12 @@ A mass number one member alone holds takes that member's value and uncertainty, 
 member quotes an uncertainty the point quotes none. Of a republication, one result published
 twice, the superseding dataset alone enters the pool; the superseded one, which its record marks
 with a qualifier beginning `superseded:`, is read, fitted and written and offers its own curve,
-but is not pooled. Repeated runs, complementary ranges, and members whose records state no
-relation or different ones are combined by the rule a pool is combined with, given above. Each
+but is not pooled. Where its successor is itself excluded by the configuration or forms no
+fragment pair, the superseded dataset is still kept out of the pool, with a warning in the log: a
+withdrawn result does not stand in for the one that replaced it. Where not exactly one member of a
+republication is unmarked, nothing is superseded and the members are combined as a pool. Repeated
+runs, complementary ranges, and members of an experiment whose relation not every member states,
+or two state differently, are combined by the rule a pool is combined with, given above. Each
 member still offers its own segmented curve. In the shipped inputs Basova 1979 and Zamyatnin 1979
 are alternative analyses of one experiment, for 252-Cf and for 239-Pu; their tables differ by 0.34
 and 0.36 neutrons rms.
@@ -399,9 +405,17 @@ mean of each dataset's deviations is removed before the products are formed. The
 every sum running over the pairs of mass numbers ``k`` apart that one dataset holds and over the
 pooled datasets, ``f`` being the pooling factor of a dataset. A mass number held by one dataset
 alone is left out, the deviation there vanishing by construction, and a lag no dataset spans has
-no value. The estimate is low rather than high: the deviations of a short series from its own mean
-are less correlated than its errors, and the combined curve carries a share of every other
-dataset's error into each deviation.
+no value. A dataset that shares fewer than three mass numbers with the others is left out as well:
+two deviations less their mean are opposite and equal, a first lag of minus one by construction.
+
+The estimate is low rather than high. Centred per dataset, it is the estimate of a short centred
+series, and for a series of ``n`` points and a lag-one correlation ``\rho`` its expectation falls
+short of ``\rho`` by about ``(1 + 3\rho)/n`` to first order in ``1/n``
+[Marriott1954, Kendall1954](@cite). For the 30 to 50 masses of a dataset and ``\rho`` near 0.8
+that is 0.07 to 0.11, and a simulation of the estimator as written here gives 0.09 at ``n = 40``.
+The combined curve, moreover, carries a share of every other dataset's error into each deviation.
+The fitted ``\rho``, and with it the uncertainty of the trend, are therefore on the low side; no
+correction is applied.
 
 The kernel ``\rho^k`` of an AR(1) error is fitted to the first lags of the correlogram in least
 squares, minimising ``\sum_k (\rho_k - \rho^k)^2`` over `autocorrelation_lags` of them, four by
@@ -457,17 +471,22 @@ expectation ``\chi^2`` is 0.63. That of the 239-Pu trend, 0.73, is 1.29 times it
 and the covariance of that trend is scaled by it.
 
 For the four shipped systems, with ``\langle R_T \rangle`` over the primary yield distribution and
-the inputs retrieved by ExforFissionData.jl v0.2.7:
+the inputs retrieved by ExforFissionData.jl v0.2.7, as a run writes them: ``\rho``,
+``\chi^2/\mathrm{dof}`` and ``\chi^2/\mathrm{E}[\chi^2]`` in the columns
+`deviation_autocorrelation`, `reduced_chi_squared` and `chi_squared_over_expectation` of the curve
+table, and ``\langle R_T \rangle``, its propagated uncertainty and the jackknife in the columns
+`R_T`, `R_T_uncertainty` and `R_T_uncertainty_leave_one_out` of the total averages:
 
-| System | ``\rho`` | ``\chi^2/\mathrm{dof}`` | ``\chi^2/\mathrm{E}[\chi^2]`` | ``\sigma\langle R_T \rangle``, independent points | ``\sigma\langle R_T \rangle``, written | Jackknife |
-| :--- | ---: | ---: | ---: | ---: | ---: | ---: |
-| ``^{252}``Cf(sf) | 0.872 | 2.02 | 3.83 | 0.0037 | 0.0159 | 0.0085 |
-| ``^{235}``U(nth,f) | 0.690 | 0.44 | 0.63 | 0.0075 | 0.0153 | 0.0222 |
-| ``^{239}``Pu(nth,f) | 0.814 | 0.73 | 1.29 | 0.0091 | 0.0269 | 0.0257 |
-| ``^{233}``U(nth,f) | 0.800 | 1.70 | 2.43 | 0.0319 | 0.0936 | 0.1381 |
+| System | ``\rho`` | ``\chi^2/\mathrm{dof}`` | ``\chi^2/\mathrm{E}[\chi^2]`` | ``\langle R_T \rangle`` ± `R_T_uncertainty` | `R_T_uncertainty_leave_one_out` |
+| :--- | ---: | ---: | ---: | ---: | ---: |
+| ``^{252}``Cf(sf) | 0.872 | 2.02 | 3.83 | 1.0821 ± 0.0159 | 0.0085 |
+| ``^{235}``U(nth,f) | 0.690 | 0.44 | 0.63 | 1.1230 ± 0.0153 | 0.0222 |
+| ``^{239}``Pu(nth,f) | 0.814 | 0.73 | 1.29 | 1.0388 ± 0.0269 | 0.0257 |
+| ``^{233}``U(nth,f) | 0.800 | 1.70 | 2.43 | 1.0724 ± 0.0936 | 0.1381 |
 
-The tabulated ``\sigma(R_T)`` of each trend is larger than with independent points by a median
-factor of 3.7, 1.8, 2.6 and 2.7, in the order of the table.
+Refitted with the combined points taken as independent, a number a run does not write, the four
+uncertainties of ``\langle R_T \rangle`` would be 0.0037, 0.0075, 0.0091 and 0.0319, the
+tabulated ``\sigma(R_T)`` of the trends being larger by a median factor of 3.7, 1.8, 2.6 and 2.7.
 
 What the matrix does not hold is a constant offset of one dataset from the others: the
 correlogram removes the mean of each dataset, so such an offset is in no lag and in no matrix
@@ -482,7 +501,9 @@ delete-one jackknife standard error
 ```
 
 written beside the propagated uncertainty together with the least and the greatest ``\theta_i``;
-it is the last column of the table. For 235-U and 233-U it exceeds the propagated uncertainty, by
+it is the last column of the table. A refit that gave no curve is not among the ``k``, and the log
+says so. With two pooled experiments the jackknife is half the difference of the two refits, which
+the log states as well. For 235-U and 233-U the jackknife exceeds the propagated uncertainty, by
 a factor of 1.4 to 1.5: the datasets differ by offsets the kernel does not hold, most of all for
 233-U, whose four datasets give ``\langle R_T \rangle`` from 0.98 to 1.18 with one left out. For
 239-Pu the two are about equal, and for 252-Cf, with thirteen experiments, the jackknife is about

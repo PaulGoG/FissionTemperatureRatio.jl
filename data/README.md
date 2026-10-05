@@ -47,9 +47,10 @@ Each measured-quantity directory also holds a `retrieval.toml`, the run record o
 produced it, naming every dataset it kept or excluded and why. The readers take only `.dat` files,
 so the record sits beside the data without interfering.
 
-A run accepts a retrieval record only at or above `[retrieval] min_package_version`, 0.2.3 in the
-shipped configurations, and refuses one that states no `[run] package_version`. The datasets of
-one experiment are read where a record names them, which a retrieval by v0.2.7 or later does.
+A run accepts a retrieval record only at or above `[retrieval] min_package_version`, 0.2.7 in the
+shipped configurations and by default, the first version whose records name the datasets of one
+experiment, and refuses one that states no `[run] package_version`. Below it the datasets of an
+experiment would be pooled side by side rather than as one.
 
 ## Sources
 
@@ -98,12 +99,14 @@ parentheses after the label, so that every label is unique.
 **Datasets of one experiment.** A retrieval record names, under `correlated_with`, the other
 datasets of the experiment a dataset belongs to, and under `correlation_relation` how they are
 related. Pooled datasets that name one another enter the systematic trend as one curve, formed as
-the relation states: for alternative analyses of one set of events, the mean of the members, with
-the largest uncertainty a member quotes and half the difference between them added in quadrature;
-for a republication, the superseding dataset alone, the superseded one, which its record marks
-with a qualifier beginning `superseded:`, being read, fitted and written but not pooled; for other
-relations, or none stated, as a pool is combined. Each member still offers its own segmented
-curve. The staged records give Basova 1979 and Zamyatnin 1979 as alternative analyses of one
+the relation states where every member's record states the same one: for alternative analyses of
+one set of events, the mean of the members, with the largest uncertainty a member quotes and half
+the difference between them added in quadrature; for a republication, the superseding dataset
+alone, the superseded one, which its record marks with a qualifier beginning `superseded:`, being
+read, fitted and written but not pooled, even where its successor is excluded or forms no fragment
+pair; for other relations, or a relation not every member states, or two state differently, as a
+pool is combined. A republication of which not exactly one member is unmarked supersedes nothing,
+and its members are combined as a pool. Each member still offers its own segmented curve. The staged records give Basova 1979 and Zamyatnin 1979 as alternative analyses of one
 experiment, for 252-Cf (41720002 and 41694002) and for 239-Pu (41720004 and 41694003), whose tables
 differ by 0.34 and 0.36 neutrons rms; no staged `ν(A)` set is superseded.
 
@@ -213,8 +216,10 @@ results (*AIP Conf. Proc.* **769**, 1003 (2005), doi:10.1063/1.1945175), are not
 interpolated complements, and the shipped configurations exclude both by accession, with that
 reason.
 
-**Uncertainties are absent from several multiplicity datasets.** An unquoted uncertainty is read
-as `missing`, never as zero; such points take the median weight of the quoted ones and are counted
-in the `weights_imputed` field of every fit that used them and in the `without_uncertainties`
-column of the dataset diagnostics. Such a dataset still receives an uncertainty on its total
-average, propagated from the fit covariance and the yield distribution.
+**Uncertainties are absent from several multiplicity datasets.** An unquoted uncertainty — an
+absent field, or one that is zero, negative or `NaN` — is read as `missing`, never as zero; such
+points take the median weight of the quoted ones and are counted in the `weights_imputed` field
+of every fit that used them and in the `without_uncertainties` column of the dataset diagnostics.
+Such a dataset still receives an uncertainty on its total average, propagated from the fit
+covariance and the yield distribution. A field that is not numeric is refused with the file and
+the line, so that one malformed uncertainty does not pass for a dataset that quotes none.

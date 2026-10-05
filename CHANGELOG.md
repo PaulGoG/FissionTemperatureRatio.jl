@@ -32,8 +32,9 @@ run metadata changed for a `[yield] exclude` without `subdirectory`.
   every run would carry the file names of a Gilbert-Cameron run beyond 255 bytes. The test suite
   checks the longest file name a run writes against the 255 bytes a file system admits, for every
   shipped configuration under both level density models. `CORRELOGRAM_LAGS`, `deviation_correlogram`, `autocorrelation_decay`, `pooled_correlation`;
-  `fit_segments(...; correlation = R)` takes a correlation matrix of the errors of the points, and
-  `SegmentedFit` has the fields `correlated` and `expected_wrss`.
+  `fit_segments(...; correlation = R)` takes a correlation matrix of the errors of the points and
+  refuses one that is not positive semi-definite; `SegmentedFit` has the fields `correlated` and
+  `expected_wrss`.
 - Leave-one-out refits of the systematic trend: the trend is refitted with each pooled dataset,
   or each experiment, left out, and the `⟨R_T⟩` of every refit over each yield distribution
   averaged over, its number of segments, its breakpoints and its `χ²/dof` are written. The
@@ -41,13 +42,15 @@ run metadata changed for a `[yield] exclude` without `subdirectory`.
   between datasets; the refits are its measure. `LeaveOneOut`, with the fields `datasets`,
   `outcome`, `segments`, `breakpoints`, `reduced_chi_squared` and `total_average_R_T`;
   `ExtractionResult.leave_one_out`; `leave_one_out_spread(result, mass_yield)`, which gives
-  `(; min, max, uncertainty)`, the last being the delete-one jackknife standard error
-  `[(k − 1)/k Σᵢ (θᵢ − θ̄)²]^(1/2)` over the `k` refits. A new table,
+  `(; min, max, uncertainty, refits)`, `uncertainty` being the delete-one jackknife standard
+  error `[(k − 1)/k Σᵢ (θᵢ − θ̄)²]^(1/2)` over the `k` refits and `refits` being `k`. A refit
+  that gave no curve is not among the `k`, and the log says so; with two pooled experiments the
+  jackknife is half the difference of the two refits, which the log states as well. A new table,
   `leave_one_out_<run identifier>.csv`, with the columns `dataset_left_out`, `accession`,
   `mass_yield`, `R_T`, `segments`, `breakpoints`, `reduced_chi_squared` and `outcome`, one row per
   dataset or experiment left out and yield distribution; `[[result.leave_one_out]]` in
   `metadata.toml`. `run_pipeline(configuration; leave_one_out = false)` skips the refits, which
-  cost one trend fit per pooled dataset.
+  cost one trend fit per pooled dataset or experiment.
 - A dataset curve whose segmented `r_ν` has no interior minimum, no interior pivot below both of
   its neighbours, although its range covers a required window (`[segments] required_windows`, the
   window the minimum lies in, 128 to 132 in the shipped configurations), is flagged with the
@@ -64,18 +67,24 @@ run metadata changed for a `[yield] exclude` without `subdirectory`.
   and ²³⁵U: Bowman 1963, Britt 1964 and Mehta 1973 of ²⁵²Cf begin at `A_H` = 133, 132 and 135,
   past the start of the window.
 - `superseded_datasets(result)` and `ExtractionResult.superseded`: the datasets a republication
-  supersedes, each with its successor. Of an experiment whose records give the relation
+  supersedes, each with its successor. Of an experiment whose records all give the relation
   `republication`, the superseding dataset alone enters the pool; the superseded one, which its
   record marks with a qualifier beginning `superseded:`, is read, fitted and written and offers its
-  own curve, and is not pooled. `[result.superseded_datasets]` in `metadata.toml`; the
-  `exclusion_reason` column of `dataset_diagnostics.csv` reads "superseded by <label>" for it and
-  `pooled` is false. None of the shipped `ν(A)` sets is superseded.
+  own curve, and is not pooled. Where its successor is itself excluded by the configuration or
+  forms no fragment pair, the superseded dataset is still kept out of the pool, with a warning in
+  the log: a withdrawn result does not stand in for the one that replaced it. Where not exactly one
+  member of a republication is unmarked, nothing is superseded and the members are combined as a
+  pool. `[result.superseded_datasets]` in `metadata.toml`; the `exclusion_reason` column of
+  `dataset_diagnostics.csv` reads "superseded by <label>" for it and `pooled` is false. None of the shipped `ν(A)` sets is superseded.
 - `correlated_datasets(record)` and `correlation_relation(record)`, the other datasets of the
   experiment a dataset belongs to and how they are related, as a retrieval record of
   ExforFissionData 0.2.7 or later states them under `correlated_with` and `correlation_relation`
-  (`republication`, `alternative_analysis`, `repeated_run`, `complementary_range`).
+  (`republication`, `alternative_analysis`, `repeated_run`, `complementary_range`). A relation is
+  acted on where every record of the experiment states it and they agree.
   `ExtractionResult.correlation_groups`, `[[result.correlation_groups]]` in `metadata.toml` with
-  `datasets`, `accessions` and `relation`, and the `pooled_with` column of `dataset_diagnostics.csv`.
+  `datasets`, `accessions`, `relation`, the relation acted on or `"unstated or differing"`, and
+  `relations_stated`, what each record states, and the `pooled_with` column of
+  `dataset_diagnostics.csv`.
 
 ### Changed
 
@@ -86,25 +95,34 @@ run metadata changed for a `[yield] exclude` without `subdirectory`.
   holding both mass numbers, `sᵢ(A)` being the share of the combined value at `A` that dataset
   `i` carries. `ρ` is `autocorrelation_decay` of the correlogram of the pooled datasets'
   deviations from the combined curve, each less its mean, fitted to its first
-  `autocorrelation_lags` lags and bounded to [0, 0.999]. The coefficient covariance is the
-  sandwich `(XᵀWX)⁻¹ XᵀW Σ W X (XᵀWX)⁻¹` with `Σ = W^(−1/2) R W^(−1/2)`, scaled by
+  `autocorrelation_lags` lags and bounded to [0, 0.999]. A dataset that shares fewer than three
+  mass numbers with the others does not enter the correlogram, two deviations less their mean
+  being opposite and equal. The estimate of a short centred series is low, by about `(1 + 3ρ)/n`
+  for `n` points (Marriott and Pope, doi:10.1093/biomet/41.3-4.390; Kendall,
+  doi:10.1093/biomet/41.3-4.403), 0.07 to 0.11 for the 30 to 50 masses of a dataset at `ρ` near
+  0.8, so that `ρ`, and with it the uncertainty of the trend, is on the low side; no correction
+  is applied. The coefficient covariance is the sandwich `(XᵀWX)⁻¹ XᵀW Σ W X (XᵀWX)⁻¹` with `Σ = W^(−1/2) R W^(−1/2)`, scaled by
   `max(1, χ²/E[χ²])` in place of `max(1, χ²/dof)`, where `E[χ²] = dof · tr(PR)/tr(P)` with `P`
   the residual projector of the weighted design: with positively correlated errors a smooth fit
   absorbs part of the error and `E[χ²]` falls below the degrees of freedom. Coefficients,
   breakpoints and the selected number of segments are unchanged by it. `deviation_autocorrelation`
   returns the `ρ` the covariance was formed with, `missing` where no lag could be estimated and the
   trend is fitted with independent points. A dataset curve is fitted with independent points as
-  before. With `⟨R_T⟩` over the primary yield distribution:
+  before. With `⟨R_T⟩` over the primary yield distribution, `ρ`, `χ²/dof` and `χ²/E[χ²]` being
+  the columns `deviation_autocorrelation`, `reduced_chi_squared` and
+  `chi_squared_over_expectation` of the curve table:
 
-  | System | `ρ` | `χ²/dof` | `χ²/E[χ²]` | `⟨R_T⟩` | `σ` with independent points | Jackknife |
-  |---|---|---|---|---|---|---|
-  | ²⁵²Cf(sf) | 0.872 | 2.02 | 3.83 | 1.0821 ± 0.0159 | 0.0037 | 0.0085 |
-  | ²³⁵U(nth,f) | 0.690 | 0.44 | 0.63 | 1.1230 ± 0.0153 | 0.0075 | 0.0222 |
-  | ²³⁹Pu(nth,f) | 0.814 | 0.73 | 1.29 | 1.0388 ± 0.0269 | 0.0091 | 0.0257 |
-  | ²³³U(nth,f) | 0.800 | 1.70 | 2.43 | 1.0724 ± 0.0936 | 0.0319 | 0.1381 |
+  | System | `ρ` | `χ²/dof` | `χ²/E[χ²]` | `⟨R_T⟩` ± `R_T_uncertainty` | `R_T_uncertainty_leave_one_out` |
+  |---|---|---|---|---|---|
+  | ²⁵²Cf(sf) | 0.872 | 2.02 | 3.83 | 1.0821 ± 0.0159 | 0.0085 |
+  | ²³⁵U(nth,f) | 0.690 | 0.44 | 0.63 | 1.1230 ± 0.0153 | 0.0222 |
+  | ²³⁹Pu(nth,f) | 0.814 | 0.73 | 1.29 | 1.0388 ± 0.0269 | 0.0257 |
+  | ²³³U(nth,f) | 0.800 | 1.70 | 2.43 | 1.0724 ± 0.0936 | 0.1381 |
 
-  For ²³⁵U and ²³³U the jackknife uncertainty exceeds the propagated one, by a factor of 1.4 to
-  1.5: the datasets differ by offsets the kernel does not hold, most of all for ²³³U, whose four
+  Refitted with the combined points taken as independent, a number a run does not write, the four
+  uncertainties would be 0.0037, 0.0075, 0.0091 and 0.0319, the tabulated `σ(R_T)` of the trends
+  being larger by a median factor of 3.7, 1.8, 2.6 and 2.7. For ²³⁵U and ²³³U the jackknife
+  uncertainty exceeds the propagated one, by a factor of 1.4 to 1.5: the datasets differ by offsets the kernel does not hold, most of all for ²³³U, whose four
   datasets give `⟨R_T⟩` from 0.98 to 1.18 with one left out. For ²³⁹Pu the two are about equal;
   for ²⁵²Cf, with thirteen experiments, the jackknife is about half the propagated uncertainty.
 - Pooled datasets of one experiment, those whose retrieval records name one another under
@@ -112,14 +130,14 @@ run metadata changed for a `[yield] exclude` without `subdirectory`.
   measured fraction of each of its points, so that the experiment counts once in the
   between-dataset variance and in the weights; the leave-one-out refits leave it out as one. Each
   member still offers its own segmented curve and stays in the manifest. The curve follows the
-  relation the records state. Of alternative analyses, which share their statistical errors, it
-  takes at each mass number the mean of the members, with the largest uncertainty a member quotes
+  relation, taken from the records where every member states the same one. Of alternative
+  analyses, which share their statistical errors, it takes at each mass number the mean of the members, with the largest uncertainty a member quotes
   and half the difference between the members added in quadrature,
   `σ = [max(σ_a, σ_b)² + ((r_a − r_b)/2)²]^(1/2)` for two; a mass number one member alone holds
   takes that member's value and uncertainty. Of a republication the superseding dataset alone
-  enters. Repeated runs, complementary ranges, and members whose records state no relation or
-  different ones are combined by the rule a pool is combined with. In the shipped inputs Basova
-  1979 and Zamyatnin 1979 are alternative analyses of one experiment, for ²⁵²Cf (EXFOR 41720002
+  enters. Repeated runs, complementary ranges, and members of an experiment whose relation not
+  every member states, or two state differently, are combined by the rule a pool is combined with.
+  In the shipped inputs Basova 1979 and Zamyatnin 1979 are alternative analyses of one experiment, for ²⁵²Cf (EXFOR 41720002
   and 41694002) and for ²³⁹Pu (41720004 and 41694003), whose tables differ by 0.34 and 0.36
   neutrons rms. The ²⁵²Cf trend moves from 5 to 4 segments, breakpoints 130, 137, 143, 149 to 130,
   136, 150, `χ²/dof` 1.53 to 2.02 and `⟨R_T⟩` 1.0878 to 1.0821, and gives 1.0806 with the
@@ -154,18 +172,29 @@ run metadata changed for a `[yield] exclude` without `subdirectory`.
   (eight values, `nan` where a lag has none), `autocorrelation_lags`, `autocorrelation_estimated`,
   `deviation_autocorrelation` (the coefficient the covariance was formed with, 0 where none could
   be estimated), `reduced_chi_squared`, `expected_wrss`, `chi_squared_over_expectation`,
-  `covariance_scale`, and `[result.trend_uncertainty.leave_one_out.<yield>]` with `min`, `max` and
-  `uncertainty`. Each curve under `[result.segmented_curves]` gains `chi_squared_over_expectation`
-  and `correlated_points`, and `[configuration]` gains `autocorrelation_lags`.
-- **Breaking:** `SegmentedFit` gains the fields `correlated` and `expected_wrss`, and
-  `ExtractionResult` the fields `deviation_correlogram`, `autocorrelation`, `superseded`,
-  `correlation_groups`, `leave_one_out` and `curve_flags`, so their positional constructors take
-  more arguments.
+  `covariance_scale`, and `[result.trend_uncertainty.leave_one_out.<yield>]` with `min`, `max`,
+  `uncertainty` and `refits`. Each curve under `[result.segmented_curves]` gains
+  `chi_squared_over_expectation` and `correlated_points`, and `[configuration]` gains `autocorrelation_lags`.
+- **Breaking:** `SegmentedFit` gains the fields `correlated` and `expected_wrss`,
+  `SegmentSettings` the positional field `autocorrelation_lags`, and `ExtractionResult` the fields
+  `deviation_correlogram`, `autocorrelation`, `superseded`, `correlation_groups`, `leave_one_out`
+  and `curve_flags`, so their positional constructors take more arguments: a seven-argument call
+  of the `SegmentSettings` constructor fails.
+- **Breaking:** a model without breakpoints satisfied a required window vacuously in
+  `fit_segments`. It no longer does: `fit_segments` with `max_segments = 1` and a required window
+  throws an `InsufficientDataError` where it returned a one-segment fit. Where no model satisfies
+  the windows the trend is fitted without them, with a warning, as before. No shipped run reaches
+  this case.
 - The results quoted rest on the retrieval of the twelve configurations by ExforFissionData.jl
   v0.2.7. Every table is byte-identical to that of the v0.2.4 retrieval; the records differ, by
-  the datasets of one experiment and the `preliminary` qualifier. `[retrieval]
-  min_package_version` stays 0.2.3 by default; the datasets of one experiment are read where the
-  record names them, that is from a retrieval by v0.2.7 or later.
+  the datasets of one experiment and the `preliminary` qualifier.
+- **Breaking:** the default of `[retrieval] min_package_version` and its value in the four shipped
+  configurations are 0.2.7, where they were 0.2.3: a data tree retrieved with an earlier
+  ExforFissionData is refused when the configuration is loaded. The pooling of an experiment as
+  one rests on `correlated_with` and `correlation_relation`, which a retrieval writes from
+  ExforFissionData 0.2.7; inputs retrieved before it would pool the datasets of an experiment side
+  by side and write that trend under the same run identifier, for ²⁵²Cf `⟨R_T⟩` = 1.0878 in place
+  of 1.0821. A lower floor can still be set explicitly.
 - CSV.jl 1.1 is required, `[compat] CSV = "1.1"`; 0.10 is no longer admitted, CSV 1.0 having
   removed the keyword the reader used. An absent text field of a written table is an empty field,
   as before.
@@ -185,9 +214,14 @@ run metadata changed for a `[yield] exclude` without `subdirectory`.
 
 ### Fixed
 
-- A model without breakpoints satisfied a required window vacuously in `fit_segments`. It no
-  longer does; where no model satisfies the windows the trend is fitted without them, with a
-  warning, as before. No shipped run reaches this case.
+- **Breaking:** `read_multiplicity` parses the fields of each line itself. A mass number, a
+  multiplicity or an uncertainty that is not numeric is refused with an `ArgumentError` naming the
+  file and the line, as are a line of fewer than two fields and a multiplicity that is negative or
+  not finite; an absent third field, and one that is zero, negative or `NaN`, is still read as
+  `missing`. A non-numeric multiplicity raised a `MethodError` where the docstring promised an
+  `ArgumentError`, and a single non-numeric uncertainty turned the column to text, so that every
+  uncertainty of the dataset was read as not quoted, without a warning; a file read so before is
+  now refused. 0.2.3 on CSV 0.10 had both defects.
 - The dispersion of a pool that quotes no uncertainty is held against the size of the values:
   identical unquoted values with unequal pooling factors quote no uncertainty, where they returned
   one of rounding size, about 10⁻¹⁷. No mass of the shipped runs is in this case.

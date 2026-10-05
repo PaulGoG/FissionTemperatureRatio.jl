@@ -221,15 +221,18 @@ parentheses so that labels stay unique. Files other than `.dat` in those directo
 by the readers, so the run record sits beside the data it describes.
 
 Every retrieval record states the version of the parser that wrote it, `[run] package_version`.
-`[retrieval] min_package_version` (default `"0.2.3"`) is the lowest a run accepts: a record below
+`[retrieval] min_package_version` (default `"0.2.7"`) is the lowest a run accepts: a record below
 it, or one stating no version, is refused when the configuration is loaded, and a run whose input
-directories were written by different versions says so in the log. The floor is 0.2.3 because that
-release put the ²³⁹Pu multiplicities of Tsuchiya 2000 (22650004) on the scale of their subentry and
-refuses the ²⁵²Cf yields 41425015 and 41425016; inputs retrieved before it can carry both. A
-directory holding no retrieval record, a tabulation of one's own for instance, is not judged. The
-results quoted here rest on the retrieval of the twelve configurations by ExforFissionData.jl
-v0.2.7. The datasets of one experiment are read from the records where they carry them, that is
-from a retrieval by v0.2.7 or later.
+directories were written by different versions says so in the log; a lower floor can still be set
+explicitly. The floor is 0.2.7 because that release is the first whose records name the datasets
+of one experiment, under `correlated_with` and `correlation_relation`, on which the pooling of an
+experiment as one rests: inputs retrieved before it would pool the datasets of an experiment side
+by side and write that trend under the same run identifier, for ²⁵²Cf `⟨R_T⟩` = 1.0878 in place
+of 1.0821. Inputs retrieved before 0.2.3 can moreover carry the ²³⁹Pu multiplicities of Tsuchiya
+2000 (22650004) off the scale of their subentry and the ²⁵²Cf yields 41425015 and 41425016, which
+that release refuses. A directory holding no retrieval record, a tabulation of one's own for
+instance, is not judged. The results quoted here rest on the retrieval of the twelve
+configurations by ExforFissionData.jl v0.2.7.
 
 The run record also lists the reaction-code qualifiers of every dataset. A dataset carrying
 `DERIV` (derived from other data), `SPA` (averaged over an unspecified neutron spectrum) or
@@ -248,8 +251,10 @@ only if a run record beside it lists it, and its record — the parser revision 
 SHA-1 of the whole record — goes into the run metadata.
 
 A multiplicity file is `A nu nu_uncertainty`, or `A nu` where the measurement quotes no
-uncertainty. An absent, non-numeric or non-positive uncertainty is read as `missing`, never as
-zero, which would denote an exact value.
+uncertainty. An absent or non-positive uncertainty, or `NaN`, is read as `missing`, never as zero,
+which would denote an exact value. A field that is not numeric — mass number, multiplicity or
+uncertainty — is refused with the file and the line, so that one malformed uncertainty does not
+pass for a dataset that quotes none.
 
 Readers take columns **by position**, not by header text, so a header rename upstream is a no-op
 here. `docs/src/naming.md` sets out the vocabulary — quantities, identifiers, configuration keys,
@@ -377,24 +382,30 @@ under `correlation_relation` how they are related: `republication`, `alternative
 `repeated_run` or `complementary_range`. Pooled datasets that name one another enter the pool as
 one curve, at the uncertainty of one measurement with the measured fraction of each of its points,
 so that the experiment counts once in the between-dataset variance and in the weights; the
-leave-one-out refits below leave it out as one. How that curve is formed follows the relation.
-Alternative analyses, two or more reductions of one set of events, share their statistical errors,
-so nothing is gained by averaging them as independent values: at each mass number the curve takes
+leave-one-out refits below leave it out as one. How that curve is formed follows the relation,
+taken from the records where every member states the same one. Alternative analyses, two or more
+reductions of one set of events, share their statistical errors, so nothing is gained by averaging them as independent values: at each mass number the curve takes
 the mean of the members, and as its uncertainty the largest a member quotes with half the
 difference between the members added in quadrature, which carries the uncertainty of the
 reduction. A mass number one member alone holds takes that member's value and uncertainty, and
 where no member quotes an uncertainty the point quotes none. Of a republication, one result
 published twice, the superseding dataset alone enters the pool; the superseded one, which its
 record marks with a qualifier beginning `superseded:`, is read, fitted and written and offers its
-own curve, but is not pooled. `superseded_datasets(result)` gives each such dataset with its
-successor, a run lists them under `[result.superseded_datasets]` in `metadata.toml`, and the
-`exclusion_reason` column of `dataset_diagnostics.csv` reads "superseded by <label>" for it, with
-`pooled` false; none of the shipped `ν(A)` sets is one. Repeated runs, complementary ranges, and
-members whose records state no relation or different ones are combined by the rule a pool is
-combined with. Each member still offers its own segmented curve and stays in the manifest.
-`correlated_datasets(record)` and `correlation_relation(record)` read the record, and a run lists
-the groups under `[[result.correlation_groups]]` in `metadata.toml`, with `datasets`, `accessions`
-and `relation`, and in the `pooled_with` column of `dataset_diagnostics.csv`.
+own curve, but is not pooled. Where its successor is itself excluded by the configuration or forms
+no fragment pair, the superseded dataset is still kept out of the pool, with a warning in the log:
+a withdrawn result does not stand in for the one that replaced it. Where not exactly one member of
+a republication is unmarked, nothing is superseded and the members are combined as a pool.
+`superseded_datasets(result)` gives each such dataset with its successor, a run lists them under
+`[result.superseded_datasets]` in `metadata.toml`, and the `exclusion_reason` column of
+`dataset_diagnostics.csv` reads "superseded by <label>" for it, with `pooled` false; none of the
+shipped `ν(A)` sets is one. Repeated runs, complementary ranges, and
+members of an experiment whose relation not every member states, or two state differently, are
+combined by the rule a pool is combined with. Each member still offers its own segmented curve and
+stays in the manifest. `correlated_datasets(record)` and `correlation_relation(record)` read the
+record, and a run lists the groups under `[[result.correlation_groups]]` in `metadata.toml`, with
+`datasets`, `accessions`, `relation`, the relation acted on or `"unstated or differing"`, and
+`relations_stated`, what each record states, and in the `pooled_with` column of
+`dataset_diagnostics.csv`.
 
 In the shipped inputs Basova 1979 and Zamyatnin 1979 are alternative analyses of one experiment,
 for ²⁵²Cf (EXFOR 41720002 and 41694002) and for ²³⁹Pu (41720004 and 41694003); their tables differ
@@ -416,22 +427,26 @@ both and the share of each combined value they carry. `ρ` is estimated from the
 the pooled datasets' deviations from the combined curve, each less its own mean, at lags of one to
 eight mass units, by fitting `ρ^k` to its first lags in least squares: `[segments]
 autocorrelation_lags` of them, an integer from 1 to 8, default 4. It is bounded to [0, 0.999], a
-negative estimate being taken as no correlation. The coefficients, breakpoints and number of
-segments of the trend do not depend on it; its covariance is the sandwich form for correlated
-errors, scaled by `χ²` over its expectation under that correlation where that exceeds one. With
-the points taken as independent the uncertainty would be low by about `√((1 + ρ)/(1 − ρ))`. With
-`⟨R_T⟩` over the primary yield distribution:
+negative estimate being taken as no correlation. Datasets that share fewer than three mass numbers
+with the others do not enter the correlogram, and for series as short as those of a dataset the
+estimate of `ρ` is on the low side; [the method](docs/src/method.md) gives the bias. The
+coefficients, breakpoints and number of segments of the trend do not depend on `ρ`; its covariance
+is the sandwich form for correlated errors, scaled by `χ²` over its expectation under that
+correlation where that exceeds one. With the points taken as independent the uncertainty would be
+low by about `√((1 + ρ)/(1 − ρ))`. With `⟨R_T⟩` over the primary yield distribution, in the
+columns a run writes, the last being the jackknife of the leave-one-out refits below:
 
-| System | `ρ` | `⟨R_T⟩` of the trend | `σ` with independent points | Median factor on `σ(R_T)` |
-|---|---|---|---|---|
-| ²⁵²Cf(sf) | 0.872 | 1.0821 ± 0.0159 | 0.0037 | 3.7 |
-| ²³⁵U(nth,f) | 0.690 | 1.1230 ± 0.0153 | 0.0075 | 1.8 |
-| ²³⁹Pu(nth,f) | 0.814 | 1.0388 ± 0.0269 | 0.0091 | 2.6 |
-| ²³³U(nth,f) | 0.800 | 1.0724 ± 0.0936 | 0.0319 | 2.7 |
+| System | `deviation_autocorrelation` (`ρ`) | `R_T` ± `R_T_uncertainty` | `R_T_uncertainty_leave_one_out` |
+|---|---|---|---|
+| ²⁵²Cf(sf) | 0.872 | 1.0821 ± 0.0159 | 0.0085 |
+| ²³⁵U(nth,f) | 0.690 | 1.1230 ± 0.0153 | 0.0222 |
+| ²³⁹Pu(nth,f) | 0.814 | 1.0388 ± 0.0269 | 0.0257 |
+| ²³³U(nth,f) | 0.800 | 1.0724 ± 0.0936 | 0.1381 |
 
-The last column is the median ratio of the tabulated `σ(R_T)` of the trend to its value with
-independent points. Positively correlated errors under a smooth fit also lower the expectation of
-`χ²` below the degrees of freedom, which is what the reduced chi-squared of 0.44 of ²³⁵U
+Refitted with the combined points taken as independent, a number a run does not write, the four
+uncertainties would be 0.0037, 0.0075, 0.0091 and 0.0319, the tabulated `σ(R_T)` of the trends
+being larger by a median factor of 3.7, 1.8, 2.6 and 2.7. Positively correlated errors under a
+smooth fit also lower the expectation of `χ²` below the degrees of freedom, which is what the reduced chi-squared of 0.44 of ²³⁵U
 reflects: against its expectation `χ²` is 0.63. For ²³⁹Pu, at 0.73, `χ²` is 1.29 times its
 expectation, and the covariance of that trend is scaled by it. A run reports the
 correlogram, `ρ`, `χ²` against its expectation and the covariance scale under
@@ -448,15 +463,19 @@ experiment, left out, written with its `⟨R_T⟩` over each yield distribution,
 segments, its breakpoints and its `χ²/dof` to `leave_one_out_<run identifier>.csv` and under
 `[[result.leave_one_out]]` in `metadata.toml`. The delete-one jackknife standard error over the
 refits and the least and greatest `⟨R_T⟩` among them are written beside each total average of the
-trend in `total_average_R_T_<run identifier>.csv`, and `leave_one_out_spread(result, mass_yield)`
-returns them:
+trend in `total_average_R_T_<run identifier>.csv`, and with the number of refits behind them under
+`[result.trend_uncertainty.leave_one_out.<yield>]` in `metadata.toml`;
+`leave_one_out_spread(result, mass_yield)` returns them as `(; min, max, uncertainty, refits)`. A
+refit that gave no curve is not among the refits counted, and the log says so. With two pooled
+experiments the jackknife is half the difference of the two refits, which the log states as well.
+The jackknife is the last column of the table above; the least and the greatest value:
 
-| System | Jackknife | `⟨R_T⟩` with one left out |
+| System | `R_T_leave_one_out_min` | `R_T_leave_one_out_max` |
 |---|---|---|
-| ²⁵²Cf(sf) | 0.0085 | 1.0779 to 1.0871 |
-| ²³⁵U(nth,f) | 0.0222 | 1.1112 to 1.1356 |
-| ²³⁹Pu(nth,f) | 0.0257 | 1.0174 to 1.0579 |
-| ²³³U(nth,f) | 0.1381 | 0.9808 to 1.1762 |
+| ²⁵²Cf(sf) | 1.0779 | 1.0871 |
+| ²³⁵U(nth,f) | 1.1112 | 1.1356 |
+| ²³⁹Pu(nth,f) | 1.0174 | 1.0579 |
+| ²³³U(nth,f) | 0.9808 | 1.1762 |
 
 For ²³⁵U and ²³³U the jackknife uncertainty exceeds the propagated one, by a factor of 1.4 to 1.5,
 0.0222 against 0.0153 and 0.1381 against 0.0936: the datasets differ by offsets the kernel does
@@ -484,8 +503,8 @@ Ding Shengyao 4.18, Göök 4.17), which is a normalization discrepancy rather th
 one.
 
 Nothing is filtered automatically. A dataset is kept out of the pooling only when the
-configuration names it and says why, or when its record marks it as superseded by a republication
-that is pooled:
+configuration names it and says why, or when its record marks it as superseded by a
+republication:
 
 ```toml
 [multiplicity]
@@ -684,7 +703,9 @@ filled for the systematic trend only, is the `ρ` its covariance was formed with
 mass_yield, R_T, R_T_uncertainty, R_T_uncertainty_independent_points,
 R_T_uncertainty_leave_one_out, R_T_leave_one_out_min, R_T_leave_one_out_max, yield_fraction,
 R_T_one_more_segment, R_T_two_more_segments`, the three leave-one-out columns and the last two
-filled for the systematic trend only;
+filled for the systematic trend only, and `R_T_uncertainty_independent_points` being the
+approximation of the published tables over the tabulated points of a curve, which has nothing to
+do with the correlation between combined points;
 `leave_one_out_<run identifier>.csv` the columns `dataset_left_out, accession, mass_yield, R_T,
 segments, breakpoints, reduced_chi_squared, outcome`, one row per dataset or experiment left out
 and yield distribution, the labels of an experiment joined by ` + ` and its accessions, like the
