@@ -122,8 +122,11 @@ end
 # elsewhere.
 _band_width(curve::RatioCurve) = Float64[coalesce(σ, 0.0) for σ in curve.σ]
 
-# Mass-number ticks at multiples of ten inside the limits.
-_mass_ticks(low::Real, high::Real) = (10 * cld(floor(Int, low), 10)):10:floor(Int, high)
+# Mass-number ticks at multiples of ten strictly inside the limits: the label of a tick on a
+# limit would run past the edge of the figure.
+function _mass_ticks(low::Real, high::Real)
+    return (10 * cld(floor(Int, low) + 1, 10)):10:(ceil(Int, high) - 1)
+end
 
 function FissionTemperatureRatio.plot_multiplicities(
     datasets::Vector{Multiplicity}; A_0::Integer, order::Vector{String} = String[]
