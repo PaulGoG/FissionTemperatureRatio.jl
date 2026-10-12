@@ -200,8 +200,9 @@ from ``2 \times 10^{-5}`` for a dataset quoting no uncertainties to 26 for one q
 In those runs the flag marks one curve of a single segment and one that rises from its first pair.
 
 Alongside them it produces a systematic-trend curve, fitted through the whole body of data with
-the minimum at the heavy magic fragment *placed* rather than fitted — `required_windows` in the
-configuration, defaulting to ``A_H \in [128, 132]``. Its rise above the most probable
+the minimum at the heavy magic fragment *placed* rather than fitted: `required_windows` in the
+configuration, ``A_H \in [128, 132]`` in the four shipped configurations. Without a window the
+minimum is searched for like any other breakpoint. Its rise above the most probable
 fragmentation therefore falls between those of the individual sets. This is the curve to use where
 a dataset is too sparse or too scattered to resolve the shape on its own, and where no energy
 partition from a scission model is available.
@@ -320,7 +321,7 @@ republication is unmarked, nothing is superseded and the members are combined as
 runs, complementary ranges, and members of an experiment whose relation not every member states,
 or two state differently, are combined by the rule a pool is combined with, given above. Each
 member still offers its own segmented curve. In the shipped inputs Basova 1979 and Zamyatnin 1979
-are alternative analyses of one experiment, for 252-Cf and for 239-Pu; their tables differ by 0.34
+are alternative analyses of one experiment, for ²⁵²Cf and for ²³⁹Pu; their tables differ by 0.34
 and 0.36 neutrons rms.
 
 With such factors the fixed-effect weights are ``a = f/\sigma^2`` while a value keeps the variance
@@ -362,19 +363,19 @@ The reason is empirical. The datasets of one system disagree by ten to twenty ti
 uncertainties, so ``\tau^2`` dominates ``\sigma^2``, the weights become nearly equal, and the
 combination stops being decided by whichever author quoted the smallest errors. It also makes the
 fitted chi-squared of the combined curve a statement about the fit rather than about the
-disagreement: for 252-Cf it falls from about 16 to about 2.
+disagreement: for ²⁵²Cf it falls from about 16 to about 2.
 
 A reduced chi-squared of the trend below one is the expected outcome of this, not a sign of too
 many segments. The standard error of a combined value treats the disagreement between datasets as
 independent from one mass number to the next, and it is not: the deviation of a dataset from the
 combined curve is largely an offset and a slow drift, correlated along the mass axis as the next
 section sets out, so the combined curve scatters about a smooth line far less than its standard
-error says. For 235-U the residuals of the trend give a reduced chi-squared of 6.5 against the
+error says. For ²³⁵U the residuals of the trend give a reduced chi-squared of 6.5 against the
 quoted uncertainties alone and of 0.44 with ``\tau^2``, which is ten to twenty times
-``\sigma^2`` at the median; 239-Pu behaves alike, at 0.73 with ``\tau^2``. The selection of the segment
+``\sigma^2`` at the median; ²³⁹Pu behaves alike, at 0.73 with ``\tau^2``. The selection of the segment
 count does not depend on that scale, the criterion taking the noise from the residuals, and it is
-not held by the limit on the count: with `max_segments` raised from 6 to 12 the 235-U trend still
-selects five segments, and the 239-Pu trend selects four, below the limit.
+not held by the limit on the count: with `max_segments` raised from 6 to 12 the ²³⁵U trend still
+selects five segments, and the ²³⁹Pu trend selects four, below the limit.
 
 The same disagreement is why no dataset is rejected for being far from the others. In units of
 the quoted uncertainties none of them agrees with any other, so such a criterion rejects whatever
@@ -465,9 +466,9 @@ freedom, which count measured fractions and breakpoints:
 The two coincide for ``R = I``. The covariance is scaled by ``\max(1, \chi^2/\mathrm{E}[\chi^2])``,
 and by ``\chi^2/\mathrm{E}[\chi^2]`` alone where no point quotes an uncertainty. With positively
 correlated errors a smooth fit absorbs part of the error, and ``\mathrm{E}[\chi^2]`` falls below
-the degrees of freedom, to 0.703 of them for 235-U and 0.568 for 239-Pu. The reduced chi-squared
-of the 235-U trend, 0.44, is what correlated errors under a smooth fit give: against its
-expectation ``\chi^2`` is 0.63. That of the 239-Pu trend, 0.73, is 1.29 times its expectation,
+the degrees of freedom, to 0.703 of them for ²³⁵U and 0.568 for ²³⁹Pu. The reduced chi-squared
+of the ²³⁵U trend, 0.44, is what correlated errors under a smooth fit give: against its
+expectation ``\chi^2`` is 0.63. That of the ²³⁹Pu trend, 0.73, is 1.29 times its expectation,
 and the covariance of that trend is scaled by it.
 
 For the four shipped systems, with ``\langle R_T \rangle`` over the primary yield distribution and
@@ -503,10 +504,10 @@ delete-one jackknife standard error
 written beside the propagated uncertainty together with the least and the greatest ``\theta_i``;
 it is the last column of the table. A refit that gave no curve is not among the ``k``, and the log
 says so. With two pooled experiments the jackknife is half the difference of the two refits, which
-the log states as well. For 235-U and 233-U the jackknife exceeds the propagated uncertainty, by
+the log states as well. For ²³⁵U and ²³³U the jackknife exceeds the propagated uncertainty, by
 a factor of 1.4 to 1.5: the datasets differ by offsets the kernel does not hold, most of all for
-233-U, whose four datasets give ``\langle R_T \rangle`` from 0.98 to 1.18 with one left out. For
-239-Pu the two are about equal, and for 252-Cf, with thirteen experiments, the jackknife is about
+²³³U, whose four datasets give ``\langle R_T \rangle`` from 0.98 to 1.18 with one left out. For
+²³⁹Pu the two are about equal, and for ²⁵²Cf, with thirteen experiments, the jackknife is about
 half the propagated uncertainty.
 
 The curve of a single dataset is fitted with its points taken as independent. For a dataset whose

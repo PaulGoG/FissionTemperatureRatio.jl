@@ -7,6 +7,21 @@ the minor version and a patch release carries none.
 
 ## [Unreleased]
 
+### Added
+
+- `CITATION.cff`, with the method paper as the preferred citation, and a BibTeX entry in the
+  README.
+- A configuration page in the documentation, listing every key with its type, bounds, default and
+  run-identifier token.
+
+### Fixed
+
+- Documentation only. The README's example run identifier carried the token `Y` of a yield
+  directory where the shipped configuration names a primary distribution, `Yf`; its status table
+  said a `⟨TKE⟩(A)` dataset was staged for ²³³U alone, where each of the four systems configures
+  one; the method page gave `required_windows` a default it does not have; the naming page omitted
+  the `[retrieval]` section.
+
 ## [0.3.0] - 2026-10-05
 
 The uncertainty of every systematic trend grows: its covariance takes the error of a pooled

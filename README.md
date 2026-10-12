@@ -1,6 +1,7 @@
 # FissionTemperatureRatio.jl
 
 [![CI](https://github.com/PaulGoG/FissionTemperatureRatio.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/PaulGoG/FissionTemperatureRatio.jl/actions/workflows/CI.yml)
+[![Documentation](https://img.shields.io/badge/docs-stable-blue.svg)](https://PaulGoG.github.io/FissionTemperatureRatio.jl/stable/)
 [![Documentation](https://img.shields.io/badge/docs-dev-blue.svg)](https://PaulGoG.github.io/FissionTemperatureRatio.jl/dev/)
 [![Julia](https://img.shields.io/badge/Julia-1.11%2B-9558B2?logo=julia&logoColor=white)](https://julialang.org)
 [![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
@@ -28,6 +29,7 @@ FissionTemperatureRatio/
 ├── formatter/       JuliaFormatter environment used by check.jl
 ├── check.jl         format, then test
 ├── activate.jl      activate and instantiate the root environment
+├── CITATION.cff     citation metadata for the package and the method paper
 └── Project.toml     dependencies and compatibility bounds
 ```
 
@@ -36,8 +38,9 @@ The full tree is at the [end of this file](#full-file-tree). Generated output is
 
 ## Environments
 
-Each environment carries an activation script that activates and instantiates it silently. The
-first instantiation resolves and precompiles, and is slow.
+The package is not registered: clone the repository and work from its root. Each environment
+carries an activation script that activates and instantiates it silently. The first
+instantiation resolves and precompiles, and is slow.
 
 ```
 julia activate.jl
@@ -117,14 +120,14 @@ julia docs/assets.jl
 |---|---|
 | Mass table, shell corrections, charge distribution, fragmentation domain, level density parameters | FissionFragmentsDomain.jl v0.2.3 |
 | Multiplicity ratio | complete |
-| Temperature ratio: charge-resolved inversion, excitation-weighted by `⟨TKE⟩(A)` | complete; `⟨TKE⟩(A)` staged for ²³³U |
+| Temperature ratio: charge-resolved inversion, excitation-weighted by `⟨TKE⟩(A)` | complete; a `⟨TKE⟩(A)` dataset is configured for each of the four systems |
 | Temperature ratio: ratio of means, mean of ratios | complete |
 | Retrieval records and reaction-code qualifiers | complete |
 | Segmented description with order selection | complete |
 | Pipeline, tabulated output, figures, provenance | complete |
 | Per-dataset and systematic-trend curves | complete |
 | Averaging over a fragment mass yield distribution | complete |
-| Reproduction of published total averages | complete for 233-U, 252-Cf and 235-U, and for 239-Pu over an inferred Y(A); see the validation status |
+| Reproduction of published total averages | complete for ²³³U, ²⁵²Cf and ²³⁵U, and for ²³⁹Pu over an inferred Y(A); see the validation status |
 | Run record with the fragmentation domain, for the consuming code | complete |
 
 Versions follow semantic versioning with the pre-1.0 convention: a breaking change, to a
@@ -232,7 +235,8 @@ of 1.0821. Inputs retrieved before 0.2.3 can moreover carry the ²³⁹Pu multip
 2000 (22650004) off the scale of their subentry and the ²⁵²Cf yields 41425015 and 41425016, which
 that release refuses. A directory holding no retrieval record, a tabulation of one's own for
 instance, is not judged. The results quoted here rest on the retrieval of the twelve
-configurations by ExforFissionData.jl v0.2.7.
+configurations by ExforFissionData.jl v0.2.7; v0.2.8 writes the same tables and differs in its
+records alone.
 
 The run record also lists the reaction-code qualifiers of every dataset. A dataset carrying
 `DERIV` (derived from other data), `SPA` (averaged over an unspecified neutron spectrum) or
@@ -271,7 +275,9 @@ Every run is driven by a TOML file under `config/`, which fixes the fissioning n
 fragmentation range, the level density model, the segment search and the precision of the
 tabulated output. The parser enforces the types, enumerated choices and bounds its comments
 document, refuses unknown sections and keys, and fails naming the offending key, so a run cannot
-start from a configuration it cannot honour.
+start from a configuration it cannot honour. Every key, with its type, bounds, default and
+run-identifier token, is listed under [Configuration](docs/src/configuration.md); the two
+sections that fix the physics are shown below.
 
 A system is declared by what was irradiated, not by what fissions: the target, the entrance
 channel and the incident energy. The reaction code, the fissioning nucleus and the system label
@@ -328,32 +334,28 @@ reason, as `[multiplicity] exclude` does for the pooling; they are still read an
 name a dataset by its accession. Without `[yield] subdirectory` an exclusion has nothing to act on,
 and it is refused when the configuration is loaded, as it is in a run started from a configuration
 built by hand.
+
 `"ratio_of_means"` is the closed form of the published extraction. The published settings are
 reproduced exactly by `ratio_of_means` over the digitised charge tables with
-`zero_polarization_at_symmetry = true`, or over `"mean"` for 233-U; see
+`zero_polarization_at_symmetry = true`, or over `"mean"` for ²³³U; see
 [the method](docs/src/method.md) for why the default changed.
 
 ### Several measurements of one system
 
-Datasets are never merged. Each is fitted on its own, and a further curve — the systematic trend
-— is fitted to all of them combined. They are alternatives offered to a prompt emission code, not
-an ensemble to be averaged; which one describes reality is settled downstream, by comparing the
-multiplicity distributions and yields that code produces against experiment.
+Each dataset is carried through the whole chain on its own: its own `r_ν`, its own segmented fit,
+its own `R_T`, its own total average. A run offers one curve per measurement that reaches the
+coverage floor and one more, the systematic trend, fitted to the combination of those pooled. They
+are alternatives offered to a prompt emission code, not an ensemble to be averaged: a consuming
+code takes exactly one, and which one describes reality is settled downstream, by comparing the
+multiplicity distributions and yields that code produces against experiment. The trend is the only
+place the measurements are combined, and they are combined at the level of `r_ν`, before any
+fitting: at each mass number the values of every pooled dataset are merged into one, and the
+segmented fit runs on that single combined curve.
 
-The datasets of one system disagree far beyond their quoted uncertainties: for 252-Cf the spread
-between them at a given mass number runs to ten or twenty times the median quoted uncertainty. Two
-consequences shape what the package does.
-
-**How several measurements become one result — and where they do not.** Each dataset is carried
-through the whole chain on its own: its own `r_ν`, its own segmented fit, its own `R_T`, its own
-total average. Those are never merged. What a run offers is one curve per measurement that reaches
-the coverage floor plus one more, the systematic trend, and a consuming code takes exactly one of
-them.
-
-The trend is the only place the measurements are combined, and the combination happens at the
-level of `r_ν`, before any fitting: at each mass number the values from every admitted dataset are
-merged into one, and the segmented fit is then run on that single combined curve. So the ordering
-is combine-then-fit, not fit-then-average.
+The datasets of one system disagree far beyond their quoted uncertainties: for ²⁵²Cf the spread
+between them at a given mass number runs to ten or twenty times the median quoted uncertainty.
+That disagreement shapes how they are combined, how the uncertainty of the combination is formed,
+and how a dataset is admitted.
 
 **Pooling.** The combined curve cannot be a concatenation weighted by the quoted uncertainties —
 that hands the result to whichever author quoted the smallest ones, and counts a dataset with many
@@ -496,7 +498,7 @@ segmented curve and, if not, why.
 
 The archive itself is the first filter: the retrieval rejects datasets whose reaction code or
 units say they are not the quantity asked for, and records why. The diagnostics here are the
-second, structural filter, and they do catch sloppy data — for 252-Cf the complementary sums
+second, structural filter, and they do catch sloppy data — for ²⁵²Cf the complementary sums
 separate cleanly into sets consistent with the total multiplicity of 3.76 (Alkhazov 3.75, Mehta
 3.72, Budtz-Jørgensen 3.70, Vorobiev 3.83) and sets a tenth high (Basova 4.27, Zamyatnin 4.21,
 Ding Shengyao 4.18, Göök 4.17), which is a normalization discrepancy rather than a measurement
@@ -725,8 +727,8 @@ tokens sorted and joined by `_`, each key abbreviated through `RUN_IDENTIFIER_AB
 is keyed by the key's dotted path in the configuration file. The system is not a token, since it
 names the directory the identifier sits in, and neither is `significant_digits`, which changes
 rendering and not the number. A list or a path — the required windows, the exclusion list, a
-tabulated charge distribution, a mass or shell-correction table, the `⟨TKE⟩(A)` dataset, the yield
-directory — enters as the first eight hexadecimal digits of
+tabulated charge distribution, a mass or shell-correction table, the `⟨TKE⟩(A)` dataset, the
+primary yield distribution, the yield directory — enters as the first eight hexadecimal digits of
 the SHA-1 of its canonical spelling, paths relative to the data directory, and is written in full
 into `metadata.toml` under `[identifier.hashed]`; a shipped table enters by name, Table III as
 `gc1965`. The Gilbert-Cameron branch and shell corrections are tokens of a Gilbert-Cameron run
@@ -734,10 +736,11 @@ only. `[segments] autocorrelation_lags` changes the uncertainty of the trend and
 values, and is a token, `lags`, only where it differs from its default of 4: one more token on
 every run would carry the file names of a Gilbert-Cameron run beyond 255 bytes. The identifier stays short enough for the file names that repeat it to fit the 255 bytes a
 file system admits, which the test suite checks for every shipped configuration under both level
-density models. For 233-U:
+density models. The token of every key is listed under
+[Configuration](docs/src/configuration.md). For ²³³U:
 
 ```
-AHmax=159_AHmin=117_E=2.53e-8_TKE=a1ad68dc_Y=ab535eba_Ycov=0.3_Ysym=true_avg=charge_resolved_chg=wahl_cov=0.3_dZ0=false_excl=da39a3ee_ldm=BSFG_mass=ame2020_nZ=5_npts=4_nseg=6_pin=true_span=3_wdat=false_win=b552f081
+AHmax=159_AHmin=117_E=2.53e-8_TKE=a1ad68dc_Ycov=0.3_Yf=ec238a96_Ysym=true_avg=charge_resolved_chg=wahl_cov=0.3_dZ0=false_excl=da39a3ee_ldm=BSFG_mass=ame2020_nZ=5_npts=4_nseg=6_pin=true_span=3_wdat=false_win=b552f081
 ```
 
 ## Consuming the output
@@ -747,7 +750,7 @@ be read rather than parsed out of file names. It is FissionFragmentsDomain.jl's 
 written by its `write_temperature_ratio_manifest` and read by its
 `read_temperature_ratio_manifest`, and holds nothing else. To stage a run, copy the whole run
 directory from `data/sims/<system>/<run identifier>/`; it holds exactly one `manifest_*.toml`,
-which `staged_manifest` selects by that prefix. An abridged 233-U manifest:
+which `staged_manifest` selects by that prefix. An abridged ²³³U manifest:
 
 ```toml
 [system]
@@ -963,7 +966,18 @@ FissionTemperatureRatio.jl is written by Paul-Adrian Gogîță. For the method, 
 *Eur. Phys. J. A* **60**, 190 (2024),
 [https://doi.org/10.1140/epja/s10050-024-01375-7](https://doi.org/10.1140/epja/s10050-024-01375-7);
 for the implementation, cite this repository by its URL,
-<https://github.com/PaulGoG/FissionTemperatureRatio.jl>.
+<https://github.com/PaulGoG/FissionTemperatureRatio.jl>. `CITATION.cff` at the root carries both
+in machine-readable form, the paper as the preferred citation. As BibTeX:
+
+```bibtex
+@software{FissionTemperatureRatio,
+  author  = {Gogîță, Paul-Adrian},
+  title   = {FissionTemperatureRatio.jl},
+  version = {0.3.0},
+  year    = {2026},
+  url     = {https://github.com/PaulGoG/FissionTemperatureRatio.jl}
+}
+```
 
 ## Licensing
 
@@ -989,6 +1003,7 @@ FissionTemperatureRatio/
 ├── .JuliaFormatter.toml            formatting rules, enforced by check.jl and CI
 ├── activate.jl                     activate and instantiate the root environment
 ├── CHANGELOG.md                    notable changes
+├── CITATION.cff                    citation metadata for the package and the method paper
 ├── check.jl                        pre-commit: format, then test
 ├── LICENSE                         MIT, covering the source code only
 ├── Project.toml                    dependencies and compatibility bounds
@@ -1009,7 +1024,7 @@ FissionTemperatureRatio/
 │   ├── assets.jl                   regenerates the figures the README shows
 │   ├── make.jl
 │   ├── Project.toml
-│   └── src/                        index, method, naming, reference, references; assets/ for figures
+│   └── src/                        index, method, configuration, naming, reference, references; assets/ for figures
 │       └── references.bib          DOI-keyed bibliography of the method page
 ├── ext/                            weak-dependency extensions
 │   └── FissionTemperatureRatioCairoMakieExt.jl   publication figures, loaded with CairoMakie
@@ -1035,6 +1050,15 @@ FissionTemperatureRatio/
 │   ├── temperature_ratio.jl        the inversion over a tabulated r_ν
 │   └── yields.jl                   Y(A) directories and the independent-points total average
 └── test/                           test suite, own environment
+    ├── activate.jl
+    ├── Project.toml
+    ├── runtests.jl
+    ├── fixtures.jl                 locates the staged input data; the tests that need it are skipped without it
+    ├── test_<module>.jl            one file per source module
+    ├── test_experiments.jl         datasets of one experiment pooled as one
+    ├── test_manifest.jl            a consumer: reads a run through FissionFragmentsDomain.jl alone
+    ├── test_published_values.jl    the total averages against Tables 1 and 2 of the paper
+    └── test_quality.jl             Aqua, JET, ExplicitImports
 ```
 
 </details>

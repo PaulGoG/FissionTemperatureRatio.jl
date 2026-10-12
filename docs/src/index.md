@@ -53,7 +53,8 @@ inside it, `manifest_<run identifier>.toml`, `segmented_curves_<run identifier>.
 identifier again, and a consuming code stages
 the whole directory and selects the manifest by its prefix. The manifest records the domain the
 curves were extracted on, and a consuming code refuses a curve extracted on another. The file
-layout is set out under [Naming](naming.md).
+layout is set out under [Naming](naming.md), and every key of the configuration, with its type,
+bounds, default and run-identifier token, under [Configuration](configuration.md).
 
 The vocabulary the package uses for identifiers, configuration keys, files and column headers is
 set out under [Naming](naming.md); it is the same vocabulary the retrieval that supplies the

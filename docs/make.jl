@@ -18,6 +18,7 @@ makedocs(;
     pages = [
         "Home" => "index.md",
         "Method" => "method.md",
+        "Configuration" => "configuration.md",
         "Naming" => "naming.md",
         "Reference" => "reference.md",
         "References" => "references.md",

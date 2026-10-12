@@ -1,0 +1,32 @@
+cff-version: 1.2.0
+message: "If you use this software, cite it as below; for the method, cite the article under preferred-citation."
+type: software
+title: "FissionTemperatureRatio.jl"
+abstract: "Extraction of the temperature ratio of complementary fully accelerated fission fragments from experimental prompt neutron multiplicity data, described by joined straight segments."
+authors:
+  - family-names: "Gogîță"
+    given-names: "Paul-Adrian"
+version: "0.3.0"
+date-released: "2026-10-05"
+license: MIT
+repository-code: "https://github.com/PaulGoG/FissionTemperatureRatio.jl"
+url: "https://PaulGoG.github.io/FissionTemperatureRatio.jl/stable/"
+keywords:
+  - nuclear fission
+  - prompt neutron emission
+  - fission fragments
+  - level density
+  - Julia
+preferred-citation:
+  type: article
+  title: "Temperature ratio R_T = T_L/T_H of fully accelerated complementary fragments (used for TXE partition) obtained independently of prompt emission model calculations"
+  journal: "The European Physical Journal A"
+  volume: 60
+  start: 190
+  year: 2024
+  doi: "10.1140/epja/s10050-024-01375-7"
+  authors:
+    - family-names: "Tudora"
+      given-names: "A."
+    - family-names: "Gogîță"
+      given-names: "Paul-Adrian"

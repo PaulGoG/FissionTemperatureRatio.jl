@@ -121,8 +121,9 @@ the output directory it writes. A system carrying more than one configuration wo
 declares, so a file cannot drift from what it runs.
 
 Sections are `[system]`, `[fragmentation]`, `[level_density]`, `[multiplicity]`, `[yield]`,
-`[segments]` and `[output]`, and **a key is never prefixed with its section's name**:
-`[level_density] model`, not `level_density_model`.
+`[segments]`, `[retrieval]` and `[output]`, and **a key is never prefixed with its section's
+name**: `[level_density] model`, not `level_density_model`. Every key, with its type, bounds and
+default, is listed under [Configuration](configuration.md).
 
 A key's comment states three things and nothing else: what the key is, in one short line; the
 enumerated choices where it is constrained; and the bounds and the unit. No physics narrative, no

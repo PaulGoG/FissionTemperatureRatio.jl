@@ -85,8 +85,10 @@ Check that package out at a named commit before retrieving: the `[run]` table of
 that table, for every input directory it reads, into its `metadata.toml`. The results quoted in the
 README rest on the twelve committed configurations of its v0.2.7, `<system>_<observable>.toml`
 for the four systems and `nu_vs_A`, `Y_vs_A`, `TKE_vs_A`. Every table that retrieval writes is
-byte-identical to that of v0.2.4; the records differ, naming the datasets of one experiment and
-the `preliminary` qualifier.
+byte-identical to that of v0.2.4 and to that of v0.2.8; the records differ. Those of v0.2.7 name
+the datasets of one experiment and carry the `preliminary` qualifier; those of v0.2.8 add the
+qualifier `multiplicity_from_masses` to Nishio 1995 (23012008) and restate the curation of
+Tsuchiya 2000 (22650004).
 
 Masses the archive gives as non-integer values, digitised or binned, are interpolated onto the
 integers by the retrieval, which records `mass_treatment = "interpolated"` and the count of raw
