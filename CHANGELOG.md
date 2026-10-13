@@ -7,6 +7,12 @@ the minor version and a patch release carries none.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-13
+
+Tests and documentation only. No result of a run changes, and the run identifiers of the shipped
+configurations are those of 0.3.0. The results quoted rest on inputs retrieved with
+ExforFissionData.jl v0.2.7; v0.2.8 and v0.3.0 write the same tables.
+
 ### Added
 
 - `CITATION.cff`, with the method paper as the preferred citation, and a BibTeX entry in the
@@ -27,6 +33,12 @@ the minor version and a patch release carries none.
 
 ### Fixed
 
+- The published-settings run of the test suite takes the mean charge values for ²³³U
+  unconditionally. Table 1 of the paper computed its ²³³U rows over them, and the fixture fell
+  back to them only where no charge table was held for ²³³U: with a table staged beside the
+  ²³³U inputs, as another copy of the data holds, the run went over the table and Apalin's row
+  came back 2.3 % off, outside its tolerance. The fixture now states why the tables guard names
+  three systems.
 - Documentation only. The README's example run identifier carried the token `Y` of a yield
   directory where the shipped configuration names a primary distribution, `Yf`; its status table
   said a `⟨TKE⟩(A)` dataset was staged for ²³³U alone, where each of the four systems configures
@@ -918,7 +930,8 @@ branch:
   check so a partially present tree failed, and results were overwritten in place with no run
   identifier, commit or hardware record.
 
-[unreleased]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.3.0...HEAD
+[unreleased]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.2.3...v0.3.0
 [0.2.3]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.2.1...v0.2.2
