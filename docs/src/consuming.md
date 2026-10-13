@@ -57,8 +57,9 @@ Four things worth knowing before writing against it.
 on: the level density model and its Gilbert-Cameron branch, the averaging and its excitation
 weighting, the charges per mass, the charge model, the mass table and the version of
 FissionFragmentsDomain.jl. A code that partitions the excitation energy on another domain does not
-invert the same relation, and the prompt emission code that reads these curves refuses such a
-curve.
+invert the same relation, and
+[DeterministicSequentialEmission.jl](https://github.com/PaulGoG/DeterministicSequentialEmission.jl), which reads these
+curves, refuses such a curve.
 
 **Read the columns by position, and read `temperature_ratio_file`.** `columns` says what the three
 columns hold; it is not there to be matched against the header text. `R_T` is not piecewise-linear

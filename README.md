@@ -380,8 +380,8 @@ accession. A consuming code stages the whole run directory and selects the manif
 prefix. Four things to know before writing against it:
 
 - **The domain must match.** A code that partitions the excitation energy on another domain does
-  not invert the same relation, and the prompt emission code that reads these curves refuses such
-  a curve.
+  not invert the same relation, and [DeterministicSequentialEmission.jl](https://github.com/PaulGoG/DeterministicSequentialEmission.jl), which reads
+  these curves, refuses such a curve.
 - **Read the columns by position, and read `temperature_ratio_file`.** `R_T` is not
   piecewise-linear where `r_ν` is, so it is tabulated at every mass number; the pivot file holds
   `r_ν`. The tabulated uncertainties are not independent, so summing them in quadrature

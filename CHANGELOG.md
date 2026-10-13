@@ -7,6 +7,12 @@ the minor version and a patch release carries none.
 
 ## [Unreleased]
 
+### Changed
+
+- Documentation only. The README and the consuming page name
+  DeterministicSequentialEmission.jl, now public, as the prompt emission code that refuses a
+  curve extracted on another domain.
+
 ## [0.3.1] - 2026-10-13
 
 Tests and documentation only. No result of a run changes, and the run identifiers of the shipped
