@@ -1,6 +1,7 @@
 # FissionTemperatureRatio.jl
 
 [![CI](https://github.com/PaulGoG/FissionTemperatureRatio.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/PaulGoG/FissionTemperatureRatio.jl/actions/workflows/CI.yml)
+[![Coverage](https://codecov.io/gh/PaulGoG/FissionTemperatureRatio.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/PaulGoG/FissionTemperatureRatio.jl)
 [![Documentation](https://img.shields.io/badge/docs-stable-blue.svg)](https://PaulGoG.github.io/FissionTemperatureRatio.jl/stable/)
 [![Documentation](https://img.shields.io/badge/docs-dev-blue.svg)](https://PaulGoG.github.io/FissionTemperatureRatio.jl/dev/)
 [![Julia](https://img.shields.io/badge/Julia-1.11%2B-9558B2?logo=julia&logoColor=white)](https://julialang.org)
@@ -456,7 +457,7 @@ derived from a measurement should cite that measurement.
 FissionTemperatureRatio/
 ├── .github/                        continuous integration and dependency updates
 │   ├── dependabot.yml
-│   └── workflows/                  CI.yml (tests, docs) and format.yml (formatting gate)
+│   └── workflows/                  CI.yml (tests, coverage, docs) and format.yml (formatting gate)
 ├── .JuliaFormatter.toml            formatting rules, enforced by check.jl and CI
 ├── activate.jl                     activate and instantiate the root environment
 ├── CHANGELOG.md                    notable changes

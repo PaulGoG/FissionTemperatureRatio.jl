@@ -13,6 +13,8 @@ the minor version and a patch release carries none.
   README.
 - A configuration page in the documentation, listing every key with its type, bounds, default and
   run-identifier token.
+- Coverage of the test suite, processed in CI and uploaded to Codecov from the test matrix; the
+  README carries the badge.
 
 ### Changed
 
