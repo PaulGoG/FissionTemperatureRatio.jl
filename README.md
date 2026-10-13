@@ -16,6 +16,15 @@ and the excitation-energy partition are those of
 [FissionFragmentsDomain.jl](https://github.com/PaulGoG/FissionFragmentsDomain.jl), which the
 prompt emission codes that read `R_T(A_H)` partition on as well.
 
+The method, its conventions and its equation numbering are those of *Eur. Phys. J. A* **60**, 190
+(2024), [doi:10.1140/epja/s10050-024-01375-7](https://doi.org/10.1140/epja/s10050-024-01375-7).
+This file is the entry point; the
+[documentation](https://PaulGoG.github.io/FissionTemperatureRatio.jl/stable/) sets out the
+[method](docs/src/method.md), what has been [validated](docs/src/validation.md) against the paper,
+every [configuration](docs/src/configuration.md) key, the contract a
+[consuming code](docs/src/consuming.md) reads, and the [naming](docs/src/naming.md) of files and
+columns.
+
 ```
 FissionTemperatureRatio/
 ├── config/          pipeline configurations, one TOML file per fissioning system
@@ -39,7 +48,7 @@ The full tree is at the [end of this file](#full-file-tree). Generated output is
 ## Environments
 
 The package is not registered: clone the repository and work from its root. Each environment
-carries an activation script that activates and instantiates it silently. The first
+carries an activation script that activates and instantiates it silently; the first
 instantiation resolves and precompiles, and is slow.
 
 ```
@@ -52,26 +61,22 @@ julia bench/activate.jl
 
 Every runnable script activates its own environment as its first statement, so every command
 below runs as written, with no project flag. For an interactive session on the package,
-`julia -i activate.jl`.
+`julia -i activate.jl`. The formatting environment under `formatter/` is instantiated by
+`check.jl` and by CI, not by hand.
 
-Resolved manifests are not version-controlled: the package supports a range of Julia versions and
-a manifest is resolved against one of them, so committing one would break instantiation on the
-others. `scripts/run.jl` copies the resolved manifest of the scripts environment into the run
-directory as `Manifest.toml`, so a result stays attributable to the exact dependency versions that
-produced it.
+Each auxiliary environment takes the package through a relative `[sources]` entry, honoured from
+Pkg 1.11, the declared floor, so it runs against the local source and not a registered snapshot;
+the activation scripts resolve before instantiating, so that a dependency added to the package
+does not leave their manifests stale. FissionFragmentsDomain.jl is not registered either: every
+environment takes it from its repository at a tagged release through `[sources]`, with the same
+release as the `[compat]` floor, fetched with the git executable (`JULIA_PKG_USE_CLI_GIT`), which
+honours the user's git configuration — credentials, `url.insteadOf` rewrites to SSH — where
+libgit2 can hang.
 
-The formatting environment under `formatter/` is instantiated by `check.jl` and by CI; it is not
-one you normally activate by hand.
-
-Each auxiliary environment takes the package through a relative `[sources]` entry, so it runs
-against the local source and not a registered snapshot. That key is honoured from Pkg 1.11,
-which is the declared floor. The activation scripts resolve before instantiating, because a
-dependency added to the package otherwise leaves their manifests stale.
-
-FissionFragmentsDomain.jl is not registered either. Every environment takes it from its repository
-at a tagged release through `[sources]`, with the same release as the `[compat]` floor. The
-activation scripts fetch it with the git executable (`JULIA_PKG_USE_CLI_GIT`), which honours the
-user's git configuration — credentials, `url.insteadOf` rewrites to SSH — where libgit2 can hang.
+Resolved manifests are not version-controlled: a manifest resolved against one Julia version
+would break instantiation on the others the package supports. `scripts/run.jl` copies the resolved
+manifest of its environment into the run directory as `Manifest.toml`, so a result stays
+attributable to the exact dependency versions that produced it.
 
 ## Entry points
 
@@ -108,7 +113,7 @@ Build the documentation:
 julia docs/make.jl
 ```
 
-Regenerate the figures shown above, from the configuration and the input data:
+Regenerate the figures shown below, from the configuration and the input data:
 
 ```
 julia docs/assets.jl
@@ -127,7 +132,7 @@ julia docs/assets.jl
 | Pipeline, tabulated output, figures, provenance | complete |
 | Per-dataset and systematic-trend curves | complete |
 | Averaging over a fragment mass yield distribution | complete |
-| Reproduction of published total averages | complete for ²³³U, ²⁵²Cf and ²³⁵U, and for ²³⁹Pu over an inferred Y(A); see the validation status |
+| Reproduction of published total averages | complete for ²³³U, ²⁵²Cf and ²³⁵U, and for ²³⁹Pu over an inferred Y(A); see [Validation](docs/src/validation.md) |
 | Run record with the fragmentation domain, for the consuming code | complete |
 
 Versions follow semantic versioning with the pre-1.0 convention: a breaking change, to a
@@ -136,18 +141,16 @@ and a patch release carries none. The [changelog](CHANGELOG.md) marks every brea
 
 ## Results at a glance
 
-The method, its conventions and its equation numbering are those of *Eur. Phys. J. A* **60**, 190
-(2024), [doi:10.1140/epja/s10050-024-01375-7](https://doi.org/10.1140/epja/s10050-024-01375-7),
-and this package reproduces the results published there: with the published settings, the total
-average temperature ratios of its Table 1 come back to within 1.0 % for ²³³U(nth,f), ²⁵²Cf(sf),
-²³⁵U(nth,f) and ²³⁹Pu(nth,f), Apalin's ²³³U measurement aside at 1.9 %, and with the shipped
-settings, which invert charge by charge on Wahl's charge model, to within 1.4 %, Apalin aside at
-2.1 %. For ²³⁹Pu the yield distribution is inferred by agreement, the table's caption naming none.
-The [validation status](#validation-status) below states exactly what has been checked against the
-paper and what has not. The paper did not use this package: its jointed segments were drawn by
-hand through the multiplicity ratio of each dataset. Here the number of segments and their
-breakpoints are selected by a criterion, and the trend that combines several datasets is this
-package's own construction, which is why the agreement is at the per-cent level.
+With the published settings, this package returns the total average temperature ratios of
+Table 1 of the paper to within 1.0 % for ²³³U(nth,f), ²⁵²Cf(sf), ²³⁵U(nth,f) and ²³⁹Pu(nth,f),
+Apalin's ²³³U measurement aside at 1.9 %, and with the shipped settings, which invert charge by
+charge on Wahl's charge model, to within 1.4 %, Apalin aside at 2.1 %. For ²³⁹Pu the yield
+distribution is inferred by agreement, the table's caption naming none. The paper did not use
+this package: its jointed segments were drawn by hand through the multiplicity ratio of each
+dataset. Here the number of segments and their breakpoints are selected by a criterion, and the
+trend that combines several datasets is this package's own construction, which is why the
+agreement is at the per-cent level. [Validation](docs/src/validation.md) states exactly what has
+been checked against the paper and what has not.
 
 Experimental input — prompt neutron multiplicity `ν(A)`, fragment mass yields `Y(A)` and the mean
 total kinetic energy `⟨TKE⟩(A)` — comes from the IAEA EXFOR archive through
@@ -158,8 +161,9 @@ kept or excluded. This package reads those files; it does not query the archive 
 ![Temperature ratio](docs/src/assets/temperature_ratio.png)
 
 The temperature ratio of ²⁵²Cf(sf): every measurement held, in grey, and the systematic trend
-through the fourteen that are pooled, with its uncertainty. Above the symmetric split the light fragment is the hotter of
-the pair, and the ratio crosses unity near the most probable fragmentation.
+through the fourteen that are pooled, with its uncertainty. Above the symmetric split the light
+fragment is the hotter of the pair, and the ratio crosses unity near the most probable
+fragmentation.
 
 ![Segment selection](docs/src/assets/segment_selection.gif)
 
@@ -170,6 +174,20 @@ exhaustively over the abscissae the data occupies, and the order itself is chose
 information criterion, which prices every added segment and every added breakpoint. The four
 systems do not stop at the same order — five, six, four and five — which is why they are shown
 together.
+
+The systematic trend of each shipped configuration, with `⟨R_T⟩` over the primary yield
+distribution, the uncertainty propagated from the fit covariance and, beside it, the jackknife
+over the refits with each pooled dataset or experiment left out:
+
+| System | `R_T` ± `R_T_uncertainty` | `R_T_uncertainty_leave_one_out` |
+|---|---|---|
+| ²⁵²Cf(sf) | 1.0821 ± 0.0159 | 0.0085 |
+| ²³⁵U(nth,f) | 1.1230 ± 0.0153 | 0.0222 |
+| ²³⁹Pu(nth,f) | 1.0388 ± 0.0269 | 0.0257 |
+| ²³³U(nth,f) | 1.0724 ± 0.0936 | 0.1381 |
+
+These rest on inputs retrieved by ExforFissionData.jl v0.2.7; v0.2.8 writes the same tables and
+differs in its records alone.
 
 ## Figures
 
@@ -188,9 +206,11 @@ the manifest and `run_metadata` without it, and figures through `write_figures` 
 
 The input data is not shipped with the package. It is third-party scientific data — experimental
 prompt neutron multiplicity, fragment mass yield and kinetic energy measurements — held locally
-under the terms of its own sources. `data/README.md` records what each file is and where it comes
-from. The atomic mass evaluation, the Gilbert-Cameron shell corrections and Wahl's charge
-distribution parameters are FissionFragmentsDomain.jl's, which ships them.
+under the terms of its own sources. [`data/README.md`](data/README.md) records what each file is
+and where it comes from, the known defects of the staged sets, and the attribution of every
+exclusion the shipped configurations make. The atomic mass evaluation, the Gilbert-Cameron shell
+corrections and Wahl's charge distribution parameters are FissionFragmentsDomain.jl's, which
+ships them.
 
 Place it under `data/` in the layout that file describes:
 
@@ -203,95 +223,45 @@ data/
     └── TKE_vs_A/                       A TKE TKE_uncertainty, TKE in MeV, pre-neutron (optional)
 ```
 
-One directory per system, one subdirectory per measured quantity, one file per measurement: the
-directory carries the quantity and the file carries the provenance. A file is named
-`<quantity>_vs_<abscissa>`, and an extension states a format and never a nuclide.
-
-The experimental measurements — everything under `nu_vs_A/`, `Y_vs_A/` and `TKE_vs_A/` — come from
-[ExforFissionData.jl](https://github.com/PaulGoG/ExforFissionData.jl), the supported source of
-`ν(A)`, `Y(A)` and `⟨TKE⟩(A)`, which writes exactly this layout. Run its retrieval from its own checkout, with
-the root of this repository as the second argument, the output root:
+One directory per system, one subdirectory per measured quantity, one file per measurement, each
+with one header line; readers take columns by position, not by header text. The measurements come
+from [ExforFissionData.jl](https://github.com/PaulGoG/ExforFissionData.jl), the supported source of
+`ν(A)`, `Y(A)` and `⟨TKE⟩(A)`, which writes exactly this layout, every file name carrying its
+EXFOR DatasetID, beside a `retrieval.toml` run record naming every dataset the query kept or
+excluded. Run its retrieval from its own checkout, with the root of this repository as the second
+argument, the output root:
 
 ```
 julia scripts/retrieve.jl config/U233_nth_nu_vs_A.toml /path/to/FissionTemperatureRatio
 ```
 
-Each directory also holds the `retrieval.toml` run record naming every dataset the query kept or
-excluded, and every file name carries its EXFOR DatasetID, so a result traces back to an archive
-entry. A DatasetID has eight digits, or nine where it points within a subentry; the dataset label
-drops the leading digits either way, and two files of one author and year keep their DatasetID in
-parentheses so that labels stay unique. Files other than `.dat` in those directories are ignored
-by the readers, so the run record sits beside the data it describes.
-
-Every retrieval record states the version of the parser that wrote it, `[run] package_version`.
-`[retrieval] min_package_version` (default `"0.2.7"`) is the lowest a run accepts: a record below
-it, or one stating no version, is refused when the configuration is loaded, and a run whose input
-directories were written by different versions says so in the log; a lower floor can still be set
-explicitly. The floor is 0.2.7 because that release is the first whose records name the datasets
-of one experiment, under `correlated_with` and `correlation_relation`, on which the pooling of an
-experiment as one rests: inputs retrieved before it would pool the datasets of an experiment side
-by side and write that trend under the same run identifier, for ²⁵²Cf `⟨R_T⟩` = 1.0878 in place
-of 1.0821. Inputs retrieved before 0.2.3 can moreover carry the ²³⁹Pu multiplicities of Tsuchiya
-2000 (22650004) off the scale of their subentry and the ²⁵²Cf yields 41425015 and 41425016, which
-that release refuses. A directory holding no retrieval record, a tabulation of one's own for
-instance, is not judged. The results quoted here rest on the retrieval of the twelve
-configurations by ExforFissionData.jl v0.2.7; v0.2.8 writes the same tables and differs in its
-records alone.
-
-The run record also lists the reaction-code qualifiers of every dataset. A dataset carrying
-`DERIV` (derived from other data), `SPA` (averaged over an unspecified neutron spectrum) or
-`preliminary` (the archive's status code `PRELM`, or a publication that calls its results
-preliminary) is used, not corrected, and flagged: in the log, in the `qualifiers` and `flagged`
-columns of `dataset_diagnostics.csv`, and in the run metadata. No exclusion follows from the flag.
-In the shipped inputs `preliminary` marks Batenkov 2004 (41502005 for ²³⁵U, 41502006 for ²³⁹Pu),
-excluded already and forming no pair, and the ²³⁵U `ν(A)` of Vorobyev 2010 (41516012), which is
-pooled. For a multiplicity read by the retrieval's
-complement test the record also states the scale of the reading, the yield-weighted pair sum
-against `ν̄`; a dataset it finds off that scale is used, since a uniform scale cancels in `r_ν`,
-and flagged in the log, in the `pair_sum_deviation` and `scale_consistent` columns and in the run
-metadata. A scale error that varies with mass does not cancel, and the pair sum cannot see one:
-the structural diagnostics of the dataset are what bear on it. A `⟨TKE⟩(A)` dataset is accepted
-only if a run record beside it lists it, and its record — the parser revision that wrote it, the entry, a
-SHA-1 of the whole record — goes into the run metadata.
-
-A multiplicity file is `A nu nu_uncertainty`, or `A nu` where the measurement quotes no
-uncertainty. An absent or non-positive uncertainty, or `NaN`, is read as `missing`, never as zero,
-which would denote an exact value. A field that is not numeric — mass number, multiplicity or
-uncertainty — is refused with the file and the line, so that one malformed uncertainty does not
-pass for a dataset that quotes none.
-
-Readers take columns **by position**, not by header text, so a header rename upstream is a no-op
-here. `docs/src/naming.md` sets out the vocabulary — quantities, identifiers, configuration keys,
-file names and headers — that this package and the codes on either side of it share.
+A run accepts a retrieval record only at or above `[retrieval] min_package_version`, `"0.2.7"` by
+default, the first release whose records name the datasets of one experiment, and refuses a
+record below it or stating no version. The reaction-code qualifiers a record carries (`DERIV`,
+`SPA`, `preliminary`) and a scale it finds off `ν̄` are reported and flagged in the log, in
+`dataset_diagnostics.csv` and in the run metadata; no correction and no exclusion follows from a
+flag.
 
 Without the data the pipeline cannot run, and the tests that need measurements are reported as
-skipped in the test summary. The rest of the suite — the inversion on the shipped fragmentation domains, the
-configuration, a synthetic run and its run record — runs regardless, on the mass table and shell corrections
-FissionFragmentsDomain.jl ships.
+skipped in the test summary. The rest of the suite — the inversion on the shipped fragmentation
+domains, the configuration, a synthetic run and its run record — runs regardless, on the mass
+table and shell corrections FissionFragmentsDomain.jl ships.
 
 ## Configuration
 
 Every run is driven by a TOML file under `config/`, which fixes the fissioning nucleus, the
-fragmentation range, the level density model, the segment search and the precision of the
-tabulated output. The parser enforces the types, enumerated choices and bounds its comments
-document, refuses unknown sections and keys, and fails naming the offending key, so a run cannot
-start from a configuration it cannot honour. Every key, with its type, bounds, default and
-run-identifier token, is listed under [Configuration](docs/src/configuration.md); the two
-sections that fix the physics are shown below.
+fragmentation range, the level density model, the datasets and their exclusions, the yield
+distributions, the segment search and the precision of the tabulated output. The parser enforces
+the types, enumerated choices and bounds its comments document, refuses unknown sections and
+keys, and fails naming the offending key, so a run cannot start from a configuration it cannot
+honour. Every key, with its type, bounds, default and run-identifier token, is listed under
+[Configuration](docs/src/configuration.md).
 
 A system is declared by what was irradiated, not by what fissions: the target, the entrance
 channel and the incident energy. The reaction code, the fissioning nucleus and the system label
-`<symbol><A>_<channel>` — `Cf252_sf`, `U235_nth` — are all **derived** from them, so a label
-cannot contradict the nuclide it names, and two incident energies of the same target are two
-systems rather than one: they share a label but not a run identifier. The channel is also what
-separates a thermal run from a resonance run of the same target, which the reaction code `n,f`
-alone cannot.
-
-To add a fissioning system, place its ν(A) datasets in `data/<system>/nu_vs_A/` as
-whitespace-separated `A nu nu_uncertainty` or `A nu` tables with one header line, and copy a
-configuration to `config/<system>.toml`.
-
-### Fragmentation domain and inversion
+`<symbol><A>_<channel>` — `Cf252_sf`, `U235_nth` — are all derived from them, so a label cannot
+contradict the nuclide it names, and two incident energies of the same target are two systems
+rather than one. The two sections that fix the physics, from the shipped ²³³U configuration:
 
 ```toml
 [fragmentation]
@@ -311,365 +281,64 @@ mean_kinetic_energy_file = "U233_nth/TKE_vs_A/21981008_P.Geltenbort_1985.dat"
 ```
 
 The fragmentation domain is built by FissionFragmentsDomain.jl from these keys; `"wahl"` resolves
-Wahl's `Zₚ` model for the system, with the 1988 per-reaction parameters for the four shipped
-systems. `ratio_averaging = "charge_resolved"`, the default, solves for `R_T` in the relation
-between `R_T` and `E*_H/TXE` reduced over the charge distribution fragmentation by fragmentation —
-the exact inverse of a prompt emission code that partitions every pair with its own `a_L/a_H` —
-and `mean_kinetic_energy_file` weights every fragmentation by its mean total excitation
-`Q + E*_CN - ⟨TKE⟩(A_H)`. Where the dataset gives both `A` and `A₀ − A`, the pair takes the mean
-of the two, `⟨TKE⟩` being one value per split; its yield-weighted mean and the offset from the
-energy standard of the system (Gönnenwein's recommendations, as FissionFragmentsDomain.jl records
-them) are logged and written to `metadata.toml`. Without that key the weights are `p(Z, A_H)`
-alone, and the run says so.
+Wahl's `Zₚ` model for the system. `ratio_averaging = "charge_resolved"`, the default, solves for
+`R_T` in the relation between `R_T` and `E*_H/TXE` reduced over the charge distribution
+fragmentation by fragmentation — the exact inverse of a prompt emission code that partitions every
+pair with its own `a_L/a_H` — and `mean_kinetic_energy_file` weights every fragmentation by its
+mean total excitation `Q + E*_CN − ⟨TKE⟩(A_H)`. `"ratio_of_means"` is the closed form of the
+published extraction, which the published settings reproduce exactly over the digitised charge
+tables; [the method](docs/src/method.md) gives why the default changed. The shipped configurations
+take `⟨TKE⟩(A)` and `Y(A)` from one primary experiment per system — Göök 2014 for ²⁵²Cf,
+Al-Adili 2016 for ²³⁵U, Wagemans 1984 for ²³⁹Pu and Geltenbort 1985 for ²³³U — and the run
+metadata names the accessions used.
 
-The shipped configurations take `⟨TKE⟩(A)` and `Y(A)` from one primary experiment per system,
-named by `mean_kinetic_energy_file` and `[yield] mass_yield_file`: Göök 2014 for ²⁵²Cf (Y(A)
-23268003, the mass marginal of 23268002; ⟨TKE⟩ 23268004), Al-Adili 2016 for ²³⁵U (23164005,
-23164007), Wagemans 1984 for ²³⁹Pu (21995028, 21995038) and Geltenbort 1985 for ²³³U (21981005,
-21981008). The run metadata names the accessions used. `[yield] subdirectory` averages over every
-distribution of a directory instead, with the primary distribution as the reference their coverage
-is measured against; the published settings do, Surin's ²³³U distribution among them.
-`[yield] exclude` keeps distributions of that directory out of every average, each with its
-reason, as `[multiplicity] exclude` does for the pooling; they are still read and reported. Both
-name a dataset by its accession. Without `[yield] subdirectory` an exclusion has nothing to act on,
-and it is refused when the configuration is loaded, as it is in a run started from a configuration
-built by hand.
+To add a fissioning system, place its `ν(A)` datasets in `data/<system>/nu_vs_A/` and copy a
+configuration to `config/<system>.toml`.
 
-`"ratio_of_means"` is the closed form of the published extraction. The published settings are
-reproduced exactly by `ratio_of_means` over the digitised charge tables with
-`zero_polarization_at_symmetry = true`, or over `"mean"` for ²³³U; see
-[the method](docs/src/method.md) for why the default changed.
-
-### Several measurements of one system
+## Several measurements of one system
 
 Each dataset is carried through the whole chain on its own: its own `r_ν`, its own segmented fit,
 its own `R_T`, its own total average. A run offers one curve per measurement that reaches the
 coverage floor and one more, the systematic trend, fitted to the combination of those pooled. They
 are alternatives offered to a prompt emission code, not an ensemble to be averaged: a consuming
 code takes exactly one, and which one describes reality is settled downstream, by comparing the
-multiplicity distributions and yields that code produces against experiment. The trend is the only
-place the measurements are combined, and they are combined at the level of `r_ν`, before any
-fitting: at each mass number the values of every pooled dataset are merged into one, and the
-segmented fit runs on that single combined curve.
+multiplicity distributions and yields that code produces against experiment.
 
-The datasets of one system disagree far beyond their quoted uncertainties: for ²⁵²Cf the spread
-between them at a given mass number runs to ten or twenty times the median quoted uncertainty.
-That disagreement shapes how they are combined, how the uncertainty of the combination is formed,
-and how a dataset is admitted.
+The datasets of one system disagree far beyond their quoted uncertainties, by ten or twenty times
+the median quoted uncertainty for ²⁵²Cf, and that disagreement shapes the rest.
 
-**Pooling.** The combined curve cannot be a concatenation weighted by the quoted uncertainties —
-that hands the result to whichever author quoted the smallest ones, and counts a dataset with many
-points more heavily than one with few. The datasets are combined mass number by mass number with
-an additional between-dataset variance, so the weights become nearly equal and the uncertainty of
-the combination reflects the disagreement instead of hiding it. A dataset whose masses the
-retrieval interpolated onto the integers (`mass_treatment = "interpolated"` in its record) enters
-at the weight of its measured points over its written rows, since neighbouring interpolated rows
-share their bracketing measurements; the factor is the `pooling_weight` column of
-`dataset_diagnostics.csv`. That factor `f` enters a fit once, as the weight `f/σ²` of a point in
-the solve, in `χ²` and in the information matrix, with `Σ f` measurements behind the degrees of
-freedom, for the trend exactly as for the dataset's own curve: the trend of a pool holding one
-interpolated dataset is that dataset's fit. The combined curve is written out, so the trend can
-be checked against its own input; its uncertainty is the standard error of each combined value,
-which carries the factor.
+- **Pooling.** The trend is fitted to a curve combined mass number by mass number with an
+  additional between-dataset variance, so that the weights are nearly equal and the uncertainty of
+  the combination reflects the disagreement instead of hiding it. Datasets of one experiment,
+  which their retrieval records name, enter the pool as one.
+- **Uncertainty.** The error of a pooled dataset is taken as correlated along the mass axis, with
+  a coefficient estimated from the pooled datasets themselves, and the covariance of the trend is
+  the sandwich form for such errors; taken as independent, the uncertainty would be low by a
+  factor of two to four. What the correlation does not hold, a constant offset of one dataset, is
+  measured by refitting the trend with each dataset or experiment left out, and the jackknife over
+  the refits is written beside the propagated uncertainty.
+- **Admission.** No dataset is rejected for being far from the others, since none is consistent
+  with any other in units of its quoted uncertainty. Every dataset is described by structural
+  diagnostics in `dataset_diagnostics.csv`, and one is kept out of the pool only when the
+  configuration names it by accession and says why, or when its record marks it as superseded by
+  a republication. The shipped configurations exclude Zeynalov 2019 for ²⁵²Cf and for ²³⁵U,
+  Nishio 1995 for ²³⁹Pu, and Batenkov 2004 for ²³⁵U and ²³⁹Pu; an excluded dataset is still read,
+  fitted, written and diagnosed.
 
-The between-dataset variance is estimated against what the dispersion statistic is expected to
-be where the datasets do not differ, which for a pool holding interpolated datasets is less than
-the number of datasets less one; and it is why the reduced chi-squared of a trend is below one,
-0.44 and 0.73 for ²³⁵U and ²³⁹Pu, without the trend having too many segments. [The
-method](docs/src/method.md) gives both.
-
-**One experiment, one measurement.** A retrieval record of ExforFissionData.jl v0.2.7 or later
-names, under `correlated_with`, the other datasets of the experiment a dataset belongs to, and
-under `correlation_relation` how they are related: `republication`, `alternative_analysis`,
-`repeated_run` or `complementary_range`. Pooled datasets that name one another enter the pool as
-one curve, at the uncertainty of one measurement with the measured fraction of each of its points,
-so that the experiment counts once in the between-dataset variance and in the weights; the
-leave-one-out refits below leave it out as one. How that curve is formed follows the relation,
-taken from the records where every member states the same one. Alternative analyses, two or more
-reductions of one set of events, share their statistical errors, so nothing is gained by averaging them as independent values: at each mass number the curve takes
-the mean of the members, and as its uncertainty the largest a member quotes with half the
-difference between the members added in quadrature, which carries the uncertainty of the
-reduction. A mass number one member alone holds takes that member's value and uncertainty, and
-where no member quotes an uncertainty the point quotes none. Of a republication, one result
-published twice, the superseding dataset alone enters the pool; the superseded one, which its
-record marks with a qualifier beginning `superseded:`, is read, fitted and written and offers its
-own curve, but is not pooled. Where its successor is itself excluded by the configuration or forms
-no fragment pair, the superseded dataset is still kept out of the pool, with a warning in the log:
-a withdrawn result does not stand in for the one that replaced it. Where not exactly one member of
-a republication is unmarked, nothing is superseded and the members are combined as a pool.
-`superseded_datasets(result)` gives each such dataset with its successor, a run lists them under
-`[result.superseded_datasets]` in `metadata.toml`, and the `exclusion_reason` column of
-`dataset_diagnostics.csv` reads "superseded by <label>" for it, with `pooled` false; none of the
-shipped `ν(A)` sets is one. Repeated runs, complementary ranges, and
-members of an experiment whose relation not every member states, or two state differently, are
-combined by the rule a pool is combined with. Each member still offers its own segmented curve and
-stays in the manifest. `correlated_datasets(record)` and `correlation_relation(record)` read the
-record, and a run lists the groups under `[[result.correlation_groups]]` in `metadata.toml`, with
-`datasets`, `accessions`, `relation`, the relation acted on or `"unstated or differing"`, and
-`relations_stated`, what each record states, and in the `pooled_with` column of
-`dataset_diagnostics.csv`.
-
-In the shipped inputs Basova 1979 and Zamyatnin 1979 are alternative analyses of one experiment,
-for ²⁵²Cf (EXFOR 41720002 and 41694002) and for ²³⁹Pu (41720004 and 41694003); their tables differ
-by 0.34 and 0.36 neutrons rms. Pooled as two measurements they would give the ²⁵²Cf trend 5
-segments, breakpoints at 130, 137, 143 and 149, `χ²/dof` = 1.53 and `⟨R_T⟩` = 1.0878; pooled as
-one it takes 4 segments, breakpoints at 130, 136 and 150, `χ²/dof` = 2.02 and `⟨R_T⟩` = 1.0821,
-and 1.0806 with the experiment left out. For ²³⁹Pu, with Nishio 1995 still pooled, the grouping
-alone keeps 6 segments, with breakpoints at 126, 130, 137, 148 and 154 in place of 126, 130, 137,
-149 and 154, `χ²/dof` = 0.54 in place of 0.44 and `⟨R_T⟩` = 1.0113 in place of 1.0268. The shipped
-²³⁹Pu pool, which excludes Nishio 1995 as well, takes 4 segments, breakpoints at 128, 137 and 143,
-`χ²/dof` = 0.73 and `⟨R_T⟩` = 1.0388, and 1.0296 with the experiment left out.
-
-**The uncertainty of a trend.** A dataset departs from the others by an offset and a slow drift
-along the mass axis, not point by point, so the errors of the combined points are not
-independent. The covariance of the trend takes the error of each pooled dataset as correlated
-along the mass axis, `ρ^|A − A′|` between two of its mass numbers, and independent of the errors
-of the other datasets; the correlation of two combined points follows from the datasets that hold
-both and the share of each combined value they carry. `ρ` is estimated from the correlogram of
-the pooled datasets' deviations from the combined curve, each less its own mean, at lags of one to
-eight mass units, by fitting `ρ^k` to its first lags in least squares: `[segments]
-autocorrelation_lags` of them, an integer from 1 to 8, default 4. It is bounded to [0, 0.999], a
-negative estimate being taken as no correlation. Datasets that share fewer than three mass numbers
-with the others do not enter the correlogram, and for series as short as those of a dataset the
-estimate of `ρ` is on the low side; [the method](docs/src/method.md) gives the bias. The
-coefficients, breakpoints and number of segments of the trend do not depend on `ρ`; its covariance
-is the sandwich form for correlated errors, scaled by `χ²` over its expectation under that
-correlation where that exceeds one. With the points taken as independent the uncertainty would be
-low by about `√((1 + ρ)/(1 − ρ))`. With `⟨R_T⟩` over the primary yield distribution, in the
-columns a run writes, the last being the jackknife of the leave-one-out refits below:
-
-| System | `deviation_autocorrelation` (`ρ`) | `R_T` ± `R_T_uncertainty` | `R_T_uncertainty_leave_one_out` |
-|---|---|---|---|
-| ²⁵²Cf(sf) | 0.872 | 1.0821 ± 0.0159 | 0.0085 |
-| ²³⁵U(nth,f) | 0.690 | 1.1230 ± 0.0153 | 0.0222 |
-| ²³⁹Pu(nth,f) | 0.814 | 1.0388 ± 0.0269 | 0.0257 |
-| ²³³U(nth,f) | 0.800 | 1.0724 ± 0.0936 | 0.1381 |
-
-Refitted with the combined points taken as independent, a number a run does not write, the four
-uncertainties would be 0.0037, 0.0075, 0.0091 and 0.0319, the tabulated `σ(R_T)` of the trends
-being larger by a median factor of 3.7, 1.8, 2.6 and 2.7. Positively correlated errors under a
-smooth fit also lower the expectation of `χ²` below the degrees of freedom, which is what the reduced chi-squared of 0.44 of ²³⁵U
-reflects: against its expectation `χ²` is 0.63. For ²³⁹Pu, at 0.73, `χ²` is 1.29 times its
-expectation, and the covariance of that trend is scaled by it. A run reports the
-correlogram, `ρ`, `χ²` against its expectation and the covariance scale under
-`[result.trend_uncertainty]` in `metadata.toml`, `ρ` in the `deviation_autocorrelation` column of
-the curve table and `χ²` against its expectation in its `chi_squared_over_expectation` column;
-`deviation_correlogram(result)` and `deviation_autocorrelation(result)` return the first two. The
-curve of a single dataset is fitted with independent points; for an interpolated dataset, whose
-neighbouring rows share their bracketing points, its measured fraction accounts for that.
-
-**What it leaves out.** The correlogram is formed from deviations less each dataset's mean, so a
-constant offset of one dataset from the others is in no lag and in no matrix built from `ρ`. Its
-measure is the leave-one-out refit: the trend refitted with each pooled dataset, or each
-experiment, left out, written with its `⟨R_T⟩` over each yield distribution, its number of
-segments, its breakpoints and its `χ²/dof` to `leave_one_out_<run identifier>.csv` and under
-`[[result.leave_one_out]]` in `metadata.toml`. The delete-one jackknife standard error over the
-refits and the least and greatest `⟨R_T⟩` among them are written beside each total average of the
-trend in `total_average_R_T_<run identifier>.csv`, and with the number of refits behind them under
-`[result.trend_uncertainty.leave_one_out.<yield>]` in `metadata.toml`;
-`leave_one_out_spread(result, mass_yield)` returns them as `(; min, max, uncertainty, refits)`. A
-refit that gave no curve is not among the refits counted, and the log says so. With two pooled
-experiments the jackknife is half the difference of the two refits, which the log states as well.
-The jackknife is the last column of the table above; the least and the greatest value:
-
-| System | `R_T_leave_one_out_min` | `R_T_leave_one_out_max` |
-|---|---|---|
-| ²⁵²Cf(sf) | 1.0779 | 1.0871 |
-| ²³⁵U(nth,f) | 1.1112 | 1.1356 |
-| ²³⁹Pu(nth,f) | 1.0174 | 1.0579 |
-| ²³³U(nth,f) | 0.9808 | 1.1762 |
-
-For ²³⁵U and ²³³U the jackknife uncertainty exceeds the propagated one, by a factor of 1.4 to 1.5,
-0.0222 against 0.0153 and 0.1381 against 0.0936: the datasets differ by offsets the kernel does
-not hold, most of all for ²³³U, four datasets whose trend moves from 0.98 to 1.18 with one of them
-left out. For ²³⁹Pu the two are about equal, 0.0257 against 0.0269; for ²⁵²Cf, with thirteen
-experiments, the jackknife is about half the propagated uncertainty, 0.0085 against 0.0159.
-`run_pipeline(configuration; leave_one_out = false)` skips the refits, which cost one trend fit per
-pooled dataset or experiment.
-
-**Admission.** For the same reason, a dataset cannot be judged by how far it sits from the others
-in units of its own uncertainty: none is consistent with any other, and a reduced chi-squared
-ranks how generously an author quoted errors rather than how good the measurement is. Every
-dataset is therefore described by structural diagnostics instead — usable fragment pairs and the
-span they cover, points outside the physical range, the departure from one half at the symmetric
-split, and `ν(A) + ν(A₀-A)` against the total multiplicity — written to `dataset_diagnostics.csv`
-for every dataset whether or not it was used, with a last column stating whether it offers a
-segmented curve and, if not, why.
-
-The archive itself is the first filter: the retrieval rejects datasets whose reaction code or
-units say they are not the quantity asked for, and records why. The diagnostics here are the
-second, structural filter, and they do catch sloppy data — for ²⁵²Cf the complementary sums
-separate cleanly into sets consistent with the total multiplicity of 3.76 (Alkhazov 3.75, Mehta
-3.72, Budtz-Jørgensen 3.70, Vorobiev 3.83) and sets a tenth high (Basova 4.27, Zamyatnin 4.21,
-Ding Shengyao 4.18, Göök 4.17), which is a normalization discrepancy rather than a measurement
-one.
-
-Nothing is filtered automatically. A dataset is kept out of the pooling only when the
-configuration names it and says why, or when its record marks it as superseded by a
-republication:
-
-```toml
-[multiplicity]
-subdirectory = "Cf252_sf/nu_vs_A"
-exclude = [
-    { accession = "31845003", reason = "one usable fragment pair in range" },
-]
-```
-
-An excluded dataset is still read, still fitted where its coverage allows, still written and still
-diagnosed. It is excluded from the combination, not from the record.
-
-An exclusion names its dataset by EXFOR accession. A label, `Author year`, takes the accession of
-each dataset as soon as a second one of the same author and year is retrieved, and an exclusion
-written against it would then match neither; the accession does not change. An exclusion that
-names no dataset of the directory is refused when the configuration is loaded.
-`dataset = "<label>"` remains for a tabulation that carries no accession; for a dataset that has
-one it is refused, with the accession to write.
-
-The shipped ²⁵²Cf configuration excludes one dataset, Zeynalov 2019 (EXFOR 41739002). Its `r_ν`
-lies 0.03 to 0.08 above the consensus of the other fourteen sets over `A_H` = 130 to 160, where
-their spread is 0.02, and above every one of them at 25 of those 31 masses. The departure is a
-deficit of light-fragment neutrons. Weighted with Göök's yields, `⟨ν_L⟩` is 1.71 against 2.01 to
-2.12 in Göök 2014, Budtz-Jørgensen 1988, Zeynalov 2011 and Al-Adili 2020, and `⟨ν_H⟩` is 1.76
-against 1.65 to 1.77: the pair sum is 3.47, 8 % below `ν̄`, and the heavy fragments would emit
-half the neutrons. A scale error confined to one wing does not cancel in `r_ν`, and the retrieval
-forms no pair sum for a set coded per fragment, so nothing flags it. The subentry gives
-pre-neutron masses from a twin ionisation chamber with one neutron detector, corrected for energy
-loss, pulse-height defect and background, with statistical uncertainties only; it states no
-selection in `TKE` or angle and no correction for the detection geometry. The paper, *EPJ Web
-Conf.* **211**, 04003 (2019), [doi:10.1051/epjconf/201921104003](https://doi.org/10.1051/epjconf/201921104003),
-presents the result as a check of revised analysis software, which corrects the fragment kinetic
-energies for neutron emission, on 0.5 × 10⁶ coincidences of data taken earlier at IRMM. Those
-energies fix the fragment velocities that carry the neutron spectrum into the fragment frame, and
-a deficit that grows with fragment velocity is what an error there produces. Nothing shows it to
-be the better measurement, and the measurement published from IRMM in 2011 (23118006) is pooled.
-Its own curve is still fitted and written. With it in the pool the ²⁵²Cf trend takes 4 segments,
-with `χ²/dof` = 2.16 and `⟨R_T⟩` = 1.0756; without it, 4 segments, 2.02 and 1.0821.
-
-The shipped ²³⁵U configuration excludes the ²³⁵U result of the same paper and analysis, Zeynalov
-2019 (EXFOR 41738002). Here the total is right and its division between the wings is not.
-Weighted with the Al-Adili 2016 yields over `A_H` = 130 to 150, `⟨ν_L⟩` and `⟨ν_H⟩` are 1.02 and
-1.36, against 1.36 to 1.66 and 1.02 to 1.17 in Fraser 1966, Nishio 1998, Al-Adili 2020 and
-Vorobyev 2010, so `r_ν` is 0.571 against 0.413 to 0.436 (Apalin 1965: 0.486), while the pair sum,
-2.39, is on the scale of `ν̄`. At single masses, `ν(112)` = 3.43 against 1.75 to 2.31 in Nishio,
-Al-Adili and Vorobyev, and `ν(124)` = 1.24 against 0.36 and 0.47 in the last two. Over that range
-its `r_ν` lies 0.05 to 0.16 above the consensus of the other seven sets, whose spread is 0.04, and
-above every one of them at 19 of the 21 masses. The subentry gives pre-neutron masses and
-statistical uncertainties only. Its own curve is still fitted and written. With it in the pool
-the ²³⁵U trend takes 6 segments, with `χ²/dof` = 0.19 and `⟨R_T⟩` = 1.0743; without it, 5 segments,
-0.44 and 1.1230.
-
-The shipped ²³⁹Pu configuration excludes Nishio 1995 (EXFOR 23012008). Its `ν(m*)` is not a
-neutron measurement. The paper, *J. Nucl. Sci. Technol.* **32**, 404 (1995),
-[doi:10.1080/18811248.1995.9731725](https://doi.org/10.1080/18811248.1995.9731725), measures the
-velocities and the energies of both fragments, takes the pre-neutron mass `m*` from the two
-velocities and the post-neutron mass `m` from the energy and velocity of a fragment, and gives
-`ν(m*) = m* − m`; no neutron is detected, where the other pooled ²³⁹Pu sets count neutrons. It
-states its own total, `⟨ν_total⟩` = 3.2 ± 0.1, "about 10 % larger than the evaluated value of
-JENDL-3", and sets the difference aside as not affecting its argument; the EXFOR table quotes no
-uncertainties. Nor is it independent of a set already pooled: the correction for the plasma delay
-of the detectors is fixed through momentum conservation with the `ν(m*)` of Apalin et al. The
-excess lies on the heavy wing alone. Weighted with the Wagemans 1984 yields over `A_H` = 130 to
-150, `⟨ν_H⟩` is 1.68 against 1.20 to 1.48 in Fraser 1966, Tsuchiya 2000, Apalin 1965 and Zamyatnin
-1979, at a `⟨ν_L⟩` of 1.53 against 1.45 to 1.57; the pair sum is 3.21, 12 % above `ν̄` = 2.88. Mass
-by mass its `ν_H` lies within the range of the other four at `A_H` = 126 to 135 and above all four
-at every mass from 136 to 154. An excess on one wing does not cancel in `r_ν`. Its own curve is
-still fitted and written, and the rows of the published table that rest on it, as a `ν(A)` dataset
-and through its yield distribution, are unaffected. With it in the pool the ²³⁹Pu trend takes 6
-segments, with `χ²/dof` = 0.54 and `⟨R_T⟩` = 1.0113; without it, 4 segments, 0.73 and 1.0388.
-
-Two further datasets are excluded by accession although neither could be pooled: Batenkov 2004 for
-²³⁵U (EXFOR 41502005) and for ²³⁹Pu (41502006), from *AIP Conf. Proc.* **769**, 1003 (2005),
-[doi:10.1063/1.1945175](https://doi.org/10.1063/1.1945175). Each gives 21 masses on a grid of 4 u
-on which no mass has its complement, so neither forms a fragment pair, and they are not paired
-against interpolated complements. The paper presents them as preliminary, with statistical
-uncertainties only, and reports substantial deviations from earlier ²³⁵U data in the symmetric
-region and at the edges of the distribution. The exclusions state this in the configurations;
-they change no result. `pooled_datasets(result)` lists the datasets a trend was combined from,
-and the `pooled` column of `dataset_diagnostics.csv` is true for those alone.
-
-Two guards bound what a segmented curve may assert. `min_segment_span` (an integer from 1 to 50,
-default 3) is the smallest extent of a segment in mass units from its first pivot to its last; at
-four points per segment on consecutive mass numbers it coincides with the point guard
-`min_points_per_segment`, so it acts where abscissae repeat or the point count is set lower.
-`min_pair_coverage` (a real from 0 to 1, default 0.3) is the fraction of the mass numbers of the
-fragmentation range at which a dataset must provide a complete pair to be offered as a segmented
-curve of its own. Below it the dataset is read, diagnosed and pooled into the trend, but no curve
-is fitted to it alone: with pairs at few mass numbers the breakpoint search cannot place the
-minimum where the data do not reach, and the curve it returns asserts structure between the
-measurements that a consuming code could not tell from a measured feature. All four shipped
-configurations set both explicitly. The number of segments itself is chosen by the Bayesian
-information criterion; in the paper the segments were drawn by hand. `required_windows` places a
-breakpoint where physics says
-there is one — the minimum at the heavy magic fragment, `A_H` near 130, fixed by the `Z = 50`,
-`N = 82` shell closure — and `windows_apply_to_datasets` extends that from the trend curve to every
-dataset.
-
-A dataset curve whose segmented `r_ν` has no interior minimum, no interior pivot below both of its
-neighbours, although its range covers a required window — the window of `required_windows` in
-which the minimum lies, 128 to 132 in the shipped configurations — is flagged with the reason: in
-the `curve_flagged` and `curve_flag_reason` columns of `dataset_diagnostics.csv` and under
-`[result.flagged_curves]` in `metadata.toml`. `unresolved_minimum(fit, windows)` gives the reason,
-which ends "which covers the window 128:132", and `unresolved_minimum(fit)` the test of the shape
-alone. A curve that begins above the start of the window is limited in range, which the
-`coverage` and `first_pair` columns already state, and is not flagged; without a required window
-nothing is flagged. A flagged curve stays in the manifest: a consuming code selects by label and can read the
-flag. The test is of the shape of the fitted curve, not of `χ²/dof`, which has no common scale
-across datasets; in the shipped runs it runs from 2 × 10⁻⁵ for a dataset quoting no uncertainties
-to 26 for one quoting small ones. The shipped runs flag Tsuchiya 2000 for ²³⁹Pu, one segment from
-`A_H` = 123, and Fraser 1966 for ²³³U, which rises from its first pair at `A_H` = 126. No ²⁵²Cf or
-²³⁵U curve is flagged: Bowman 1963, Britt 1964 and Mehta 1973 of ²⁵²Cf begin at `A_H` = 133, 132
-and 135, past the start of the window, and do not cover it.
-
-The `[yield]` section is optional. Given the primary pre-neutron mass yield distribution, or a
-directory of them beside it, the run also reports the total average `⟨R_T⟩ = Σ Y(A_H) R_T(A_H) / Σ Y(A_H)` for every combination of
-segmented curve and distribution — the quantity the literature tabulates, and the one a prompt
-emission code takes when it uses a single temperature ratio for all fragmentations. Each carries
-two uncertainties: the fit covariance propagated through the average, and beside it the
-independent-points form of the published tables, which treats the tabulated points as uncorrelated
-and understates the uncertainty by a factor of two to five. Without yields the run reports only the
-mean over the fragment mass range, with the covariance propagated likewise; it weights every mass
-number equally and is therefore dominated by the far-asymmetric tail. The normalization of `Y`
-cancels. `symmetrize = true`, the default, imposes the pre-neutron identity `Y(A) = Y(A₀ − A)`
-before averaging: the two fragments of a split are one event, so where a distribution is measured
-on both wings each mass takes the mean of the two, and where it is measured on one wing alone that
-value stands for the other. The published averages took the distributions as measured,
-`symmetrize = false`. The coverage of a distribution is measured in yield, against the primary:
-the primary's heavy-fragment yield at the masses the distribution holds, over its yield across the
-heavy masses of the fragmentation range. A distribution's own yields cannot measure it, since a
-sparse digitisation normalised over the masses it holds sums to as much as a complete one. One
-below `min_yield_coverage` (a real from 0 to 1, default 0.3, under `[yield]`) is read and reported
-but not averaged over, since its average would describe those masses and not the fission yield,
-and every average states the fraction of its distribution's yield the curve takes in, which is
-below one where a dataset's pairs stop short of the distribution.
-
-Two level density models are available. The back-shifted Fermi gas is the default; setting
-`model = "GC"` selects Gilbert-Cameron, which for fission fragments returns markedly larger
-parameters away from closed shells, with its deformed-nucleus formula where the 1965 paper
-prescribes it unless `deformed_branch = false`. Running both bounds a systematic uncertainty that
-the propagated experimental uncertainties do not cover.
-
-![Level density models](docs/src/assets/level_density_models.png)
-
-The two agree exactly at the symmetric split, where the identity of the fragments forces the ratio
-to one whatever the model, and part across the shell region. Gilbert-Cameron was
-superseded by the back-shifted Fermi gas, so the spread between them is an upper bound on the
-systematic rather than a symmetric error bar.
+[The method](docs/src/method.md) gives the construction and the numbers of the four shipped
+systems, and [`data/README.md`](data/README.md) the attribution of each exclusion.
 
 ## The run directory
 
-`run_pipeline(configuration)` returns an `ExtractionResult` and writes nothing.
+`run_pipeline(configuration)` returns an `ExtractionResult` and writes nothing;
 `write_results(result, directory)` writes the tables and the manifest into `directory` and refuses
 one that already holds files. `scripts/run.jl` names that directory
-`data/sims/<system>/<run identifier>/`; an existing directory of the same name is moved aside as
-`<run identifier>#1`, `#2`, …, so the earlier run takes the suffix and none is overwritten. The
-script then writes the figures to `plots/<system>/<run identifier>/` through
-`write_figures(result, directory)`, and the provenance record `metadata.toml`: the library's
-`run_metadata(result)`, the identifier, the configuration and script paths, a timestamp, the git
-commit through DrWatson's `tag!`, and the platform — Julia version, hostname, kernel, machine, CPU
-model and threads, Julia and BLAS threads, memory, and `versioninfo()`. Beside it go copies of the
-configuration, as `configuration.toml`, and of the resolved manifest of the scripts environment, as
-`Manifest.toml`.
+`data/sims/<system>/<run identifier>/`, moves an existing run of the same identifier aside as
+`<run identifier>#1`, `#2`, …, writes the figures to `plots/<system>/<run identifier>/` through
+`write_figures`, and adds the provenance record `metadata.toml` — the library's `run_metadata`,
+the configuration and script paths, a timestamp, the git commit and the platform — beside copies
+of the configuration, as `configuration.toml`, and of the resolved manifest of the scripts
+environment, as `Manifest.toml`.
 
 | File | Content |
 |---|---|
@@ -684,151 +353,45 @@ configuration, as `configuration.toml`, and of the resolved manifest of the scri
 | `dataset_diagnostics.csv` | one row per dataset read, with its reaction-code qualifiers |
 | `metadata.toml`, `configuration.toml`, `Manifest.toml` | the provenance record, written by the script |
 
-The manifest, the curve table, the total averages and the leave-one-out table carry the run
-identifier in their names;
-every other table is named by its quantity, its abscissa and its dataset, and found through the
-manifest. `<dataset>` is the stem of the input file, `<accession>_<Author>_<year>` as the
-retrieval writes it, so `R_T_vs_A_H_segmented_22660005_K.Nishio_1998.csv` traces to its EXFOR
-entry and to its input by name alone. The label of a curve stays `Author year`, with the
-accession added only where two datasets would share it: it is the display name and the key a
-consuming code selects a curve by. `curve_accessions(result)` gives the accession of each label,
-and the curve table and the dataset diagnostics carry it as a column. `write_results` refuses a run whose identifier would make one of those names longer than
-the 255 bytes a file system admits. The ratio tables have the headers `A_H,r_nu,r_nu_uncertainty`
-and `A_H,R_T,R_T_uncertainty`, the pivot table included; in the point-by-point tables an
-uncertainty the measurement does not quote is an empty field, never zero.
-`segmented_curves_<run identifier>.csv` has the columns `label, accession, kind, pooled, segments,
-pinned_at_symmetric_split, first_A_H, last_A_H, pairs, measured_points, coverage,
-reduced_chi_squared, chi_squared_over_expectation, weights_imputed, range_mean_R_T,
-range_mean_R_T_uncertainty, deviation_autocorrelation`, all dimensionless;
-`chi_squared_over_expectation` equals `reduced_chi_squared` for a dataset curve, and the last,
-filled for the systematic trend only, is the `ρ` its covariance was formed with. `total_average_R_T_<run identifier>.csv` has the columns `segmented_curve,
-mass_yield, R_T, R_T_uncertainty, R_T_uncertainty_independent_points,
-R_T_uncertainty_leave_one_out, R_T_leave_one_out_min, R_T_leave_one_out_max, yield_fraction,
-R_T_one_more_segment, R_T_two_more_segments`, the three leave-one-out columns and the last two
-filled for the systematic trend only, and `R_T_uncertainty_independent_points` being the
-approximation of the published tables over the tabulated points of a curve, which has nothing to
-do with the correlation between combined points;
-`leave_one_out_<run identifier>.csv` the columns `dataset_left_out, accession, mass_yield, R_T,
-segments, breakpoints, reduced_chi_squared, outcome`, one row per dataset or experiment left out
-and yield distribution, the labels of an experiment joined by ` + ` and its accessions, like the
-breakpoints, separated by spaces; and
-`dataset_diagnostics.csv` the columns `dataset, accession, points, pairs, first_pair, last_pair, coverage,
-outside_physical_range, symmetry_departure, complement_sum, complement_spread,
-without_uncertainties, qualifiers, pooling_weight, flagged, pair_sum_deviation, scale_consistent,
-pooled, pooled_with, exclusion_reason, segmented_curve, curve_flagged, curve_flag_reason`,
-`segmented_curve` reading "segmented
-curve" or stating why there is none: no complete pair, coverage below the floor, or no fit and the
-reason. The figures are `nu_vs_A.pdf`, `r_nu_vs_A_H.pdf` and `R_T_vs_A_H.pdf`, and
-`r_nu_vs_A_H_segmented_<dataset>.pdf` and `R_T_vs_A_H_segmented_<dataset>.pdf` for every dataset
-curve.
-
-The run identifier is DrWatson's `savename` over every configuration key that changes the result,
-tokens sorted and joined by `_`, each key abbreviated through `RUN_IDENTIFIER_ABBREVIATIONS`, which
-is keyed by the key's dotted path in the configuration file. The system is not a token, since it
-names the directory the identifier sits in, and neither is `significant_digits`, which changes
-rendering and not the number. A list or a path — the required windows, the exclusion list, a
-tabulated charge distribution, a mass or shell-correction table, the `⟨TKE⟩(A)` dataset, the
-primary yield distribution, the yield directory — enters as the first eight hexadecimal digits of
-the SHA-1 of its canonical spelling, paths relative to the data directory, and is written in full
-into `metadata.toml` under `[identifier.hashed]`; a shipped table enters by name, Table III as
-`gc1965`. The Gilbert-Cameron branch and shell corrections are tokens of a Gilbert-Cameron run
-only. `[segments] autocorrelation_lags` changes the uncertainty of the trend and none of its
-values, and is a token, `lags`, only where it differs from its default of 4: one more token on
-every run would carry the file names of a Gilbert-Cameron run beyond 255 bytes. The identifier stays short enough for the file names that repeat it to fit the 255 bytes a
-file system admits, which the test suite checks for every shipped configuration under both level
-density models. The token of every key is listed under
-[Configuration](docs/src/configuration.md). For ²³³U:
+`<dataset>` is the stem of the input file, `<accession>_<Author>_<year>` as the retrieval writes
+it, so `R_T_vs_A_H_segmented_22660005_K.Nishio_1998.csv` traces to its EXFOR entry and to its
+input by name alone. The label of a curve stays `Author year`, with the accession added only where
+two datasets would share it: it is the display name and the key a consuming code selects a curve
+by. The run identifier is DrWatson's `savename` over every configuration key that changes the
+result, each key abbreviated through `RUN_IDENTIFIER_ABBREVIATIONS`; a list or a path enters as
+the first eight hexadecimal digits of the SHA-1 of its canonical spelling and is written in full
+under `[identifier.hashed]` of `metadata.toml`. For ²³³U:
 
 ```
 AHmax=159_AHmin=117_E=2.53e-8_TKE=a1ad68dc_Ycov=0.3_Yf=ec238a96_Ysym=true_avg=charge_resolved_chg=wahl_cov=0.3_dZ0=false_excl=da39a3ee_ldm=BSFG_mass=ame2020_nZ=5_npts=4_nseg=6_pin=true_span=3_wdat=false_win=b552f081
 ```
+
+[Naming](docs/src/naming.md) lists the columns of every table and the token of every key.
 
 ## Consuming the output
 
 The manifest is the entry point for a code that takes these curves as input, and it is meant to
 be read rather than parsed out of file names. It is FissionFragmentsDomain.jl's run record,
 written by its `write_temperature_ratio_manifest` and read by its
-`read_temperature_ratio_manifest`, and holds nothing else. To stage a run, copy the whole run
-directory from `data/sims/<system>/<run identifier>/`; it holds exactly one `manifest_*.toml`,
-which `staged_manifest` selects by that prefix. An abridged ²³³U manifest:
+`read_temperature_ratio_manifest`: the system, the fragmentation domain the curves were extracted
+on and, per segmented curve, its label, its kind, its two files and, for a dataset curve, its
+accession. A consuming code stages the whole run directory and selects the manifest by its
+prefix. Four things to know before writing against it:
 
-```toml
-[system]
-label = "U233_nth"
-notation = "²³³U(nth,f)"
-target_A = 233
-target_Z = 92
-channel = "nth"
-reaction = "n,f"
-incident_energy_MeV = 2.53e-8
-compound_A = 234
-compound_Z = 92
+- **The domain must match.** A code that partitions the excitation energy on another domain does
+  not invert the same relation, and the prompt emission code that reads these curves refuses such
+  a curve.
+- **Read the columns by position, and read `temperature_ratio_file`.** `R_T` is not
+  piecewise-linear where `r_ν` is, so it is tabulated at every mass number; the pivot file holds
+  `r_ν`. The tabulated uncertainties are not independent, so summing them in quadrature
+  understates the uncertainty of any average over them.
+- **The curves are alternatives, not an ensemble.** Take one; `systematic_trend` where a dataset
+  is too sparse or too scattered to resolve the shape.
+- **The default inverts a per-pair partition exactly.** A `ratio_of_means` curve, the published
+  setting, misses that round trip by up to 4 × 10⁻³ in `R_T` at the doubly magic heavy fragment.
 
-[run]
-ordinate = "R_T"
-abscissa = ["A_H"]
-columns = ["A_H", "R_T", "R_T_uncertainty"]
-
-[domain]
-level_density_model = "BSFG"
-deformed_branch = false
-ratio_averaging = "charge_resolved"
-excitation_weighted = true
-charges_per_mass = 5
-charge_model = "Wahl1988(U233T, Z_F = 92, A_F = 234)"
-mass_table = "mass_excess_ame2020.dat"
-package_version = "0.2.3"
-
-[[segmented_curve]]
-label = "K. Nishio 1998"
-kind = "dataset"                   # or "systematic_trend"
-temperature_ratio_file = "R_T_vs_A_H_segmented_22660005_K.Nishio_1998.csv"
-multiplicity_ratio_pivots_file = "r_nu_vs_A_H_pivots_22660005_K.Nishio_1998.csv"
-accession = "22660005"             # EXFOR dataset identifier; dataset curves only
-
-[[segmented_curve]]
-label = "systematic_trend"
-kind = "systematic_trend"
-temperature_ratio_file = "R_T_vs_A_H_segmented_systematic_trend.csv"
-multiplicity_ratio_pivots_file = "r_nu_vs_A_H_pivots_systematic_trend.csv"
-```
-
-What else the run reports about each curve is in `segmented_curves_<run identifier>.csv`, one row
-per manifest curve keyed by the same label, and in `metadata.toml`.
-
-Four things worth knowing before writing against it.
-
-**The domain must match.** `[domain]` records the fragmentation domain the curves were extracted
-on: the level density model and its Gilbert-Cameron branch, the averaging and its excitation
-weighting, the charges per mass, the charge model, the mass table and the version of
-FissionFragmentsDomain.jl. A code that partitions the excitation energy on another domain does not
-invert the same relation, and DeterministicSequentialEmission.jl refuses such a curve.
-
-**Read the columns by position, and read `temperature_ratio_file`.** `columns` says what the three
-columns hold; it is not there to be matched against the header text. `R_T` is not piecewise-linear
-even where the multiplicity ratio is, because the level density parameters carry the shell
-structure into it, so it is tabulated at every mass number and whatever interpolation a consumer
-applies reproduces the tabulated value; the pivot file holds `r_ν`, not `R_T`. The tabulated
-`R_T_uncertainty` is the square root of the diagonal of the propagated covariance of the curve;
-the tabulated points are not independent, so summing their uncertainties in quadrature understates
-the uncertainty of any average over them. `total_average_R_T_<run identifier>.csv` carries the
-covariance-propagated uncertainty of each total average first and the independent-points one
-beside it.
-
-**The curves are alternatives, not an ensemble.** Take one. Which one describes reality is settled
-by running your code with each and comparing what it produces against experiment; that is what
-they are for. `kind = "systematic_trend"`, labelled `systematic_trend`, is the one to take where a
-dataset is too sparse or too scattered to resolve the shape.
-
-**The default inverts a per-pair partition exactly.** A code that forms `a_L/a_H` for every
-fragmentation `(A_H, Z_H)` and applies `R_T(A_H)` to each recovers the measured `r_ν(A_H)` to
-rounding from a `charge_resolved` curve, and from an excitation-weighted one when it weights the
-pairs by their excitation as the measured multiplicities do. A `ratio_of_means` curve, the
-published setting, misses that round trip by up to 4 × 10⁻³ in `R_T` at the doubly magic heavy
-fragment.
-
-`test/test_manifest.jl` is a consumer: it reads a run through FissionFragmentsDomain.jl's reader
-and nothing else, and checks the contract this section describes.
+[Consuming the output](docs/src/consuming.md) gives an abridged manifest and the contract in
+full; `test/test_manifest.jl` is a consumer that checks it.
 
 ## Method
 
@@ -846,119 +409,13 @@ calculation. With one effective ratio `R_a` in place of `ρ_Z` it reduces to the
 `R_T = [(1 - r_ν)/(R_a r_ν)]^(1/2)` of the published method. Because the ratio extracted point by
 point is scattered, it is `r_ν` that is described by a continuous piecewise-linear function whose
 segment count and breakpoints are selected from the data by the Bayesian information criterion,
-and `R_T` follows by the inversion above.
+and `R_T` follows by the inversion above. Constraints that are exact are enforced rather than
+fitted: `r_ν` is pinned to one half at the symmetric split, for every curve whose data reach it,
+and the fitted curve may not leave `(0, 1)`, outside which the relation is undefined.
 
-Constraints that are exact are enforced rather than fitted: `r_ν` is pinned to one half at the
-symmetric split, for every curve whose data reach it, and the fitted curve may not leave `(0, 1)`,
-outside which the relation is undefined. Wahl's charge model has no polarization at the symmetric
-split, so the charges retained there are their own mirror, and `R_T(A₀/2) = 1` follows exactly, as
-an outcome rather than an imposition.
-
-A run produces one segmented curve per experimental dataset, plus a systematic-trend curve fitted
-through all of them with the minimum at the heavy magic fragment placed rather than fitted. These
-are alternatives for a prompt emission code to choose between, not an ensemble to be averaged: the
-datasets of one fissioning nucleus can disagree well beyond their quoted
-uncertainties, and which curve describes reality is settled downstream, by comparing the
-multiplicity distributions and yields the code produces against experiment.
-
-![Method](docs/src/assets/method_chain.png)
-
-From the measured sawtooth to the temperature ratio, on a shared abscissa: the multiplicity of each
-fragment of the pair, the ratio formed from them, and the temperature ratio that follows by the
-exact inversion. No fit and no prompt emission calculation enters any step.
-
-`docs/src/method.md` sets this out in full, with references, including why the charge-resolved
-inversion replaced the ratio of means as the default.
-
-## Validation status
-
-What has been checked, and what has not. Stated explicitly because the method is published and a
-reader's first question is whether this reproduces it.
-
-Verified:
-
-- The exact identity at the symmetric split. `r_ν = 1/2` returns `R_T = 1` to 10⁻¹² on the four
-  shipped domains, weighted and unweighted, as an outcome of the construction rather than an
-  imposition, and a run reports it if it does not.
-- The round trip with the consumer's partition. For every heavy mass of the ²⁵²Cf and ²³⁵U domains
-  and `R_T` of 0.8, 1 and 1.45, the extraction returns `R_T` from the `E*_H/TXE` the shared forward
-  relation gives, to a relative 10⁻¹², weighted and unweighted; with one charge per mass all three
-  averagings reduce to the closed form. The uncertainty propagates with the slope of the inversion,
-  checked against a finite difference, and the fitted curve is continuous at every breakpoint and
-  stays inside the physical range.
-- The shell structure. The level density parameter is suppressed threefold at the doubly magic
-  heavy fragment relative to a mid-shell fragment, which is what gives `R_a(A_H)` its structure.
-- The shape of the result. The segmented `r_ν(A_H)` reproduces the published systematic
-  behaviour — one half at the symmetric split, a minimum near the heavy magic fragment, one half
-  again near the most probable fragmentation, and a near-linear rise above it.
-- **The published total averages, to within 1.0 %, one measurement aside.** The `⟨R_T⟩` of
-  Table 1 of the paper, per `ν(A)` dataset and per `Y(A)` distribution, comes back from
-  independently retrieved archive data (ExforFissionData.jl v0.2.7) with the published settings —
-  the ratio of means over the digitised Gaussian charge tables, or the mean values for ²³³U, on the
-  shared fragmentation domain:
-
-  | System | `Y(A)` | Datasets compared | Largest deviation, published settings | Largest deviation, shipped settings |
-  |---|---|---|---|---|
-  | ²³³U(nth,f) | Surin | 3 of 3 | 1.89 % (Apalin; others 0.41 %) | 2.07 % (Apalin; others 0.21 %) |
-  | ²⁵²Cf(sf) | Göök | 4 of 5 | 0.54 % | 0.79 % |
-  | ²³⁵U(nth,f) | Al-Adili, Straede | 2 of 3 | 1.00 % | 1.34 % |
-  | ²³⁹Pu(nth,f) | Nishio 1995, inferred by agreement | 4 of 5 | 0.68 % | 0.80 % |
-
-  ![Published comparison](docs/src/assets/published_comparison.png)
-
-  The figure shows the shipped settings over the distributions the table names; the shipped
-  configurations average over one primary experiment's `Y(A)` per system, which for ²³³U, ²³⁵U
-  and ²³⁹Pu is not among them.
-
-  The ²³⁹Pu rows are averaged over a distribution inferred by agreement. The published table
-  averages over an experimental distribution its caption does not identify, and over a second that
-  is calculated and cannot be retrieved; over Nishio 1995 the Nishio, Apalin and Zamyatnin `ν(A)`
-  rows come back to within 0.12 % and Fraser to 0.68 %, which identifies that distribution, or one
-  close to it, without confirming it. The fifth row, Tsuchiya 2000, comes back to 0.20 % but is
-  not asserted: the retrieval records its scale as off that of `ν̄` by 3.9 %, which cancels in
-  `r_ν`.
-
-  Apalin's ²³³U masses are given as non-integer values, 52 of them, which the retrieval
-  interpolates onto 69 integers; rounded instead, as an earlier retrieval did, they paired only
-  part of the yield, and the row came back to 0.60 %. The shipped settings — Wahl's 1988 charge
-  model, the charge-resolved inversion weighted by the `⟨TXE⟩` of the configured `⟨TKE⟩(A)`
-  dataset, and `Y(A)` symmetrized — hold every other row to within 1.34 %. Wahl's model moves the
-  ²³³U rows by +0.29 % to +0.37 % from the mean values the paper used there, and the rows of the
-  other systems by less than 0.1 %; the excitation weight moves every row by −0.04 % to −0.15 %;
-  the symmetrization moves those over Göök's and Straede's distributions, the two measured on both
-  wings, by −0.1 % to −0.7 %.
-
-  Table 2 reproduces too for Nishio's ²³³U measurement, the Gilbert-Cameron variant to 0.20 % and
-  the one-charge-per-mass variant to 0.60 %; Apalin's rows move with the interpolation, to 1.25 %
-  and 2.08 %. The remaining datasets could not be compared because the archive query did not return
-  the `ν(A)` measurement the table names.
-- The uncertainty of the total average. The independent-points uncertainty reproduces the
-  published one, ±0.0020 against ±0.0021 for ²³³U Nishio over Surin, and the
-  covariance-propagated uncertainty is ±0.0050, two and a half times larger, because the tabulated
-  points of a fitted curve are not independent. Fraser's sparse ²³³U set carries ±0.25 in the
-  published table; read without uncertainties, as it was retrieved before, it gave ±0.23 here. The
-  retrieval now reads the uncertainties its archive entry quotes at 16 of its 33 masses, and with
-  them the covariance-propagated uncertainty is ±0.059, the independent-points one ±0.019.
-- The suite passes on the declared Julia floor and on the current release.
-- The level density models, against their papers: the back-shifted Fermi gas coefficients, shell
-  correction, pairing term and liquid-drop coefficients of Phys. Rev. C **72**, 044311 (2005) and
-  **80**, 054310 (2009), and the Gilbert-Cameron eqs. (20) and (21) with Table III of
-  Can. J. Phys. **43**, 1446 (1965). Both are FissionFragmentsDomain.jl's, which ships the table
-  and tests the transcription; this package's own implementations, checked against the same
-  sources before they were retired, give the same total averages to 5 × 10⁻⁶ under the published
-  settings.
-
-Not verified:
-
-- The yield distribution of the ²³⁹Pu rows of Table 1, Nishio 1995, which is inferred by
-  agreement rather than named by the paper.
-- The effect of neglecting the back-shift. The level density parameter is taken from a systematic
-  that fits it jointly with a back-shift `E1`, while the extraction rests on the un-shifted
-  `E* = a T²` the method is published under. `E1` differs between the two fragments, so it does not
-  cancel in the ratio; at order ±1 MeV against fragment excitations of 10-20 MeV the effect is
-  expected to be small, but it has not been quantified.
-- The path for a fissioning nucleus of odd mass number is covered only by unit tests; no such case
-  exists in the data.
+[The method](docs/src/method.md) sets this out in full, with references, including the
+combination of datasets, the uncertainty of the trend and why the charge-resolved inversion
+replaced the ratio of means as the default.
 
 ## How to cite
 
@@ -1021,11 +478,11 @@ FissionTemperatureRatio/
 │   └── sims/                       run output, data/sims/<system>/<run identifier>/
 ├── docs/                           Documenter site, own environment
 │   ├── activate.jl
-│   ├── assets.jl                   regenerates the figures the README shows
+│   ├── assets.jl                   regenerates the figures the README and the documentation show
 │   ├── make.jl
 │   ├── Project.toml
-│   └── src/                        index, method, configuration, naming, reference, references; assets/ for figures
-│       └── references.bib          DOI-keyed bibliography of the method page
+│   └── src/                        index, method, validation, configuration, consuming, naming, reference, references; assets/ for figures
+│       └── references.bib          DOI-keyed bibliography of the method and validation pages
 ├── ext/                            weak-dependency extensions
 │   └── FissionTemperatureRatioCairoMakieExt.jl   publication figures, loaded with CairoMakie
 ├── formatter/                      JuliaFormatter environment, version-bounded

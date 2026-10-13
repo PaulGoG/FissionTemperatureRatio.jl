@@ -18,7 +18,9 @@ makedocs(;
     pages = [
         "Home" => "index.md",
         "Method" => "method.md",
+        "Validation" => "validation.md",
         "Configuration" => "configuration.md",
+        "Consuming the output" => "consuming.md",
         "Naming" => "naming.md",
         "Reference" => "reference.md",
         "References" => "references.md",

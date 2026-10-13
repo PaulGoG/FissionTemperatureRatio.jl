@@ -256,6 +256,32 @@ in the manifest, and takes the accession only where two datasets would share it:
 | `manifest_<run>.toml` | what the run produced, for a consuming code |
 | `metadata.toml` | how it was produced: configuration, commit, machine |
 
+The ratio tables have the headers `A_H,r_nu,r_nu_uncertainty` and `A_H,R_T,R_T_uncertainty`, the
+pivot table included; in the point-by-point tables an uncertainty the measurement does not quote is
+an empty field, never zero. `segmented_curves_<run>.csv` has the columns `label, accession, kind,
+pooled, segments, pinned_at_symmetric_split, first_A_H, last_A_H, pairs, measured_points, coverage,
+reduced_chi_squared, chi_squared_over_expectation, weights_imputed, range_mean_R_T,
+range_mean_R_T_uncertainty, deviation_autocorrelation`, all dimensionless;
+`chi_squared_over_expectation` equals `reduced_chi_squared` for a dataset curve, and the last,
+filled for the systematic trend only, is the `ρ` its covariance was formed with.
+`total_average_R_T_<run>.csv` has the columns `segmented_curve, mass_yield, R_T, R_T_uncertainty,
+R_T_uncertainty_independent_points, R_T_uncertainty_leave_one_out, R_T_leave_one_out_min,
+R_T_leave_one_out_max, yield_fraction, R_T_one_more_segment, R_T_two_more_segments`, the three
+leave-one-out columns and the last two filled for the systematic trend only, and
+`R_T_uncertainty_independent_points` being the approximation of the published tables over the
+tabulated points of a curve, which has nothing to do with the correlation between combined points;
+`leave_one_out_<run>.csv` the columns `dataset_left_out, accession, mass_yield, R_T, segments,
+breakpoints, reduced_chi_squared, outcome`, one row per dataset or experiment left out and yield
+distribution, the labels of an experiment joined by ` + ` and its accessions, like the
+breakpoints, separated by spaces; and `dataset_diagnostics.csv` the columns `dataset, accession,
+points, pairs, first_pair, last_pair, coverage, outside_physical_range, symmetry_departure,
+complement_sum, complement_spread, without_uncertainties, qualifiers, pooling_weight, flagged,
+pair_sum_deviation, scale_consistent, pooled, pooled_with, exclusion_reason, segmented_curve,
+curve_flagged, curve_flag_reason`, `segmented_curve` reading "segmented curve" or stating why
+there is none: no complete pair, coverage below the floor, or no fit and the reason.
+[`write_results`](@ref) refuses a run whose identifier would make one of those names longer than
+the 255 bytes a file system admits.
+
 The manifest, the curve table, the total averages and the leave-one-out refits repeat the
 identifier in their names; the per-curve ratio tables do not, and are found through the manifest. A consuming code stages the
 whole run directory and selects the manifest by its `manifest_` prefix, and the token keeps a

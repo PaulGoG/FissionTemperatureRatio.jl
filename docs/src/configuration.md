@@ -63,6 +63,24 @@ The ``\nu(A)`` datasets of the system.
 | `subdirectory` | string | required | a directory under the data directory holding `A nu nu_uncertainty` tables | — | where the datasets are read from, `<system>/nu_vs_A` |
 | `exclude` | array of tables | none | each `{ accession = "…", reason = "…" }`, the accession an EXFOR dataset identifier of 8 or 9 characters naming a dataset of the directory | `excl` | datasets kept out of the pooled trend; each is still read, fitted where its coverage allows, written and diagnosed |
 
+```toml
+[multiplicity]
+subdirectory = "Cf252_sf/nu_vs_A"
+exclude = [
+    { accession = "31845003", reason = "one usable fragment pair in range" },
+]
+```
+
+An excluded dataset is still read, still fitted where its coverage allows, still written and still
+diagnosed. It is excluded from the combination, not from the record.
+
+An exclusion names its dataset by EXFOR accession. A label, `Author year`, takes the accession of
+each dataset as soon as a second one of the same author and year is retrieved, and an exclusion
+written against it would then match neither; the accession does not change. An exclusion that
+names no dataset of the directory is refused when the configuration is loaded.
+`dataset = "<label>"` remains for a tabulation that carries no accession; for a dataset that has
+one it is refused, with the accession to write.
+
 ## `[yield]`, optional
 
 The pre-neutron mass yield distributions the total average ``\langle R_T \rangle`` is taken over.

@@ -60,6 +60,24 @@ reference, and eq. (21) is what corrects them for the deformation of those nucle
 [BrancazioCameron1969](@cite), so both formulas apply by default. `deformed_branch = false`
 applies eq. (20) throughout, the spherical-only setting of Table 2 of [Tudora2024](@cite).
 
+![Method](assets/method_chain.png)
+
+From the measured sawtooth to the temperature ratio, on a shared abscissa: the multiplicity of each
+fragment of the pair, the ratio formed from them, and the temperature ratio that follows by the
+exact inversion. No fit and no prompt emission calculation enters any step.
+
+Gilbert-Cameron, `model = "GC"`, returns for fission fragments markedly larger parameters away from
+closed shells than the back-shifted Fermi gas, with its deformed-nucleus formula where the 1965
+paper prescribes it unless `deformed_branch = false`. Running both bounds a systematic uncertainty
+that the propagated experimental uncertainties do not cover.
+
+![Level density models](assets/level_density_models.png)
+
+The two agree exactly at the symmetric split, where the identity of the fragments forces the ratio
+to one whatever the model, and part across the shell region. Gilbert-Cameron was superseded by the
+back-shifted Fermi gas, so the spread between them is an upper bound on the systematic rather than
+a symmetric error bar.
+
 ## Why the charge-resolved inversion
 
 1. **It is the inverse of what the consumer does.** The Point-by-Point and sequential emission
@@ -197,7 +215,10 @@ is flagged. A flagged curve stays in the manifest: a consuming code selects a cu
 and can read the flag. The test is of the shape of the fitted curve and not of its
 ``\chi^2/\mathrm{dof}``, which has no common scale across datasets; in the shipped runs it runs
 from ``2 \times 10^{-5}`` for a dataset quoting no uncertainties to 26 for one quoting small ones.
-In those runs the flag marks one curve of a single segment and one that rises from its first pair.
+The shipped runs flag Tsuchiya 2000 for ²³⁹Pu, one segment from ``A_H`` = 123, and Fraser 1966 for
+²³³U, which rises from its first pair at ``A_H`` = 126. No ²⁵²Cf or ²³⁵U curve is flagged: Bowman
+1963, Britt 1964 and Mehta 1973 of ²⁵²Cf begin at ``A_H`` = 133, 132 and 135, past the start of the
+window, and do not cover it.
 
 Alongside them it produces a systematic-trend curve, fitted through the whole body of data with
 the minimum at the heavy magic fragment *placed* rather than fitted: `required_windows` in the
@@ -321,8 +342,17 @@ republication is unmarked, nothing is superseded and the members are combined as
 runs, complementary ranges, and members of an experiment whose relation not every member states,
 or two state differently, are combined by the rule a pool is combined with, given above. Each
 member still offers its own segmented curve. In the shipped inputs Basova 1979 and Zamyatnin 1979
-are alternative analyses of one experiment, for ²⁵²Cf and for ²³⁹Pu; their tables differ by 0.34
-and 0.36 neutrons rms.
+are alternative analyses of one experiment, for ²⁵²Cf (EXFOR 41720002 and 41694002) and for ²³⁹Pu
+(41720004 and 41694003); their tables differ by 0.34 and 0.36 neutrons rms.
+
+Pooled as two measurements they would give the ²⁵²Cf trend 5 segments, breakpoints at 130, 137,
+143 and 149, `χ²/dof` = 1.53 and `⟨R_T⟩` = 1.0878; pooled as one it takes 4 segments, breakpoints
+at 130, 136 and 150, `χ²/dof` = 2.02 and `⟨R_T⟩` = 1.0821, and 1.0806 with the experiment left out.
+For ²³⁹Pu, with Nishio 1995 still pooled, the grouping alone keeps 6 segments, with breakpoints
+at 126, 130, 137, 148 and 154 in place of 126, 130, 137, 149 and 154, `χ²/dof` = 0.54 in place of
+0.44 and `⟨R_T⟩` = 1.0113 in place of 1.0268. The shipped ²³⁹Pu pool, which excludes Nishio 1995
+as well, takes 4 segments, breakpoints at 128, 137 and 143, `χ²/dof` = 0.73 and `⟨R_T⟩` = 1.0388,
+and 1.0296 with the experiment left out.
 
 With such factors the fixed-effect weights are ``a = f/\sigma^2`` while a value keeps the variance
 ``\sigma^2``, and the statistic ``Q = \sum a\,(r - \bar{r}_a)^2`` the variance is estimated from
@@ -383,6 +413,15 @@ it is tuned to reject. What can be said about a dataset without reference to the
 usable fragment pairs it has, whether its ratio stays inside ``(0,1)``, whether it satisfies the
 identity at the symmetric split, whether complementary multiplicities sum to the total — is
 reported for every dataset, and exclusions are named explicitly rather than inferred.
+
+The archive itself is the first filter: the retrieval rejects datasets whose reaction code or
+units say they are not the quantity asked for, and records why. The diagnostics here are the
+second, structural filter, and they do catch sloppy data — for ²⁵²Cf the complementary sums
+separate cleanly into sets consistent with the total multiplicity of 3.76 (Alkhazov 3.75, Mehta
+3.72, Budtz-Jørgensen 3.70, Vorobiev 3.83) and sets a tenth high (Basova 4.27, Zamyatnin 4.21,
+Ding Shengyao 4.18, Göök 4.17), which is a normalization discrepancy rather than a measurement
+one. The shipped configurations name four exclusions, each with its reason; `data/README.md` of the
+repository gives the attribution of each.
 
 ## The uncertainty of the trend
 
@@ -504,11 +543,23 @@ delete-one jackknife standard error
 written beside the propagated uncertainty together with the least and the greatest ``\theta_i``;
 it is the last column of the table. A refit that gave no curve is not among the ``k``, and the log
 says so. With two pooled experiments the jackknife is half the difference of the two refits, which
-the log states as well. For ²³⁵U and ²³³U the jackknife exceeds the propagated uncertainty, by
-a factor of 1.4 to 1.5: the datasets differ by offsets the kernel does not hold, most of all for
-²³³U, whose four datasets give ``\langle R_T \rangle`` from 0.98 to 1.18 with one left out. For
-²³⁹Pu the two are about equal, and for ²⁵²Cf, with thirteen experiments, the jackknife is about
-half the propagated uncertainty.
+the log states as well. The least and the greatest ``\langle R_T \rangle`` among the refits are the
+columns `R_T_leave_one_out_min` and `R_T_leave_one_out_max` of the total averages:
+
+| System | `R_T_leave_one_out_min` | `R_T_leave_one_out_max` |
+| :--- | ---: | ---: |
+| ``^{252}``Cf(sf) | 1.0779 | 1.0871 |
+| ``^{235}``U(nth,f) | 1.1112 | 1.1356 |
+| ``^{239}``Pu(nth,f) | 1.0174 | 1.0579 |
+| ``^{233}``U(nth,f) | 0.9808 | 1.1762 |
+
+For ²³⁵U and ²³³U the jackknife uncertainty exceeds the propagated one, by a factor of 1.4 to 1.5,
+0.0222 against 0.0153 and 0.1381 against 0.0936: the datasets differ by offsets the kernel does
+not hold, most of all for ²³³U, four datasets whose trend moves from 0.98 to 1.18 with one of them
+left out. For ²³⁹Pu the two are about equal, 0.0257 against 0.0269; for ²⁵²Cf, with thirteen
+experiments, the jackknife is about half the propagated uncertainty, 0.0085 against 0.0159.
+`run_pipeline(configuration; leave_one_out = false)` skips the refits, which cost one trend fit per
+pooled dataset or experiment.
 
 The curve of a single dataset is fitted with its points taken as independent. For a dataset whose
 masses the retrieval interpolated onto the integers, neighbouring rows share their bracketing

@@ -1,5 +1,5 @@
 # Figures and animations that document the method, written into `docs/src/assets/` and shown in
-# the README. Regenerate with
+# the README and in the documentation pages. Regenerate with
 #
 #     julia docs/assets.jl
 #

@@ -14,6 +14,15 @@ the minor version and a patch release carries none.
 - A configuration page in the documentation, listing every key with its type, bounds, default and
   run-identifier token.
 
+### Changed
+
+- Documentation only. The README is reduced to the entry points, the results at a glance and a
+  short section per topic, each pointing into the documentation. The validation status and the
+  contract a consuming code reads move to the pages Validation and Consuming the output; the
+  attribution of every excluded dataset to `data/README.md`; the columns of the output tables to
+  the naming page; the figures of the method chain and of the level density models to the method
+  page. The consuming code the README named is referred to by what it does.
+
 ### Fixed
 
 - Documentation only. The README's example run identifier carried the token `Y` of a yield

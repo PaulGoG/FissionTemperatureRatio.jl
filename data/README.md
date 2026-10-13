@@ -49,8 +49,15 @@ so the record sits beside the data without interfering.
 
 A run accepts a retrieval record only at or above `[retrieval] min_package_version`, 0.2.7 in the
 shipped configurations and by default, the first version whose records name the datasets of one
-experiment, and refuses one that states no `[run] package_version`. Below it the datasets of an
-experiment would be pooled side by side rather than as one.
+experiment, and refuses one that states no `[run] package_version`; a lower floor can still be set
+explicitly, and a run whose input directories were written by different versions says so in the
+log. Below 0.2.7 the datasets of an experiment would be pooled side by side rather than as one, for
+252-Cf `⟨R_T⟩` = 1.0878 in place of 1.0821; inputs retrieved before 0.2.3 can moreover carry the
+239-Pu multiplicities of Tsuchiya 2000 (22650004) off the scale of their subentry and the 252-Cf
+yields 41425015 and 41425016, which that release refuses. A directory holding no retrieval record,
+a tabulation of one's own for instance, is not judged. A `⟨TKE⟩(A)` dataset is accepted only if a
+run record beside it lists it, and its record — the parser revision that wrote it, the entry, a
+SHA-1 of the whole record — goes into the run metadata.
 
 ## Sources
 
@@ -162,7 +169,13 @@ thermal-neutron sets carry `MXW`, a Maxwellian-averaged spectrum, which is the e
 is not flagged. `preliminary` marks the archive's status code `PRELM`, or a publication that calls
 its results preliminary. Five staged sets carry it: the `ν(A)` of Batenkov 2004 for 235-U
 (41502005) and 239-Pu (41502006), both excluded already and forming no pair, the 235-U `ν(A)` of
-Vorobyev 2010 (41516012), which is pooled, and the 235-U `Y(A)` 417380041 and 417380042.
+Vorobyev 2010 (41516012), which is pooled, and the 235-U `Y(A)` 417380041 and 417380042. For a
+multiplicity read by the retrieval's complement test the record also states the scale of the
+reading, the yield-weighted pair sum against `ν̄`; a dataset it finds off that scale is used, since
+a uniform scale cancels in `r_ν`, and flagged in the log, in the `pair_sum_deviation` and
+`scale_consistent` columns and in the run metadata. A scale error that varies with mass does not
+cancel, and the pair sum cannot see one: the structural diagnostics of the dataset are what bear on
+it.
 
 **Several yield distributions are partial.** Britt 1963 (252-Cf), Bohn 1969 (235-U) and Akimov
 1971 (239-Pu) are measured on the light wing alone, Barreau 1985 (23717005) on the far heavy wing,
@@ -180,29 +193,61 @@ doi:10.1016/j.nima.2003.09.029, and their mean heavy mass, 146.7 and 146.2 u, li
 the 142.9 to 143.6 u of every inclusive measurement. The `ν(A)` of 41425014, from the same
 measurement, has its sawtooth minimum where the others do and is held.
 
-**One 252-Cf multiplicity dataset is kept out of the pool.** Zeynalov 2019 (41739002) is short
-of light-fragment neutrons by 15 to 19 %, its pair sum 3.47 against `ν̄` = 3.76, and its `r_ν` lies
-above every other set over most of `A_H` = 130 to 160. It is coded per fragment, so the retrieval
-forms no pair sum for it and records no scale flag. The shipped configuration excludes it from the
-pooled trend by its accession, with the reason; its own curve is still written. The main README
-gives the attribution.
+**One 252-Cf multiplicity dataset is kept out of the pool.** Zeynalov 2019 (41739002) is excluded
+from the pooled trend by the shipped configuration, by its accession and with the reason. Its `r_ν`
+lies 0.03 to 0.08 above the consensus of the other fourteen sets over `A_H` = 130 to 160, where
+their spread is 0.02, and above every one of them at 25 of those 31 masses. The departure is a
+deficit of light-fragment neutrons. Weighted with Göök's yields, `⟨ν_L⟩` is 1.71 against 2.01 to
+2.12 in Göök 2014, Budtz-Jørgensen 1988, Zeynalov 2011 and Al-Adili 2020, and `⟨ν_H⟩` is 1.76
+against 1.65 to 1.77: the pair sum is 3.47, 8 % below `ν̄`, and the heavy fragments would emit
+half the neutrons. A scale error confined to one wing does not cancel in `r_ν`, and the retrieval
+forms no pair sum for a set coded per fragment, so nothing flags it. The subentry gives
+pre-neutron masses from a twin ionisation chamber with one neutron detector, corrected for energy
+loss, pulse-height defect and background, with statistical uncertainties only; it states no
+selection in `TKE` or angle and no correction for the detection geometry. The paper, *EPJ Web
+Conf.* **211**, 04003 (2019),
+[doi:10.1051/epjconf/201921104003](https://doi.org/10.1051/epjconf/201921104003), presents the
+result as a check of revised analysis software, which corrects the fragment kinetic energies for
+neutron emission, on 0.5 × 10⁶ coincidences of data taken earlier at IRMM. Those energies fix the
+fragment velocities that carry the neutron spectrum into the fragment frame, and a deficit that
+grows with fragment velocity is what an error there produces. Nothing shows it to be the better
+measurement, and the measurement published from IRMM in 2011 (23118006) is pooled. Its own curve
+is still fitted and written. With it in the pool the 252-Cf trend takes 4 segments, with
+`χ²/dof` = 2.16 and `⟨R_T⟩` = 1.0756; without it, 4 segments, 2.02 and 1.0821.
 
-**One 235-U multiplicity dataset is kept out of the pool.** Zeynalov 2019 (41738002), from the
-same paper and analysis, has its pair sum on the scale of `ν̄` but divides it wrongly between the
-wings: over `A_H` = 130 to 150 its light fragments emit 1.02 neutrons against 1.36 to 1.66 in the
-comparable sets, its heavy fragments 1.36 against 1.02 to 1.17. The shipped configuration
-excludes it from the pooled trend by its accession, with the reason; its own curve is still
-written.
+**One 235-U multiplicity dataset is kept out of the pool.** Zeynalov 2019 (41738002), the 235-U
+result of the same paper and analysis, is excluded from the pooled trend by the shipped
+configuration, by its accession and with the reason. Here the total is right and its division
+between the wings is not. Weighted with the Al-Adili 2016 yields over `A_H` = 130 to 150, `⟨ν_L⟩`
+and `⟨ν_H⟩` are 1.02 and 1.36, against 1.36 to 1.66 and 1.02 to 1.17 in Fraser 1966, Nishio 1998,
+Al-Adili 2020 and Vorobyev 2010, so `r_ν` is 0.571 against 0.413 to 0.436 (Apalin 1965: 0.486),
+while the pair sum, 2.39, is on the scale of `ν̄`. At single masses, `ν(112)` = 3.43 against 1.75
+to 2.31 in Nishio, Al-Adili and Vorobyev, and `ν(124)` = 1.24 against 0.36 and 0.47 in the last
+two. Over that range its `r_ν` lies 0.05 to 0.16 above the consensus of the other seven sets,
+whose spread is 0.04, and above every one of them at 19 of the 21 masses. The subentry gives
+pre-neutron masses and statistical uncertainties only. Its own curve is still fitted and written.
+With it in the pool the 235-U trend takes 6 segments, with `χ²/dof` = 0.19 and `⟨R_T⟩` = 1.0743;
+without it, 5 segments, 0.44 and 1.1230.
 
-**One 239-Pu multiplicity dataset is kept out of the pool.** Nishio 1995 (23012008) is not a
-neutron measurement: its `ν(m*)` is the difference of the pre- and post-neutron fragment masses
-of a measurement of the velocities and energies of both fragments, and no neutron is detected.
-Its paper gives the total as 3.2 ± 0.1, about 10 % above the evaluated value, and its correction
-for the plasma delay of the detectors takes the `ν(m*)` of Apalin et al., whose 239-Pu set is
-pooled. Over `A_H` = 130 to 150 its heavy fragments emit 1.68 neutrons against 1.20 to 1.48 in
-Fraser 1966, Tsuchiya 2000, Apalin 1965 and Zamyatnin 1979, its light fragments 1.53 against 1.45
-to 1.57. The shipped configuration excludes it from the pooled trend by its accession, with the
-reason; its own curve is still written. The main README gives the attribution.
+**One 239-Pu multiplicity dataset is kept out of the pool.** Nishio 1995 (23012008) is excluded
+from the pooled trend by the shipped configuration, by its accession and with the reason. Its
+`ν(m*)` is not a neutron measurement. The paper, *J. Nucl. Sci. Technol.* **32**, 404 (1995),
+[doi:10.1080/18811248.1995.9731725](https://doi.org/10.1080/18811248.1995.9731725), measures the
+velocities and the energies of both fragments, takes the pre-neutron mass `m*` from the two
+velocities and the post-neutron mass `m` from the energy and velocity of a fragment, and gives
+`ν(m*) = m* − m`; no neutron is detected, where the other pooled 239-Pu sets count neutrons. It
+states its own total, `⟨ν_total⟩` = 3.2 ± 0.1, "about 10 % larger than the evaluated value of
+JENDL-3", and sets the difference aside as not affecting its argument; the EXFOR table quotes no
+uncertainties. Nor is it independent of a set already pooled: the correction for the plasma delay
+of the detectors is fixed through momentum conservation with the `ν(m*)` of Apalin et al. The
+excess lies on the heavy wing alone. Weighted with the Wagemans 1984 yields over `A_H` = 130 to
+150, `⟨ν_H⟩` is 1.68 against 1.20 to 1.48 in Fraser 1966, Tsuchiya 2000, Apalin 1965 and Zamyatnin
+1979, at a `⟨ν_L⟩` of 1.53 against 1.45 to 1.57; the pair sum is 3.21, 12 % above `ν̄` = 2.88. Mass
+by mass its `ν_H` lies within the range of the other four at `A_H` = 126 to 135 and above all four
+at every mass from 136 to 154. An excess on one wing does not cancel in `r_ν`. Its own curve is
+still fitted and written, and the rows of the published table that rest on it, as a `ν(A)` dataset
+and through its yield distribution, are unaffected. With it in the pool the 239-Pu trend takes 6
+segments, with `χ²/dof` = 0.54 and `⟨R_T⟩` = 1.0113; without it, 4 segments, 0.73 and 1.0388.
 
 **Two 239-Pu multiplicity datasets are off the scale of ν̄.** Tsuchiya 2000 (22650004) and
 Batenkov 2004 (41502006) are read per fragment, with pair sums 3.9 ± 0.6 % above and 10.7 ± 1.3 %
@@ -213,10 +258,13 @@ pair sum cannot see one; by the structural diagnostics of the run, Tsuchiya's pa
 comes from the heavy tail above 154. Tsuchiya's subentry heads its values in percent per fission,
 a miscoding the record states as `unit_miscoded`; they are written as tabulated, in neutrons per
 fragment. Batenkov's datasets for 239-Pu and 235-U lie on a 4-u grid of odd masses, on which no
-mass has its complement at `A₀ = 240` or 236, so neither enters a curve. They are preliminary
-results (*AIP Conf. Proc.* **769**, 1003 (2005), doi:10.1063/1.1945175), are not paired against
-interpolated complements, and the shipped configurations exclude both by accession, with that
-reason.
+mass has its complement at `A₀ = 240` or 236, so neither enters a curve. Each gives 21 masses. The
+paper, *AIP Conf. Proc.* **769**, 1003 (2005),
+[doi:10.1063/1.1945175](https://doi.org/10.1063/1.1945175), presents them as preliminary, with
+statistical uncertainties only, and reports substantial deviations from earlier 235-U data in the
+symmetric region and at the edges of the distribution. They are not paired against interpolated
+complements, and the shipped configurations exclude both by accession, with that reason; the
+exclusions change no result.
 
 **Uncertainties are absent from several multiplicity datasets.** An unquoted uncertainty — an
 absent field, or one that is zero, negative or `NaN` — is read as `missing`, never as zero; such
