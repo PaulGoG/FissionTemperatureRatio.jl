@@ -153,6 +153,9 @@ emission. For 233-U, 22660006 Nishio 1998 and
 **No digitised charge distribution table is held for 233-U.** The published extraction took
 `ΔZ = -0.5`, `σ_Z = 0.6` there, which `charge_distribution_file = "mean"` reproduces. The shipped
 configuration takes Wahl's 1988 parameters for that reaction instead, from FissionFragmentsDomain.jl.
+The published-settings run of the test suite takes the mean values for 233-U whether or not a
+table is staged beside its inputs: over a table, Apalin's row of Table 1 comes back 2.3 % off in
+place of 1.9 %.
 
 **The digitised charge distribution tables carry no edition record.** The
 `charge_distribution_vs_A.dat` tables were assembled by hand from two single-column tables and do

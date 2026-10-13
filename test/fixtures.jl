@@ -89,11 +89,16 @@ end
 
 """
 The settings of the published extraction: the ratio of means over the evaluated Gaussian charge
-tables with `ΔZ(A₀/2) = 0`, or over the mean values where no table is held.
+tables with `ΔZ(A₀/2) = 0`, and for ²³³U over the mean values `ΔZ = −0.5`, `σ_Z = 0.6`, over
+which Table 1 computed its ²³³U rows.
 """
 function published_settings(label::AbstractString)
-    table = joinpath(label, "charge_distribution_vs_A.dat")
-    charge = isfile(joinpath(DATA_DIRECTORY, table)) ? table : "mean"
+    # Table 1 took the mean values for 233-U, not a charge table. No table for 233-U is held here,
+    # but one staged beside the inputs of another copy of the data must not turn the comparison
+    # into one the paper did not make: over such a table Apalin's row comes back 2.3 % off in
+    # place of 1.9 %. The other three systems take their tables, which
+    # `PUBLISHED_TABLES_AVAILABLE` guards.
+    charge = label == "U233_nth" ? "mean" : joinpath(label, "charge_distribution_vs_A.dat")
     return (
         set = Dict(
             "fragmentation" => Dict(
@@ -108,7 +113,11 @@ function published_settings(label::AbstractString)
     )
 end
 
-"The charge tables of the published extraction are held locally for these systems."
+"""
+The charge tables of the published extraction are held locally for these three systems. ²³³U is
+not among them: Table 1 took the mean values there, so its rows need no table, and
+`published_settings` takes `"mean"` for it whether or not one is held.
+"""
 const PUBLISHED_TABLES_AVAILABLE = all(
     isfile(joinpath(DATA_DIRECTORY, s, "charge_distribution_vs_A.dat")) for
     s in ("Cf252_sf", "U235_nth", "Pu239_nth")
