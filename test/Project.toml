@@ -24,13 +24,14 @@ ExplicitImports = "1"
 FissionFragmentsDomain = "0.2.3"
 JET = "0.9, 0.10, 0.11, 0.12"
 StableRNGs = "1"
-# Standard libraries: bounded at "1" so that nothing proposes pinning them to the version of a
-# single Julia release, which would make the declared floor unsatisfiable.
-LinearAlgebra = "1"
+# Standard libraries, in the form CompatHelper and Dependabot write: "<0.0.1" admits the unversioned
+# copy a Julia release ships beside the registered one, "1" the registered one. Never the version
+# of a single Julia release, which would make the declared floor unsatisfiable.
+LinearAlgebra = "<0.0.1, 1"
 Measurements = "2"
-Statistics = "1"
-TOML = "1"
-Test = "1"
+Statistics = "<0.0.1, 1"
+TOML = "<0.0.1, 1"
+Test = "<0.0.1, 1"
 
 [sources]
 FissionFragmentsDomain = {url = "https://github.com/PaulGoG/FissionFragmentsDomain.jl", rev = "v0.2.3"}

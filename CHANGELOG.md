@@ -12,6 +12,10 @@ the minor version and a patch release carries none.
 - Documentation only. The README and the consuming page name
   DeterministicSequentialEmission.jl, now public, as the prompt emission code that refuses a
   curve extracted on another domain.
+- The compatibility bounds of the standard libraries, in every environment, take the form
+  `"<0.0.1, 1"` that CompatHelper and Dependabot write: `<0.0.1` admits the unversioned copy a
+  Julia release ships beside the registered one. On the supported Julia versions every one of
+  them carries a version inside `[1, 2)`, so nothing resolves differently.
 
 ## [0.3.1] - 2026-10-13
 
