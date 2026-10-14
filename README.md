@@ -187,8 +187,8 @@ over the refits with each pooled dataset or experiment left out:
 | ²³⁹Pu(nth,f) | 1.0388 ± 0.0269 | 0.0257 |
 | ²³³U(nth,f) | 1.0724 ± 0.0936 | 0.1381 |
 
-These rest on inputs retrieved by ExforFissionData.jl v0.2.7; v0.2.8 writes the same tables and
-differs in its records alone.
+These rest on inputs retrieved by ExforFissionData.jl v0.4.0, whose tables are those of v0.2.7,
+on which they were first obtained; the releases between differ in their records alone.
 
 ## Figures
 

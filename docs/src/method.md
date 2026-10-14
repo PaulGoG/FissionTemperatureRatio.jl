@@ -511,7 +511,7 @@ expectation ``\chi^2`` is 0.63. That of the ²³⁹Pu trend, 0.73, is 1.29 times
 and the covariance of that trend is scaled by it.
 
 For the four shipped systems, with ``\langle R_T \rangle`` over the primary yield distribution and
-the inputs retrieved by ExforFissionData.jl v0.2.7, as a run writes them: ``\rho``,
+the inputs retrieved by ExforFissionData.jl v0.4.0, the tables of v0.2.7, as a run writes them: ``\rho``,
 ``\chi^2/\mathrm{dof}`` and ``\chi^2/\mathrm{E}[\chi^2]`` in the columns
 `deviation_autocorrelation`, `reduced_chi_squared` and `chi_squared_over_expectation` of the curve
 table, and ``\langle R_T \rangle``, its propagated uncertainty and the jackknife in the columns

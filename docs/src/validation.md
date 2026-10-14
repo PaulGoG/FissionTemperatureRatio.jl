@@ -21,7 +21,8 @@ Verified:
   again near the most probable fragmentation, and a near-linear rise above it.
 - **The published total averages, to within 1.0 %, one measurement aside.** The `⟨R_T⟩` of
   Table 1 of [Tudora2024](@cite), per `ν(A)` dataset and per `Y(A)` distribution, comes back from
-  independently retrieved archive data (ExforFissionData.jl v0.2.7) with the published settings —
+  independently retrieved archive data (ExforFissionData.jl v0.4.0, the tables of v0.2.7) with the
+  published settings —
   the ratio of means over the digitised Gaussian charge tables, or the mean values for ²³³U, on the
   shared fragmentation domain:
 
