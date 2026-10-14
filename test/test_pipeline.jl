@@ -139,7 +139,8 @@ function test_trend_covariance(directory, configuration, result, written)
         @test metadata["segmented_curves"][SYSTEMATIC_TREND_LABEL]["correlated_points"]
         @test !metadata["segmented_curves"]["up"]["correlated_points"]
         @test run_metadata(drifting)["configuration"]["autocorrelation_lags"] == 4
-        # At its default the number of lags is no token of the identifier.
+        # The number of lags enters the identifier through h, at its default as elsewhere.
+        @test run_metadata(drifting)["identifier"]["parameters"]["lags"] == 4
         @test !haskey(run_metadata(drifting)["identifier"]["tokens"], "lags")
         unestimated = run_metadata(result)["result"]["trend_uncertainty"]
         # One type per key: a flag for whether a coefficient could be fitted, and the number
@@ -708,8 +709,20 @@ end
             metadata = run_metadata(result)
             @test metadata["result"]["dataset_outcomes"]["sparse"] ==
                 result.dataset_outcomes["sparse"]
-            @test metadata["identifier"]["tokens"]["cov"] == 0.3
-            @test !haskey(metadata["identifier"]["tokens"], "Ycov")
+            @test metadata["identifier"]["parameters"]["cov"] == 0.3
+            @test !haskey(metadata["identifier"]["parameters"], "Ycov")
+            # The identifier is recomputed from the run's own record, as metadata.toml holds it,
+            # and names the directory a run is written to.
+            named = joinpath(directory, "output", run_identifier(configuration))
+            write_results(result, named)
+            open(joinpath(named, "metadata.toml"), "w") do io
+                return TOML.print(io, metadata; sorted = true)
+            end
+            recorded = TOML.parsefile(joinpath(named, "metadata.toml"))["identifier"]
+            @test run_identifier(recorded["parameters"]) == basename(named)
+            @test recorded["canonical"] == metadata["identifier"]["canonical"]
+            @test FissionTemperatureRatio._hash_token(recorded["canonical"]) ==
+                recorded["tokens"]["h"]
             @test metadata["configuration"]["min_pair_coverage"] == 0.3
             @test metadata["configuration"]["min_package_version"] == "0.2.7"
             # The version of the code that ran, as its project file states it now.
@@ -765,7 +778,7 @@ end
             partial = with_yields.total_average_R_T["partial"]["A. Both 2000"]
             @test partial.yield_fraction ≈ sum(peak, 131:140) / sum(peak, 126:140)
             metadata = run_metadata(with_yields)
-            @test metadata["identifier"]["tokens"]["Ycov"] == 0.3
+            @test metadata["identifier"]["parameters"]["Ycov"] == 0.3
             @test collect(keys(metadata["result"]["mass_yields_not_averaged"])) ==
                 ["C. Tail 2000"]
             @test startswith(
@@ -811,7 +824,7 @@ end
             )
             @test run_metadata(excluding)["result"]["mass_yields_not_averaged"]["B. Light 2000"] ==
                 "excluded by configuration: not inclusive"
-            @test run_metadata(excluding)["identifier"]["hashed"]["Y"]["exclude"] ==
+            @test run_metadata(excluding)["identifier"]["parameters"]["Y"]["exclude"] ==
                 ["10000002"]
 
             # The two floors are separate keys: lowering one leaves the other gate where it was.

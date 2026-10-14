@@ -375,39 +375,56 @@ end
     end
 
     @testset "every result-changing key enters the run identifier" begin
-        # The identifier is built from configuration keys through one exported table. A key
-        # without an entry is an error rather than a silently invented token, and every entry is
-        # used, so the table cannot carry a token for a key the identifier leaves out.
+        # The parameters are keyed through one exported table. A key without an entry is an error
+        # rather than a silently invented short key, and every entry is used, so the table cannot
+        # carry a short key for a key the identifier leaves out.
         with_configuration(MINIMAL_CONFIGURATION) do path, directory
             configuration = load_configuration(path; data_directory = directory)
-            tokens = run_parameters(configuration)
+            parameters = run_parameters(configuration)
             # The Gilbert-Cameron keys change a Gilbert-Cameron result only, the yield source
-            # is a directory or one file, the yield coverage floor needs a yield, and the number
-            # of correlogram lags is a token only away from its default.
+            # is a directory or one file, and the yield coverage floor needs a yield.
             gilbert_cameron = Set(["sc", "def"])
-            @test Set(keys(tokens)) == setdiff(
-                Set(values(RUN_IDENTIFIER_ABBREVIATIONS)),
-                gilbert_cameron,
-                Set(["Yf", "Ycov", "lags"]),
+            @test Set(keys(parameters)) == setdiff(
+                Set(values(RUN_IDENTIFIER_ABBREVIATIONS)), gilbert_cameron, Set(["Yf", "Ycov"])
             )
             other = write_beside(
                 path, replace(MINIMAL_CONFIGURATION, "model = \"BSFG\"" => "model = \"GC\"")
             )
-            gc_tokens = run_parameters(load_configuration(other; data_directory = directory))
-            @test Set(keys(gc_tokens)) == setdiff(
-                Set(values(RUN_IDENTIFIER_ABBREVIATIONS)), Set(["Yf", "Ycov", "lags"])
-            )
-            @test gc_tokens["sc"] == "gc1965"
+            gc_configuration = load_configuration(other; data_directory = directory)
+            gc_parameters = run_parameters(gc_configuration)
+            @test Set(keys(gc_parameters)) ==
+                setdiff(Set(values(RUN_IDENTIFIER_ABBREVIATIONS)), Set(["Yf", "Ycov"]))
+            @test gc_parameters["sc"] == "gilbert_cameron_1965"
             @test allunique(values(RUN_IDENTIFIER_ABBREVIATIONS))
+
+            # Readable are the parameters behind the manifest's [domain] table and dZ0; every
+            # other one enters through h alone.
             identifier = run_identifier(configuration)
-            for token in keys(tokens)
-                @test occursin("$(token)=", identifier)
-            end
+            @test occursin(
+                r"^avg=charge_resolved_chg=wahl_dZ0=false_h=[0-9a-f]{8}_ldm=BSFG_mass=ame2020_nZ=5$",
+                identifier,
+            )
+            gc_identifier = run_identifier(gc_configuration)
+            @test occursin(
+                r"^avg=charge_resolved_chg=wahl_dZ0=false_def=true_h=[0-9a-f]{8}_ldm=GC_mass=ame2020_nZ=5$",
+                gc_identifier,
+            )
             # The system names the directory the identifier sits in, and is not a token.
             @test !occursin("Cf252", identifier)
 
-            # The number of correlogram lags changes the uncertainty of the trend: a token, and
-            # another run, where it is not the default.
+            # The Gilbert-Cameron keys stay out of a back-shifted Fermi gas run's hash.
+            inert = write_beside(
+                path,
+                replace(
+                    MINIMAL_CONFIGURATION,
+                    "model = \"BSFG\"" => "model = \"BSFG\"\ndeformed_branch = false",
+                ),
+            )
+            @test run_identifier(load_configuration(inert; data_directory = directory)) ==
+                identifier
+
+            # The number of correlogram lags changes the uncertainty of the trend: it enters h
+            # at its default as elsewhere, and is no token of its own.
             other = write_beside(
                 path,
                 replace(
@@ -417,12 +434,12 @@ end
             )
             lagged = load_configuration(other; data_directory = directory)
             @test lagged.segments.autocorrelation_lags == 2
-            @test configuration.segments.autocorrelation_lags == 4
+            @test parameters["lags"] == 4
             @test run_parameters(lagged)["lags"] == 2
-            @test run_identifier(lagged) == "$(identifier)_lags=2" ||
-                occursin("_lags=2_", run_identifier(lagged))
+            @test run_identifier(lagged) != identifier
+            @test !occursin("lags", run_identifier(lagged))
 
-            # A list enters as a content hash, so two window sets are two runs.
+            # A list enters in full, so two window sets are two runs.
             other = joinpath(directory, "windows.toml")
             write(
                 other,
@@ -439,10 +456,29 @@ end
             elsewhere = joinpath(directory, "elsewhere")
             mkpath(joinpath(elsewhere, "datasets"))
             cp(joinpath(directory, "mass_excess.dat"), joinpath(elsewhere, "mass_excess.dat"))
-            copy = joinpath(elsewhere, "configuration.toml")
-            write(copy, MINIMAL_CONFIGURATION)
-            @test run_identifier(load_configuration(copy; data_directory = elsewhere)) ==
+            staged = joinpath(elsewhere, "configuration.toml")
+            write(staged, MINIMAL_CONFIGURATION)
+            @test run_identifier(load_configuration(staged; data_directory = elsewhere)) ==
                 identifier
+
+            # Any one parameter changed gives another identifier, under either model.
+            changed(x::Bool) = !x
+            changed(x::Integer) = x + 1
+            changed(x::Real) = x + 0.05
+            changed(x::AbstractString) = x * "x"
+            changed(x::AbstractVector) = isempty(x) ? Any["x"] : x[1:(end - 1)]
+            changed(x::AbstractDict) =
+                merge(x, Dict(first(keys(x)) => changed(x[first(keys(x))])))
+            for reference in (parameters, gc_parameters)
+                for key in keys(reference)
+                    variant = merge(reference, Dict(key => changed(reference[key])))
+                    @test run_identifier(variant) != run_identifier(reference)
+                end
+            end
+            # A readable parameter missing from the record is refused.
+            @test_throws "readable token" run_identifier(delete!(copy(parameters), "nZ"))
+            @test_throws "readable token" run_identifier(delete!(copy(gc_parameters), "def"))
+            @test run_identifier(delete!(copy(parameters), "lags")) != identifier
         end
     end
 
@@ -490,7 +526,7 @@ end
             both = load_configuration(both; data_directory = directory)
             @test both.yield_directory == joinpath(directory, "Y_vs_A")
             @test both.yield_file == configuration.yield_file
-            # One token for the directory, its reference and its exclusions.
+            # One parameter for the directory, its reference and its exclusions.
             @test haskey(run_parameters(both), "Y") && !haskey(run_parameters(both), "Yf")
             unexcluded = write_beside(
                 path,
@@ -584,7 +620,7 @@ end
             @test_throws "yield.min_yield_coverage" load_configuration(
                 out_of_range; data_directory = directory
             )
-            # Without a yield distribution the floor gates nothing and carries no token.
+            # Without a yield distribution the floor gates nothing and is no parameter.
             configuration = load_configuration(path; data_directory = directory)
             @test !haskey(run_parameters(configuration), "Ycov")
         end
@@ -648,11 +684,10 @@ end
     end
 
     @testset "the file names that carry the identifier fit a file system" begin
-        # The longest name a run writes: one of those that repeat the run identifier.
+        # The longest name that repeats the run identifier, which a run keeps within 160 bytes.
         longest_name(identifier) =
             maximum(ncodeunits, FissionTemperatureRatio._identifier_file_names(identifier))
-        # The longest the identifier gets: Gilbert-Cameron, a resonance energy, a ⟨TKE⟩(A)
-        # dataset, exclusions, windows, a coverage floor with two decimals.
+        # The longest the identifier gets: Gilbert-Cameron, with tabulated charges and masses.
         body = replace(
             MINIMAL_CONFIGURATION,
             "target_A = 252\ntarget_Z = 98\nchannel = \"sf\"" => "target_A = 235\ntarget_Z = 92\nchannel = \"nres\"\nincident_energy = 5.8013e-4",
@@ -662,7 +697,7 @@ end
         )
         body = replace(
             body,
-            "model = \"BSFG\"" => "model = \"GC\"\nratio_averaging = \"charge_resolved\"\nmean_kinetic_energy_file = \"TKE_vs_A/1_A.Author_2000.dat\"",
+            "model = \"BSFG\"" => "model = \"GC\"\nratio_averaging = \"charge_resolved\"\nmass_excess_file = \"mass_excess.dat\"\nmean_kinetic_energy_file = \"TKE_vs_A/1_A.Author_2000.dat\"",
         )
         body = replace(
             body,
@@ -677,8 +712,18 @@ end
                 joinpath(directory, "datasets", "41739002_A.Set_1999.dat"),
                 "A nu nu_uncertainty\n126 2.0 0.1\n",
             )
+            write(joinpath(directory, "charges.dat"), "A dZ sigma_Z\n126 -0.5 0.6\n")
+            write(
+                path,
+                replace(
+                    read(path, String),
+                    "charges_per_mass = 5" => "charges_per_mass = 5\ncharge_distribution_file = \"charges.dat\"\nzero_polarization_at_symmetry = true",
+                ),
+            )
             identifier = run_identifier(load_configuration(path; data_directory = directory))
-            @test longest_name(identifier) <= 255
+            @test occursin(r"_chg=[0-9a-f]{8}_dZ0=true_def=true_h=", identifier)
+            @test occursin(r"_mass=[0-9a-f]{8}_", identifier)
+            @test longest_name(identifier) <= 160
         end
         # And every shipped configuration, under either level density model.
         if DATA_AVAILABLE
@@ -695,9 +740,15 @@ end
                         ),
                     )
                     identifier = run_identifier(configuration)
-                    @test longest_name(identifier) <= 255
+                    # The parameters read back as metadata.toml records them give the same
+                    # identifier.
+                    recorded = TOML.parse(
+                        sprint(TOML.print, Dict("parameters" => run_parameters(configuration)))
+                    )
+                    @test run_identifier(recorded["parameters"]) == identifier
                     # The tables and figures of a dataset are named by the stem of its input
-                    # file, and are shorter than any name that carries the identifier.
+                    # file; the longest name a run writes is one of those or one that repeats
+                    # the identifier.
                     stems = [
                         first(splitext(file)) for
                         file in readdir(configuration.multiplicity_directory) if
@@ -706,7 +757,7 @@ end
                     per_dataset = maximum(
                         ncodeunits("r_nu_vs_A_H_segmented_$(stem).csv") for stem in stems
                     )
-                    @test per_dataset < longest_name(identifier)
+                    @test max(per_dataset, longest_name(identifier)) <= 160
                 end
             end
         else

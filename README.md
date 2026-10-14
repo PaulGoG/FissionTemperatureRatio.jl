@@ -358,16 +358,17 @@ environment, as `Manifest.toml`.
 it, so `R_T_vs_A_H_segmented_22660005_K.Nishio_1998.csv` traces to its EXFOR entry and to its
 input by name alone. The label of a curve stays `Author year`, with the accession added only where
 two datasets would share it: it is the display name and the key a consuming code selects a curve
-by. The run identifier is DrWatson's `savename` over every configuration key that changes the
-result, each key abbreviated through `RUN_IDENTIFIER_ABBREVIATIONS`; a list or a path enters as
-the first eight hexadecimal digits of the SHA-1 of its canonical spelling and is written in full
-under `[identifier.hashed]` of `metadata.toml`. For ²³³U:
+by. The run identifier is DrWatson's `savename` over the parameters behind the manifest's
+`[domain]` table, with `dZ0`, and `h`, the first eight hexadecimal digits of the SHA-1 of the
+canonical text of every result-changing configuration key; `metadata.toml` records the parameters
+in full under `[identifier.parameters]` and the text `h` was taken over. For ²³³U:
 
 ```
-AHmax=159_AHmin=117_E=2.53e-8_TKE=a1ad68dc_Ycov=0.3_Yf=ec238a96_Ysym=true_avg=charge_resolved_chg=wahl_cov=0.3_dZ0=false_excl=da39a3ee_ldm=BSFG_mass=ame2020_nZ=5_npts=4_nseg=6_pin=true_span=3_wdat=false_win=b552f081
+avg=charge_resolved_chg=wahl_dZ0=false_h=a72fb8dd_ldm=BSFG_mass=ame2020_nZ=5
 ```
 
-[Naming](docs/src/naming.md) lists the columns of every table and the token of every key.
+[Naming](docs/src/naming.md) lists the columns of every table, and
+[Configuration](docs/src/configuration.md) the short key of every configuration key.
 
 ## Consuming the output
 

@@ -9,19 +9,23 @@ configuration it cannot honour. A key that is absent takes its default; a sectio
 must be present even where every key of it has one. The shipped configurations set every key they
 read, so that the file states what the run honoured.
 
-Every key that changes the result enters the run identifier under the token of the last column,
-through [`RUN_IDENTIFIER_ABBREVIATIONS`](@ref). A list or a path enters as the first eight
-hexadecimal digits of the SHA-1 of its canonical spelling, paths taken relative to the data
-directory, and is written out in full under `[identifier.hashed]` of `metadata.toml`; a table
-FissionFragmentsDomain.jl ships enters by name. The system is not a token, since it names the
-directory the identifier sits in.
+Every key that changes the result is a parameter of the run identifier under the short key of the
+fifth column, through [`RUN_IDENTIFIER_ABBREVIATIONS`](@ref), and is written in full under
+`[identifier.parameters]` of `metadata.toml`, a path relative to the data directory and a table
+FissionFragmentsDomain.jl ships by its name. The identifier shows `ldm`, `avg`, `nZ`, `chg`,
+`mass`, `dZ0` and, in a Gilbert-Cameron run, `def`: the keys behind the `[domain]` table of the
+manifest, and the zero polarization at the symmetric split, which shapes the domain there. A path
+among them appears as the first eight hexadecimal digits of the SHA-1 of its spelling. Every
+parameter, these included, enters the hash `h` of the identifier, taken over the canonical text
+that `metadata.toml` records beside the parameters (see [`run_identifier`](@ref)). The system is
+not a parameter, since it names the directory the identifier sits in.
 
 ## `[system]`, required
 
 What was irradiated. The reaction code, the fissioning nucleus and the system label
 `<symbol><A>_<channel>` are derived from these keys, and the file is named by that label.
 
-| Key | Type | Default | Constraint | Token | Meaning |
+| Key | Type | Default | Constraint | Short key | Meaning |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | `target_A` | integer | required | 2 to 400 | — | mass number of the target nuclide |
 | `target_Z` | integer | required | 1 to 118, below `target_A` | — | charge number of the target nuclide |
@@ -33,7 +37,7 @@ What was irradiated. The reaction code, the fissioning nucleus and the system la
 The heavy-fragment mass range and the charges retained at each mass number. ``A_0`` is the mass
 number of the fissioning nucleus; the symmetric split is ``A_0/2``, rounded up for an odd ``A_0``.
 
-| Key | Type | Default | Constraint | Token | Meaning |
+| Key | Type | Default | Constraint | Short key | Meaning |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | `charges_per_mass` | integer | required | odd, 1 to 15 | `nZ` | charge numbers retained about ``Z_p`` at each mass number |
 | `heavy_mass_min` | integer | the symmetric split | from the symmetric split to ``A_0 - 1`` | `AHmin` | smallest heavy-fragment mass number |
@@ -45,7 +49,7 @@ number of the fissioning nucleus; the symmetric split is ``A_0/2``, rounded up f
 
 The level density parameters and how the inversion averages over the charges.
 
-| Key | Type | Default | Constraint | Token | Meaning |
+| Key | Type | Default | Constraint | Short key | Meaning |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | `model` | string | required | `"BSFG"`, `"GC"` | `ldm` | back-shifted Fermi gas, or Gilbert-Cameron |
 | `mass_excess_file` | string | `"ame2020"` | `"ame2020"`, or the path of a mass-excess table under the data directory | `mass` | the atomic mass evaluation |
@@ -58,7 +62,7 @@ The level density parameters and how the inversion averages over the charges.
 
 The ``\nu(A)`` datasets of the system.
 
-| Key | Type | Default | Constraint | Token | Meaning |
+| Key | Type | Default | Constraint | Short key | Meaning |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | `subdirectory` | string | required | a directory under the data directory holding `A nu nu_uncertainty` tables | — | where the datasets are read from, `<system>/nu_vs_A` |
 | `exclude` | array of tables | none | each `{ accession = "…", reason = "…" }`, the accession an EXFOR dataset identifier of 8 or 9 characters naming a dataset of the directory | `excl` | datasets kept out of the pooled trend; each is still read, fitted where its coverage allows, written and diagnosed |
@@ -86,10 +90,10 @@ one it is refused, with the accession to write.
 The pre-neutron mass yield distributions the total average ``\langle R_T \rangle`` is taken over.
 Without the section the run reports the mean over the fragment mass range alone.
 
-| Key | Type | Default | Constraint | Token | Meaning |
+| Key | Type | Default | Constraint | Short key | Meaning |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | `mass_yield_file` | string | required within the section | the path of a `Y_vs_A` dataset under the data directory | `Yf`, without `subdirectory` | the primary distribution: averaged over alone, or the reference the coverage of every distribution of `subdirectory` is measured against |
-| `subdirectory` | string | none | a directory under the data directory | `Y`, one hash of the directory, the primary and the exclusions | every distribution of the directory to average over in place of the primary alone |
+| `subdirectory` | string | none | a directory under the data directory | `Y`, one table of the directory, the primary and the exclusions | every distribution of the directory to average over in place of the primary alone |
 | `exclude` | array of tables | none | as `[multiplicity] exclude`; refused without `subdirectory` | within `Y` | distributions kept out of every average; each is still read and reported |
 | `symmetrize` | boolean | `true` | — | `Ysym` | ``Y(A)`` and ``Y(A_0 - A)`` averaged where both are measured, the pre-neutron identity |
 | `min_yield_coverage` | real | `0.3` | 0 to 1 | `Ycov` | the share of the primary distribution's heavy-fragment yield a distribution must cover to be averaged over |
@@ -98,7 +102,7 @@ Without the section the run reports the mean over the fragment mass range alone.
 
 The segmented description of ``r_\nu(A_H)``; every key has a default.
 
-| Key | Type | Default | Constraint | Token | Meaning |
+| Key | Type | Default | Constraint | Short key | Meaning |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | `max_segments` | integer | `6` | 1 to 12 | `nseg` | largest segment count examined |
 | `min_points_per_segment` | integer | `4` | 2 to 50 | `npts` | data points a segment must contain |
@@ -107,16 +111,16 @@ The segmented description of ``r_\nu(A_H)``; every key has a default.
 | `required_windows` | array of `[first, last]` | none | ordered integer pairs inside `heavy_mass_min:heavy_mass_max` | `win` | windows the trend curve must break in; `[[128, 132]]` in the shipped configurations |
 | `windows_apply_to_datasets` | boolean | `false` | — | `wdat` | apply the windows to every dataset curve as well |
 | `min_pair_coverage` | real | `0.3` | 0 to 1 | `cov` | the fraction of the range's heavy masses a dataset must pair to offer a curve of its own |
-| `autocorrelation_lags` | integer | `4` | 1 to 8 | `lags`, written only off its default | lags of the deviation correlogram the trend's autocorrelation is fitted to |
+| `autocorrelation_lags` | integer | `4` | 1 to 8 | `lags` | lags of the deviation correlogram the trend's autocorrelation is fitted to |
 
 ## `[retrieval]`, optional
 
-| Key | Type | Default | Constraint | Token | Meaning |
+| Key | Type | Default | Constraint | Short key | Meaning |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | `min_package_version` | string | `"0.2.7"` | a version number | — | the lowest ExforFissionData.jl version whose retrieval records a run accepts; a record below it, or stating none, is refused |
 
 ## `[output]`, required
 
-| Key | Type | Default | Constraint | Token | Meaning |
+| Key | Type | Default | Constraint | Short key | Meaning |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| `significant_digits` | integer | `6` | 1 to 15 | — | significant figures in the tabulated output; it changes the rendering and not the number, so it is no token |
+| `significant_digits` | integer | `6` | 1 to 15 | — | significant figures in the tabulated output; it changes the rendering and not the number, so it is no parameter of the identifier |

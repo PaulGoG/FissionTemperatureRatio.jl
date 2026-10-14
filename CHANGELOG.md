@@ -9,6 +9,28 @@ the minor version and a patch release carries none.
 
 ### Changed
 
+- **Breaking:** the run identifier is short. It shows only the parameters behind the manifest's
+  `[domain]` table, `ldm`, `avg`, `nZ`, `chg`, `mass` and, in a Gilbert-Cameron run, `def`,
+  together with `dZ0`, and `h`, the first eight hexadecimal digits of the SHA-1 of the canonical
+  text of every result-changing parameter, the readable ones included:
+  `avg=charge_resolved_chg=wahl_dZ0=false_h=a72fb8dd_ldm=BSFG_mass=ame2020_nZ=5` for ²³³U, 76
+  characters where 0.3.1 wrote 215. `TKE`, `Yf`, `Y`, `excl`, `win` and the scalar parameters enter
+  `h` and are no longer tokens of their own; `lags` enters it at every value, and the exception
+  that left it out at its default goes with the 255-byte limit it was written for. The
+  Gilbert-Cameron keys stay out of a back-shifted Fermi gas run, as before. Anything that reads
+  parameters from a directory or file name breaks; the parameters of a run are read from its
+  `metadata.toml`. Run directories written by earlier versions are not renamed, and a rerun of
+  an unchanged configuration writes a new directory beside the old one. The tables, the curves
+  and the manifests of the shipped configurations are those of 0.3.1, the identifier in the names
+  of four files and in `metadata.toml` apart.
+- **Breaking:** `run_parameters` returns every parameter in full, a path relative to the data
+  directory, the exclusions as their sorted accessions and the windows as `[first, last]` pairs,
+  where it returned a content hash for a list or a path; a yield directory is one table of the
+  directory, the primary and the exclusions. `[identifier]` in `metadata.toml` holds `tokens`
+  (the readable tokens and `h`), `parameters`, `canonical` (the text `h` was taken over) and
+  `hash_reason`, in place of `tokens`, `hashed` and `hashed_reason`. `run_identifier` takes the
+  parameters as `metadata.toml` records them, so a run's identifier is recomputed from its own
+  record. The column of the configuration page that listed the tokens lists the short keys.
 - Documentation only. The README and the consuming page name
   DeterministicSequentialEmission.jl, now public, as the prompt emission code that refuses a
   curve extracted on another domain.

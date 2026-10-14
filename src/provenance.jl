@@ -4,15 +4,14 @@
 """
     RUN_IDENTIFIER_ABBREVIATIONS
 
-The token each configuration key is written as in a run identifier, keyed by the key's path in
-the configuration file.
+The short key each configuration key is recorded under in [`run_parameters`](@ref), keyed by the
+key's path in the configuration file.
 
-A run-identifier token is the configuration key it came from, so that a directory name can be
-read back into a configuration without consulting the source. Spelling every key out in full
-would put some two hundred characters into every run directory, so the keys are abbreviated —
-and abbreviated **here**, in one exported table, rather than at the point of use. Every key
-[`run_parameters`](@ref) uses has an entry, which the test suite asserts; a key without one is
-an error rather than a silently invented token.
+The run identifier is formed from these short keys: the few behind the fragmentation domain are
+readable tokens of it, and every one enters its hash `h` through the canonical text of the
+parameters (see [`run_identifier`](@ref)). Every key [`run_parameters`](@ref) uses has an entry,
+which the test suite asserts; a key without one is an error rather than a silently invented
+short key.
 """
 const RUN_IDENTIFIER_ABBREVIATIONS = Dict(
     "system.incident_energy" => "E",
@@ -42,26 +41,34 @@ const RUN_IDENTIFIER_ABBREVIATIONS = Dict(
     "segments.autocorrelation_lags" => "lags",
 )
 
-# Keys that change the result of a Gilbert-Cameron run only; a back-shifted Fermi gas run carries
-# no token for them.
+# Keys that change the result of a Gilbert-Cameron run only; a back-shifted Fermi gas run records
+# neither, so neither enters its hash.
 const GILBERT_CAMERON_KEYS = (
     "level_density.shell_correction_file", "level_density.deformed_branch"
 )
 
-# A value that does not reduce to a savename token — a list, a path — enters the identifier as a
-# short content hash, and is written in full into the run metadata with this reason. The hash is
-# of a canonical spelling, so the same content gives the same token on every machine.
-const HASHED_TOKEN_REASON = "a list or a path does not reduce to a savename token; the token is \
-                             the first eight hexadecimal digits of the SHA-1 of its canonical \
-                             spelling, and the value is recorded here in full"
+# The keys that stay readable in the identifier: those behind the [domain] table of the manifest,
+# which a consuming code checks a curve against, and the zero polarization at the symmetric split,
+# which shapes the domain there without being recorded in that table.
+const READABLE_IDENTIFIER_KEYS = (
+    "level_density.model",
+    "level_density.ratio_averaging",
+    "fragmentation.charges_per_mass",
+    "fragmentation.charge_distribution_file",
+    "level_density.mass_excess_file",
+    "fragmentation.zero_polarization_at_symmetry",
+    "level_density.deformed_branch",
+)
+
+# Readable tokens that name an input: a named source by its name, a path by its hash.
+const READABLE_INPUT_TOKENS = ("chg", "mass")
+
+const IDENTIFIER_HASH_REASON = "h is the first eight hexadecimal digits of the SHA-1 of the \
+                                canonical text, every parameter on a line of its own in the \
+                                order of the short keys; a path among the readable tokens is \
+                                written as the same digits of the SHA-1 of its spelling"
 
 _hash_token(canonical::AbstractString) = bytes2hex(sha1(canonical))[1:8]
-
-function _canonical(windows::Vector{UnitRange{Int}})
-    return join(("$(first(w))-$(last(w))" for w in windows), ",")
-end
-_canonical(exclusions::Dict{String,String}) = join(sort!(collect(keys(exclusions))), "\n")
-_canonical(path::AbstractString) = String(path)
 
 # A path relative to the data directory, which is how the configuration spelt it.
 function _relative_input(path::AbstractString, configuration::Configuration)
@@ -71,26 +78,24 @@ end
 """
     run_parameters(configuration) -> Dict{String,Any}
 
-The configuration values that change the result, keyed by the token each contributes to the run
-identifier.
+The configuration values that change the result, in full, keyed by the short key of
+[`RUN_IDENTIFIER_ABBREVIATIONS`](@ref); the run identifier is formed from them and the run
+metadata records them under `[identifier.parameters]`.
 
-Every key is abbreviated through [`RUN_IDENTIFIER_ABBREVIATIONS`](@ref), and a key with no entry
-there throws rather than being given a token on the spot. A value that is a list or a path — the
-required windows, the exclusion list, by accession, a tabulated charge distribution, a mass or
-shell-correction table other than the shipped one, the `⟨TKE⟩(A)` dataset, the yield directory —
-enters as a content-hash token and is written in full into the run metadata, with the reason; a named source
-enters as its name, the shipped Table III as `gc1965`. The Gilbert-Cameron branch and shell
-corrections change a Gilbert-Cameron result only, and are tokens of such a run alone. The yield
-coverage floor is a token of a run that names a yield distribution, and of no other. The number
-of correlogram lags changes the uncertainty of the systematic trend and none of its values; it is
-a token only where it departs from its default of four, since one more token on every run would
-carry the file names of a Gilbert-Cameron run beyond the 255 bytes a file system admits. The
-system is not a token: it names the directory the identifier sits in. `significant_digits` changes how a
-number is rendered, not the number, and is left out.
+A key with no entry in the abbreviation table throws rather than being given a short key on the
+spot. A path is spelt relative to the data directory, so the same inputs staged on another
+machine give the same parameters; a named source enters as its name, an absent input as
+`"none"`. The exclusion list enters as its sorted accessions, the reasons changing nothing; the
+required windows as `[first, last]` pairs. The Gilbert-Cameron branch and shell corrections
+change a Gilbert-Cameron result only, and are parameters of such a run alone. A yield directory
+enters as one table of the directory, the primary distribution that is its coverage reference
+and the distributions excluded from it; a primary distribution alone enters under `Yf`. The
+yield coverage floor is a parameter of a run that names a yield distribution, and of no other.
+The system is not a parameter: it names the directory the identifier sits in.
+`significant_digits` changes how a number is rendered, not the number, and is left out.
 
-The identifier is kept short enough that the file names that carry it stay within the 255 bytes a
-file system admits; the test suite asserts it for every shipped configuration under both level
-density models.
+Every value is one TOML represents, so the table read back from `metadata.toml` gives the same
+identifier through [`run_identifier`](@ref).
 """
 function run_parameters(configuration::Configuration)
     fragmentation = configuration.fragmentation
@@ -102,32 +107,32 @@ function run_parameters(configuration::Configuration)
         "fragmentation.charges_per_mass" => fragmentation.charges_per_mass,
         "fragmentation.heavy_mass_min" => fragmentation.heavy_mass_min,
         "fragmentation.heavy_mass_max" => fragmentation.heavy_mass_max,
-        "fragmentation.charge_distribution_file" => _input_token(
+        "fragmentation.charge_distribution_file" => _input_value(
             fragmentation.charge_distribution, configuration
         ),
         "fragmentation.zero_polarization_at_symmetry" => fragmentation.zero_polarization_at_symmetry,
         "level_density.model" => level_density.model,
-        "level_density.mass_excess_file" => _input_token(
+        "level_density.mass_excess_file" => _input_value(
             level_density.mass_excess_file, configuration
         ),
-        "level_density.shell_correction_file" => _input_token(
+        "level_density.shell_correction_file" => _input_value(
             level_density.shell_correction_file, configuration
         ),
         "level_density.deformed_branch" => level_density.deformed_branch,
         "level_density.ratio_averaging" => level_density.ratio_averaging,
-        "level_density.mean_kinetic_energy_file" => _input_token(
+        "level_density.mean_kinetic_energy_file" => _input_value(
             level_density.mean_kinetic_energy_file, configuration
         ),
-        "multiplicity.exclude" => _hash_token(_canonical(configuration.excluded_datasets)),
-        "yield.subdirectory" => _yield_source_token(configuration),
-        "yield.mass_yield_file" => _input_token(configuration.yield_file, configuration),
+        "multiplicity.exclude" => sort!(collect(keys(configuration.excluded_datasets))),
+        "yield.subdirectory" => _yield_source_value(configuration),
+        "yield.mass_yield_file" => _input_value(configuration.yield_file, configuration),
         "yield.symmetrize" => configuration.symmetrize_yields,
         "yield.min_yield_coverage" => configuration.min_yield_coverage,
         "segments.max_segments" => segments.max_segments,
         "segments.min_points_per_segment" => segments.min_points_per_segment,
         "segments.min_segment_span" => segments.min_segment_span,
         "segments.pin_symmetric_split" => segments.pin_symmetric_split,
-        "segments.required_windows" => _hash_token(_canonical(segments.required_windows)),
+        "segments.required_windows" => [[first(w), last(w)] for w in segments.required_windows],
         "segments.windows_apply_to_datasets" => segments.windows_apply_to_datasets,
         "segments.min_pair_coverage" => segments.min_pair_coverage,
         "segments.autocorrelation_lags" => segments.autocorrelation_lags,
@@ -135,8 +140,8 @@ function run_parameters(configuration::Configuration)
     parameters = Dict{String,Any}()
     for (key, value) in entries
         !gilbert_cameron && key in GILBERT_CAMERON_KEYS && continue
-        # The primary distribution alone carries `Yf`; a directory carries `Y`, one hash of the
-        # directory, the primary that is its coverage reference and the exclusions.
+        # The primary distribution alone enters as `Yf`; a directory enters as `Y`, one table of
+        # the directory, the primary that is its coverage reference and the exclusions.
         directory = configuration.yield_directory !== nothing
         key == "yield.subdirectory" &&
             !directory &&
@@ -146,9 +151,6 @@ function run_parameters(configuration::Configuration)
             (directory || configuration.yield_file === nothing) &&
             continue
         key == "yield.min_yield_coverage" && configuration.yield_file === nothing && continue
-        key == "segments.autocorrelation_lags" &&
-            value == DEFAULT_AUTOCORRELATION_LAGS &&
-            continue
         haskey(RUN_IDENTIFIER_ABBREVIATIONS, key) || throw(
             ArgumentError("no entry in RUN_IDENTIFIER_ABBREVIATIONS for the key $(repr(key))"),
         )
@@ -158,16 +160,8 @@ function run_parameters(configuration::Configuration)
 end
 
 # A configured input: a named source ("wahl", "mean", "ame2020", "gilbert_cameron_1965") by its
-# name, a path as the hash of its spelling relative to the data directory, an absent one as "none".
-# Table III is abbreviated in the identifier, which must stay short; the metadata spells it out.
+# name, a path by its spelling relative to the data directory, an absent one as "none".
 const NAMED_SOURCES = ("wahl", "mean", SHIPPED_MASS_TABLE, SHIPPED_SHELL_CORRECTIONS)
-const NAMED_SOURCE_TOKENS = Dict(SHIPPED_SHELL_CORRECTIONS => "gc1965")
-
-_input_token(::Nothing, ::Configuration) = "none"
-function _input_token(value::AbstractString, configuration::Configuration)
-    value in NAMED_SOURCES && return get(NAMED_SOURCE_TOKENS, value, String(value))
-    return _hash_token(_canonical(_relative_input(value, configuration)))
-end
 
 _input_value(::Nothing, ::Configuration) = "none"
 function _input_value(value::AbstractString, configuration::Configuration)
@@ -175,9 +169,8 @@ function _input_value(value::AbstractString, configuration::Configuration)
     return _relative_input(value, configuration)
 end
 
-# A directory of yield distributions enters the identifier together with the primary that is its
-# coverage reference and the distributions excluded from it: three tokens would overrun the
-# 255 bytes a file name may take.
+# A directory of yield distributions, with the primary that is its coverage reference and the
+# distributions excluded from it, as one parameter; "none" where no directory is read.
 function _yield_source_value(configuration::Configuration)
     configuration.yield_directory === nothing &&
         return _input_value(configuration.yield_directory, configuration)
@@ -185,17 +178,6 @@ function _yield_source_value(configuration::Configuration)
         "subdirectory" => _input_value(configuration.yield_directory, configuration),
         "mass_yield_file" => _input_value(configuration.yield_file, configuration),
         "exclude" => sort!(collect(keys(configuration.excluded_mass_yields))),
-    )
-end
-
-function _yield_source_token(configuration::Configuration)
-    configuration.yield_directory === nothing &&
-        return _input_token(configuration.yield_directory, configuration)
-    directory = _input_value(configuration.yield_directory, configuration)
-    primary = _input_value(configuration.yield_file, configuration)
-    excluded = join(sort!(collect(keys(configuration.excluded_mass_yields))), "\n")
-    return _hash_token(
-        "subdirectory=$(directory)\nmass_yield_file=$(primary)\nexclude=$(excluded)"
     )
 end
 
@@ -219,42 +201,86 @@ function _not_averaged(result::ExtractionResult)
     return reasons
 end
 
-# The values behind every hashed token, in full, for the run metadata.
-function _hashed_values(configuration::Configuration)
-    level_density = configuration.level_density
-    abbreviation(key) = RUN_IDENTIFIER_ABBREVIATIONS[key]
-    return Dict{String,Any}(
-        abbreviation("fragmentation.charge_distribution_file") =>
-            _input_value(configuration.fragmentation.charge_distribution, configuration),
-        abbreviation("level_density.mass_excess_file") =>
-            _input_value(level_density.mass_excess_file, configuration),
-        abbreviation("level_density.shell_correction_file") =>
-            _input_value(level_density.shell_correction_file, configuration),
-        abbreviation("level_density.mean_kinetic_energy_file") =>
-            _input_value(level_density.mean_kinetic_energy_file, configuration),
-        abbreviation("multiplicity.exclude") =>
-            Dict{String,Any}(configuration.excluded_datasets),
-        abbreviation("yield.subdirectory") => _yield_source_value(configuration),
-        abbreviation("yield.mass_yield_file") =>
-            _input_value(configuration.yield_file, configuration),
-        abbreviation("segments.required_windows") =>
-            [[first(w), last(w)] for w in configuration.segments.required_windows],
+"""
+    run_identifier(configuration) -> String
+    run_identifier(parameters::AbstractDict) -> String
+
+The token that names one run of one fissioning system: DrWatson's `savename` over the readable
+tokens and `h`, sorted and joined by `_`.
+
+The readable tokens are the parameters behind the `[domain]` table of the manifest, which a
+consuming code checks a curve against — `ldm`, `avg`, `nZ`, `chg`, `mass`, and `def` for a
+Gilbert-Cameron run — and `dZ0`, which shapes the domain at the symmetric split without being
+recorded in that table. A named charge distribution or mass table appears by its name, a path as
+the first eight hexadecimal digits of the SHA-1 of its spelling. `h` is the first eight
+hexadecimal digits of the SHA-1 of the canonical text of the whole of
+[`run_parameters`](@ref), readable tokens included: one `key=value` line per parameter in the
+order of the keys, strings quoted, integer-valued reals without a decimal part, lists in
+brackets and tables in braces. Every other parameter therefore enters the identifier through
+`h` alone.
+
+Two configurations that differ in any result-changing key give different identifiers, and two
+that agree in all of them give the same one. The second method takes the parameters as
+`metadata.toml` records them under `[identifier.parameters]`, so the identifier of a run is
+recomputed from its own record. The run directory is `data/sims/<system>/<identifier>/`.
+
+# Examples
+```julia
+run_identifier(configuration)
+# "avg=charge_resolved_chg=wahl_dZ0=false_h=…_ldm=BSFG_mass=ame2020_nZ=5"
+```
+"""
+run_identifier(configuration::Configuration) = run_identifier(run_parameters(configuration))
+
+function run_identifier(parameters::AbstractDict)
+    return savename(_identifier_tokens(parameters); connector = "_", val_to_string = _token)
+end
+
+# The tokens of the run identifier: the readable parameters, a path among them as its hash, and
+# h. A missing readable parameter is refused, `def` excepted outside a Gilbert-Cameron run.
+function _identifier_tokens(parameters::AbstractDict)
+    gilbert_cameron =
+        get(parameters, RUN_IDENTIFIER_ABBREVIATIONS["level_density.model"], "") == "GC"
+    tokens = Dict{String,Any}()
+    for key in READABLE_IDENTIFIER_KEYS
+        token = RUN_IDENTIFIER_ABBREVIATIONS[key]
+        !gilbert_cameron && key in GILBERT_CAMERON_KEYS && continue
+        haskey(parameters, token) || throw(
+            ArgumentError("the parameters carry no $(repr(token)) ($(key)), a readable token \
+                           of the run identifier"),
+        )
+        value = parameters[token]
+        tokens[token] = if token in READABLE_INPUT_TOKENS && !(value in NAMED_SOURCES)
+            _hash_token(value)
+        else
+            value
+        end
+    end
+    tokens["h"] = _hash_token(_canonical_parameters(parameters))
+    return tokens
+end
+
+# The canonical text h is taken over. It depends on the values alone, not on how they were read,
+# so the parameters of a configuration and the same parameters read back from metadata.toml give
+# the same text: strings quoted, integer-valued reals without a decimal part, other reals in their
+# shortest round-trip form.
+function _canonical_parameters(parameters::AbstractDict)
+    return join(
+        (
+            "$(key)=$(_canonical_value(parameters[key]))" for
+            key in sort!(collect(keys(parameters)))
+        ),
+        "\n",
     )
 end
 
-"""
-    run_identifier(configuration) -> String
-
-The token that names one run of one fissioning system: DrWatson's `savename` over
-[`run_parameters`](@ref), tokens sorted and joined by `_`, every value rendered by one rule —
-integers and integer-valued reals without a decimal part, everything else as printed.
-
-Two configurations that differ in any result-changing key produce different identifiers, and two
-that agree in all of them produce the same one, so a run can be found again without consulting a
-log. The run directory is `data/sims/<system>/<identifier>/`.
-"""
-function run_identifier(configuration::Configuration)
-    return savename(run_parameters(configuration); connector = "_", val_to_string = _token)
+_canonical_value(x::Bool) = string(x)
+_canonical_value(x::Real) = _token(x)
+_canonical_value(x::AbstractString) = repr(String(x))
+_canonical_value(x::AbstractVector) = "[" * join((_canonical_value(v) for v in x), ",") * "]"
+function _canonical_value(x::AbstractDict)
+    entries = ("$(key)=$(_canonical_value(x[key]))" for key in sort!(collect(keys(x))))
+    return "{" * join(entries, ",") * "}"
 end
 
 _token(x::Bool) = string(x)
@@ -267,7 +293,8 @@ _token(x::Real) = isinteger(x) ? string(Int(round(x))) : string(x)
     run_metadata(result) -> Dict{String,Any}
 
 What the library knows about a run, as nested tables ready for `TOML.print`: the system, every
-configuration value in full, the identifier tokens and the values behind the hashed ones, the
+configuration value in full, the identifier tokens with the parameters and the canonical text
+they were formed from, the
 fragmentation domain as the manifest records it together with the charge model that built it,
 the input files and the retrievals that produced them — the parser revision and the record of the
 `⟨TKE⟩(A)` dataset in particular, with the heavy masses it was interpolated or extrapolated to —
@@ -285,6 +312,7 @@ function run_metadata(result::ExtractionResult)
     level_density = configuration.level_density
     segments = configuration.segments
     relative(path) = path === nothing ? "none" : _relative_input(path, configuration)
+    parameters = run_parameters(configuration)
 
     curves = Dict{String,Any}(
         curve.label => Dict{String,Any}(
@@ -342,10 +370,13 @@ function run_metadata(result::ExtractionResult)
             "min_package_version" => string(configuration.min_retrieval_version),
             "significant_digits" => configuration.output.significant_digits,
         ),
+        # The identifier's tokens, every parameter it was formed from, and the text h was taken
+        # over, so that the identifier is recomputed from this record alone.
         "identifier" => Dict{String,Any}(
-            "tokens" => run_parameters(configuration),
-            "hashed" => _hashed_values(configuration),
-            "hashed_reason" => HASHED_TOKEN_REASON,
+            "tokens" => _identifier_tokens(parameters),
+            "parameters" => parameters,
+            "canonical" => _canonical_parameters(parameters),
+            "hash_reason" => IDENTIFIER_HASH_REASON,
         ),
         # The [domain] table of the manifest, field for field, and what it abbreviates.
         "domain" => Dict{String,Any}(
