@@ -6,8 +6,8 @@ abstract: "Extraction of the temperature ratio of complementary fully accelerate
 authors:
   - family-names: "Gogîță"
     given-names: "Paul-Adrian"
-version: "0.3.1"
-date-released: "2026-10-13"
+version: "0.4.0"
+date-released: "2026-10-14"
 license: MIT
 repository-code: "https://github.com/PaulGoG/FissionTemperatureRatio.jl"
 url: "https://PaulGoG.github.io/FissionTemperatureRatio.jl/stable/"

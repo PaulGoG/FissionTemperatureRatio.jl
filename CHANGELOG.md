@@ -7,6 +7,15 @@ the minor version and a patch release carries none.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-14
+
+The run identifier is short: the parameters of the fragmentation domain, readable, and a hash of
+every result-changing parameter. No result of a run changes: the four shipped configurations give
+the tables, the curves and the manifests of 0.3.1, the identifier in the names of four files and
+in `metadata.toml` apart. The inputs are those of ExforFissionData.jl v0.4.0, whose tables are
+byte-identical to those of v0.2.8 and v0.2.7; its records add keys and reword two conventions and
+the normalisation of a yield, none of which this package reads.
+
 ### Changed
 
 - **Breaking:** the run identifier is short. It shows only the parameters behind the manifest's
@@ -20,9 +29,7 @@ the minor version and a patch release carries none.
   Gilbert-Cameron keys stay out of a back-shifted Fermi gas run, as before. Anything that reads
   parameters from a directory or file name breaks; the parameters of a run are read from its
   `metadata.toml`. Run directories written by earlier versions are not renamed, and a rerun of
-  an unchanged configuration writes a new directory beside the old one. The tables, the curves
-  and the manifests of the shipped configurations are those of 0.3.1, the identifier in the names
-  of four files and in `metadata.toml` apart.
+  an unchanged configuration writes a new directory beside the old one.
 - **Breaking:** `run_parameters` returns every parameter in full, a path relative to the data
   directory, the exclusions as their sorted accessions and the windows as `[first, last]` pairs,
   where it returned a content hash for a list or a path; a yield directory is one table of the
@@ -31,6 +38,8 @@ the minor version and a patch release carries none.
   `hash_reason`, in place of `tokens`, `hashed` and `hashed_reason`. `run_identifier` takes the
   parameters as `metadata.toml` records them, so a run's identifier is recomputed from its own
   record. The column of the configuration page that listed the tokens lists the short keys.
+- Documentation only. The README, the method and validation pages and `data/README.md` name
+  ExforFissionData.jl v0.4.0 as the retrieval behind the quoted results.
 - Documentation only. The README and the consuming page name
   DeterministicSequentialEmission.jl, now public, as the prompt emission code that refuses a
   curve extracted on another domain.
@@ -962,7 +971,8 @@ branch:
   check so a partially present tree failed, and results were overwritten in place with no run
   identifier, commit or hardware record.
 
-[unreleased]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.3.1...HEAD
+[unreleased]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.2.3...v0.3.0
 [0.2.3]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.2.2...v0.2.3
