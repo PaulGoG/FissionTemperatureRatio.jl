@@ -90,14 +90,16 @@ julia scripts/retrieve.jl config/U233_nth_TKE_vs_A.toml /path/to/FissionTemperat
 Check that package out at a named commit before retrieving: the `[run]` table of every
 `retrieval.toml` records the revision and version that wrote it, and a run of this package copies
 that table, for every input directory it reads, into its `metadata.toml`. The results quoted in the
-README rest on the twelve committed configurations of its v0.4.0, `<system>_<observable>.toml`
+README rest on the twelve committed configurations of its v0.5.0, `<system>_<observable>.toml`
 for the four systems and `nu_vs_A`, `Y_vs_A`, `TKE_vs_A`. Every table that retrieval writes is
 byte-identical to that of every release from v0.2.4 on; the records differ. Those of v0.2.7 name
 the datasets of one experiment and carry the `preliminary` qualifier; those of v0.2.8 add the
 qualifier `multiplicity_from_masses` to Nishio 1995 (23012008) and restate the curation of
 Tsuchiya 2000 (22650004); those of v0.4.0 give every yield the keys `unit_subentry` and
 `yield_sum`, restate its `normalisation` in the unit of the file, add the isomer keys to every
-entry and reword the conventions `abscissa_resolution` and `duplicate_abscissa`. This package
+entry and reword the conventions `abscissa_resolution` and `duplicate_abscissa`; those of v0.5.0
+list, per directory, the datasets with lines left out as compilation defects under
+`archive_defect_warning` (14101003 in `Cf252_sf/TKE_vs_A`, which no configuration reads). This package
 reads none of the keys that changed.
 
 Masses the archive gives as non-integer values, digitised or binned, are interpolated onto the

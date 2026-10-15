@@ -10,7 +10,9 @@ the minor version and a patch release carries none.
 FissionFragmentsDomain.jl 0.2.4. The `[domain]` table of a manifest now records whether `ΔZ = 0`
 was imposed at the symmetric split, the choice the identifier's `dZ0` token shows. No result
 changes: the four shipped configurations give the tables, the curves and the manifests of 0.4.0,
-the new key and the package version in the `[domain]` table apart.
+the new key and the package version in the `[domain]` table apart. The inputs are those of
+ExforFissionData.jl v0.5.0, whose 240 tables and stored subentries are byte-identical to those of
+v0.4.0; of its records, one gains a key this package does not read.
 
 ### Changed
 
