@@ -301,8 +301,7 @@ test suite asserts that every key it uses has one.
 Every key that changes the result is a parameter; the system is not, since it names the directory
 the identifier sits in, nor is `significant_digits`, which changes how a number is rendered and not
 the number. Only the parameters behind the `[domain]` table of the manifest are readable in the
-identifier — `ldm`, `avg`, `nZ`, `chg`, `mass`, and `def` in a Gilbert-Cameron run — together with
-`dZ0`, which shapes the domain at the symmetric split without being recorded in that table:
+identifier — `ldm`, `avg`, `nZ`, `chg`, `mass`, `dZ0`, and `def` in a Gilbert-Cameron run:
 
 ```
 avg=charge_resolved_chg=wahl_dZ0=false_h=a72fb8dd_ldm=BSFG_mass=ame2020_nZ=5

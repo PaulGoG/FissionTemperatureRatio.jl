@@ -44,6 +44,12 @@ DATA_AVAILABLE && @testset "the handoff to a consuming code" begin
             @test !manifest.domain.deformed_branch
             @test manifest.domain.charge_model == charge_model_label(result.charge)
             @test startswith(manifest.domain.charge_model, "Wahl1988(U233T")
+            # The symmetric-split choice, written since FissionFragmentsDomain 0.2.4, is the one
+            # the identifier's dZ0 token shows; Wahl's model imposes nothing there.
+            @test manifest.domain.zero_polarization_at_symmetry === false
+            @test TOML.parsefile(path)["domain"]["zero_polarization_at_symmetry"] === false
+            @test occursin("_dZ0=false_", run_identifier(configuration))
+            @test run_metadata(result)["domain"]["zero_polarization_at_symmetry"] === false
         end
 
         @testset "the system is identified without parsing a label" begin

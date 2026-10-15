@@ -32,7 +32,8 @@ excitation_weighted = true
 charges_per_mass = 5
 charge_model = "Wahl1988(U233T, Z_F = 92, A_F = 234)"
 mass_table = "mass_excess_ame2020.dat"
-package_version = "0.2.3"
+package_version = "0.2.4"
+zero_polarization_at_symmetry = false  # absent from manifests written before 0.2.4
 
 [[segmented_curve]]
 label = "K. Nishio 1998"
@@ -55,8 +56,9 @@ Four things worth knowing before writing against it.
 
 **The domain must match.** `[domain]` records the fragmentation domain the curves were extracted
 on: the level density model and its Gilbert-Cameron branch, the averaging and its excitation
-weighting, the charges per mass, the charge model, the mass table and the version of
-FissionFragmentsDomain.jl. A code that partitions the excitation energy on another domain does not
+weighting, the charges per mass, the charge model, the mass table, whether `ΔZ = 0` was imposed
+at the symmetric split and the version of FissionFragmentsDomain.jl. A code that partitions the
+excitation energy on another domain does not
 invert the same relation, and
 [DeterministicSequentialEmission.jl](https://github.com/PaulGoG/DeterministicSequentialEmission.jl), which reads these
 curves, refuses such a curve.

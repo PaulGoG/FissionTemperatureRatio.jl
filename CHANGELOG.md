@@ -7,6 +7,29 @@ the minor version and a patch release carries none.
 
 ## [Unreleased]
 
+FissionFragmentsDomain.jl 0.2.4. The `[domain]` table of a manifest now records whether `ΔZ = 0`
+was imposed at the symmetric split, the choice the identifier's `dZ0` token shows. No result
+changes: the four shipped configurations give the tables, the curves and the manifests of 0.4.0,
+the new key and the package version in the `[domain]` table apart.
+
+### Changed
+
+- FissionFragmentsDomain.jl 0.2.4 is required in every environment. Its manifest writer records
+  `zero_polarization_at_symmetry` in the `[domain]` table: the configured value for a tabulated
+  or a mean charge distribution, `false` for Wahl's model, which sets the polarization at the
+  symmetric split itself; its reader gives `nothing` for a manifest written before. The `[domain]`
+  table of `metadata.toml` takes the key from the manifest record rather than from the
+  configuration. The two agree for every configuration this package accepts, since
+  `zero_polarization_at_symmetry = true` is refused with `"wahl"`, and the test suite asserts
+  that the manifest, the metadata and the `dZ0` token agree, for Wahl's model and for a tabulated
+  distribution with the choice imposed. `Nuclide` hashes by value in 0.2.4, so a quantity summed
+  over a dictionary keyed by nuclides comes out the same from one build to the next.
+  `bounded_fragment_yield`, new in 0.2.4, is not taken up: this package reads `⟨TKE⟩(A)` for the
+  excitation weighting alone and builds no `P(TKE|A,Z)`, and the trend moves by at most
+  2 × 10⁻⁴ under a shift of the whole table by 3 MeV.
+- Documentation only. The statements that `dZ0` is not recorded in the `[domain]` table are
+  corrected, and the example manifest of the consuming page carries the key.
+
 ## [0.4.0] - 2026-10-14
 
 The run identifier is short: the parameters of the fragmentation domain, readable, and a hash of

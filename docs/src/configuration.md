@@ -14,7 +14,7 @@ fifth column, through [`RUN_IDENTIFIER_ABBREVIATIONS`](@ref), and is written in 
 `[identifier.parameters]` of `metadata.toml`, a path relative to the data directory and a table
 FissionFragmentsDomain.jl ships by its name. The identifier shows `ldm`, `avg`, `nZ`, `chg`,
 `mass`, `dZ0` and, in a Gilbert-Cameron run, `def`: the keys behind the `[domain]` table of the
-manifest, and the zero polarization at the symmetric split, which shapes the domain there. A path
+manifest, the zero polarization at the symmetric split among them. A path
 among them appears as the first eight hexadecimal digits of the SHA-1 of its spelling. Every
 parameter, these included, enters the hash `h` of the identifier, taken over the canonical text
 that `metadata.toml` records beside the parameters (see [`run_identifier`](@ref)). The system is

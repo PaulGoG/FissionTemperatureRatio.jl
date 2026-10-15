@@ -511,6 +511,11 @@ end
             @test manifest.domain.charges_per_mass == 5
             @test startswith(manifest.domain.charge_model, "Wahl1988(CF252S")
             @test manifest.domain.mass_table == "mass_excess_ame2020.dat"
+            # The symmetric-split choice is written since FissionFragmentsDomain 0.2.4, and it
+            # is the one the identifier's dZ0 token shows: Wahl's model imposes nothing there.
+            @test manifest.domain.zero_polarization_at_symmetry === false
+            @test run_metadata(result)["domain"]["zero_polarization_at_symmetry"] === false
+            @test occursin("_dZ0=false_", run_identifier(configuration))
             # One row of the curve table per manifest curve, keyed by its label.
             table = CSV.read(written["segmented_curves"], DataFrame)
             @test String.(table.label) == curve_labels(manifest)
@@ -520,11 +525,44 @@ end
             # from no archive records no accession.
             document = TOML.parsefile(written["manifest"])
             @test Set(keys(document)) == Set(["system", "run", "domain", "segmented_curve"])
+            @test document["domain"]["zero_polarization_at_symmetry"] === false
             for entry in document["segmented_curve"]
                 @test Set(keys(entry)) == Set([
                     "label", "kind", "temperature_ratio_file", "multiplicity_ratio_pivots_file"
                 ])
             end
+        end
+
+        @testset "ΔZ = 0 imposed at the symmetric split is recorded as the identifier shows it" begin
+            # A tabulated charge distribution admits the choice, which Wahl's model does not; the
+            # manifest, the run metadata and the dZ0 token agree on it.
+            open(joinpath(directory, "charges.dat"), "w") do io
+                println(io, "A dZ sigma_Z")
+                for A_H in 126:140
+                    println(io, A_H, " -0.5 0.6")
+                end
+            end
+            imposed_path = joinpath(directory, "zero-polarization.toml")
+            write(
+                imposed_path,
+                replace(
+                    PIPELINE_CONFIGURATION,
+                    "charges_per_mass = 5" => "charges_per_mass = 5\ncharge_distribution_file = \"charges.dat\"\nzero_polarization_at_symmetry = true",
+                ),
+            )
+            imposed = load_configuration(imposed_path; data_directory = directory)
+            run = run_pipeline(imposed)
+            written_ = write_results(run, joinpath(directory, "output", "zero-polarization"))
+            manifest = read_temperature_ratio_manifest(written_["manifest"])
+            @test manifest.domain == manifest_domain(run)
+            @test manifest.domain.zero_polarization_at_symmetry === true
+            @test TOML.parsefile(written_["manifest"])["domain"]["zero_polarization_at_symmetry"] ===
+                true
+            @test run_metadata(run)["domain"]["zero_polarization_at_symmetry"] === true
+            @test occursin("_dZ0=true_", run_identifier(imposed))
+            # With ΔZ = 0 imposed, the charge set at the symmetric split is its own complement.
+            @test run.symmetry.charge_set_invariant === true
+            @test run.symmetry.R_T_at_symmetric_split ≈ 1 atol = 1e-12
         end
 
         @testset "a dataset below the coverage floor is pooled but offers no curve" begin

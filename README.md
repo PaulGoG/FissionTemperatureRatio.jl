@@ -124,7 +124,7 @@ julia docs/assets.jl
 
 | Component | State |
 |---|---|
-| Mass table, shell corrections, charge distribution, fragmentation domain, level density parameters | FissionFragmentsDomain.jl v0.2.3 |
+| Mass table, shell corrections, charge distribution, fragmentation domain, level density parameters | FissionFragmentsDomain.jl v0.2.4 |
 | Multiplicity ratio | complete |
 | Temperature ratio: charge-resolved inversion, excitation-weighted by `⟨TKE⟩(A)` | complete; a `⟨TKE⟩(A)` dataset is configured for each of the four systems |
 | Temperature ratio: ratio of means, mean of ratios | complete |
@@ -359,7 +359,7 @@ it, so `R_T_vs_A_H_segmented_22660005_K.Nishio_1998.csv` traces to its EXFOR ent
 input by name alone. The label of a curve stays `Author year`, with the accession added only where
 two datasets would share it: it is the display name and the key a consuming code selects a curve
 by. The run identifier is DrWatson's `savename` over the parameters behind the manifest's
-`[domain]` table, with `dZ0`, and `h`, the first eight hexadecimal digits of the SHA-1 of the
+`[domain]` table, `dZ0` among them, and `h`, the first eight hexadecimal digits of the SHA-1 of the
 canonical text of every result-changing configuration key; `metadata.toml` records the parameters
 in full under `[identifier.parameters]` and the text `h` was taken over. For ²³³U:
 

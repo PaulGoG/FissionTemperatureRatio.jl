@@ -48,8 +48,8 @@ const GILBERT_CAMERON_KEYS = (
 )
 
 # The keys that stay readable in the identifier: those behind the [domain] table of the manifest,
-# which a consuming code checks a curve against, and the zero polarization at the symmetric split,
-# which shapes the domain there without being recorded in that table.
+# which a consuming code checks a curve against, the zero polarization at the symmetric split
+# among them.
 const READABLE_IDENTIFIER_KEYS = (
     "level_density.model",
     "level_density.ratio_averaging",
@@ -209,9 +209,11 @@ The token that names one run of one fissioning system: DrWatson's `savename` ove
 tokens and `h`, sorted and joined by `_`.
 
 The readable tokens are the parameters behind the `[domain]` table of the manifest, which a
-consuming code checks a curve against — `ldm`, `avg`, `nZ`, `chg`, `mass`, and `def` for a
-Gilbert-Cameron run — and `dZ0`, which shapes the domain at the symmetric split without being
-recorded in that table. A named charge distribution or mass table appears by its name, a path as
+consuming code checks a curve against — `ldm`, `avg`, `nZ`, `chg`, `mass`, `dZ0`, and `def` for
+a Gilbert-Cameron run. `dZ0` is the configured zero polarization at the symmetric split; the
+table records the one the domain applied, which is the same, since the configuration refuses the
+choice with Wahl's model, the one charge model that would ignore it. A named charge distribution
+or mass table appears by its name, a path as
 the first eight hexadecimal digits of the SHA-1 of its spelling. `h` is the first eight
 hexadecimal digits of the SHA-1 of the canonical text of the whole of
 [`run_parameters`](@ref), readable tokens included: one `key=value` line per parameter in the
@@ -388,7 +390,7 @@ function run_metadata(result::ExtractionResult)
             "charge_model" => domain.charge_model,
             "mass_table" => domain.mass_table,
             "package_version" => domain.package_version,
-            "zero_polarization_at_symmetry" => fragmentation.zero_polarization_at_symmetry,
+            "zero_polarization_at_symmetry" => domain.zero_polarization_at_symmetry,
             "fragmentations" => length(result.domain),
         ),
         "inputs" => Dict{String,Any}(

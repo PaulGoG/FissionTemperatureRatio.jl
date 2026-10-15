@@ -149,8 +149,9 @@ end
 
 The `[domain]` record of a run: the level density model and its Gilbert-Cameron branch, the
 ratio averaging and its excitation weighting, the charges per mass, the charge model, the mass
-table and the version of FissionFragmentsDomain, as that package spells them. A consuming code
-refuses a curve extracted on a domain other than the one it partitions on.
+table, whether `ΔZ = 0` was imposed at the symmetric split and the version of
+FissionFragmentsDomain, as that package spells them. A consuming code refuses a curve extracted
+on a domain other than the one it partitions on.
 """
 function manifest_domain(result::ExtractionResult)
     return ManifestDomain(
