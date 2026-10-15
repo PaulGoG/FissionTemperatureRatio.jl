@@ -7,6 +7,8 @@ the minor version and a patch release carries none.
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-10-15
+
 FissionFragmentsDomain.jl 0.2.4. The `[domain]` table of a manifest now records whether `ΔZ = 0`
 was imposed at the symmetric split, the choice the identifier's `dZ0` token shows. No result
 changes: the four shipped configurations give the tables, the curves and the manifests of 0.4.0,
