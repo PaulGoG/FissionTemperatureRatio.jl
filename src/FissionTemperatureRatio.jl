@@ -2,8 +2,8 @@
     FissionTemperatureRatio
 
 Extraction of the temperature ratio `R_T = T_L/T_H` of complementary fully accelerated fission
-fragments from experimental prompt neutron multiplicity data, and its parameterization by joined
-straight segments.
+fragments from experimental prompt neutron multiplicity data, described by joined straight
+segments.
 
 Prompt emission model codes that share the total excitation energy at full acceleration take `R_T`
 as input, either as one value for all fragmentations or as a function of the heavy-fragment mass
@@ -56,7 +56,6 @@ module FissionTemperatureRatio
 
 using CSV: CSV
 using DataFrames: DataFrame
-using Dates: Dates
 using DrWatson: datadir, savename
 using FissionFragmentsDomain:
     FissionFragmentsDomain,
@@ -109,21 +108,10 @@ using FissionFragmentsDomain:
     ratio_averaging_label,
     write_temperature_ratio_manifest
 using LinearAlgebra: Symmetric, cond, dot, eigmin, tr
-using Measurements: uncertainty, value
+using Measurements: Measurements
 using SHA: sha1
 using Statistics: mean, median, std
 using TOML: TOML
-
-# `@__DIR__` is resolved when this file is parsed, so the path is always available. `pkgdir` is
-# not: it looks the module up in the loaded-package table, which is not yet populated while the
-# module is still being defined, and returns `nothing` there. The project file is declared a
-# dependency of the compiled module: the version is read when the module is compiled, and a
-# release that changes nothing but the version would otherwise leave the earlier one in the cache
-# and in the metadata of every run.
-include_dependency(joinpath(dirname(@__DIR__), "Project.toml"))
-const PACKAGE_VERSION = VersionNumber(
-    TOML.parsefile(joinpath(dirname(@__DIR__), "Project.toml"))["version"]
-)
 
 include("multiplicity_ratio.jl")
 include("kinetic_energy.jl")
@@ -195,5 +183,18 @@ export run_identifier, run_parameters, run_metadata, RUN_IDENTIFIER_ABBREVIATION
 
 # Figures
 export publication_theme, plot_multiplicities, plot_ratio, save_figure, write_figures
+
+function __init__()
+    Base.Experimental.register_error_hint(MethodError) do io, exception, _, _
+        stubs = (publication_theme, plot_multiplicities, plot_ratio, save_figure, write_figures)
+        if exception.f in stubs &&
+            Base.get_extension(@__MODULE__, :FissionTemperatureRatioCairoMakieExt) === nothing
+            print(io, "\nThe figure functions are supplied by the CairoMakie extension: ")
+            print(io, "`using CairoMakie` first.")
+        end
+        return nothing
+    end
+    return nothing
+end
 
 end

@@ -8,9 +8,9 @@ One extracted temperature ratio: the segmented fit of the multiplicity ratio, th
 ratio derived from it, and the diagnostics of that curve.
 
 A run produces several: one per experimental dataset, and one following the systematic behaviour
-of the ratio. They are alternatives, not an ensemble to be averaged — a prompt emission code takes
-one of them as input, and which one describes reality is settled downstream, by comparing the
-multiplicity distributions and yields that code produces against experiment. The curve a
+of the ratio. They are alternatives; a consuming code takes one, and which one describes reality
+is settled downstream, by comparing the multiplicity distributions and yields that code produces
+against experiment. The curve a
 consuming code reads is the tabulated `R_T`, through the manifest a run writes; it is not this
 object.
 
@@ -113,9 +113,9 @@ The value is that of [`total_average`](@ref) applied to the curve's tabulated te
 The uncertainty differs: the tabulated points are functions of a few fitted coefficients, so the
 ratio term is `wᵀ C w` with `w` the normalized yield weights and `C` the curve's covariance,
 rather than the sum of squares the independent-points form takes. The yield term is unchanged.
-For the curves of the four shipped systems the covariance-propagated uncertainty is two to five
-times the independent-points one, which is the published approximation and remains available as
-`total_average(curve.R_T, yields)`.
+The independent-points uncertainty, which is the published approximation and remains available
+as `total_average(curve.R_T, yields)`, understates the propagated one; the method page
+quantifies the difference for the shipped runs.
 
 Throws as [`total_average`](@ref) does when the curve and the distribution share no mass number.
 """

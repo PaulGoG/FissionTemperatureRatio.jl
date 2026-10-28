@@ -338,14 +338,14 @@ function mean_kinetic_energy_offset(
     numerator = 0.0
     total = 0.0
     masses = Int[]
-    for (A_H, TKE) in energies.values
+    for A_H in sort!(collect(keys(energies.values)))
+        TKE = energies.values[A_H]
         entry = mass_yield(yields, A_H)
         entry === nothing && continue
         numerator += entry[1] * TKE
         total += entry[1]
         push!(masses, A_H)
     end
-    sort!(masses)
     total > 0 || throw(
         ArgumentError("the yield distribution $(repr(yields.label)) covers no heavy mass of \
              $(repr(energies.label))"),
@@ -357,9 +357,9 @@ function mean_kinetic_energy_offset(
     )
     return (;
         mean,
-        standard = value(standard),
-        standard_uncertainty = uncertainty(standard),
-        offset = mean - value(standard),
+        standard = Measurements.value(standard),
+        standard_uncertainty = Measurements.uncertainty(standard),
+        offset = mean - Measurements.value(standard),
         masses,
     )
 end

@@ -78,12 +78,9 @@ const DATASET_MARKERS = [:circle, :rect, :utriangle, :diamond, :dtriangle, :xcro
 dataset_color(index::Integer) = DATASET_COLORS[mod1(index, length(DATASET_COLORS))]
 dataset_marker(index::Integer) = DATASET_MARKERS[mod1(index, length(DATASET_MARKERS))]
 
-# A dataset keeps one colour and one marker across every figure of a run. Indexing by position
-# cannot do that: the multiplicity figure is handed every dataset, the ratio figures only those
-# with a usable ratio, and the fitted curves only those that supported a fit — three lists of
-# different lengths, so position means a different measurement in each. One dataset failing to fit
-# shifted every later curve onto its neighbour's colour. The order of the labels as read is the
-# key instead, and an unknown label falls back to its position.
+# Style index keyed by the order of the labels as read, so a dataset keeps its colour and marker
+# across figures that receive different subsets of the datasets; an unknown label falls back to
+# its position.
 function _style_index(label::AbstractString, order::Vector{String}, fallback::Integer)
     index = findfirst(==(String(label)), order)
     return index === nothing ? fallback : index
@@ -301,8 +298,7 @@ end
 #
 # The anchor is the upper right, the one corner a temperature ratio leaves free: R_T is unity at
 # the symmetric split, peaks near the shell closure and falls below unity towards the heavy wing,
-# so the large-mass, large-ratio corner holds no data in any system. The lower right, where this
-# annotation used to sit, is exactly where the heavy wing descends through it.
+# so the large-mass, large-ratio corner holds no data in any system.
 function _annotate!(
     axis::Axis, annotation; corner::Symbol = :rt, fontsize = ANNOTATION_SIZE, leading = 1.3
 )
@@ -391,12 +387,8 @@ function _fit_annotation(curve)
     return [LaTeXString(count == 1 ? "1 segment" : "$(count) segments"), quality]
 end
 
-# The run's figures. Held here, rather than in the pipeline, so that the pipeline carries no
-# reference to a plotting type; `write_results` calls it through `Base.get_extension`.
-#
-# Three overview figures, and then one pair per dataset that supports a fit: on a single axis the
-# overview cannot show a dozen fitted curves without burying the measurements under them, so each
-# fit is shown against its own data, with the systematic trend beside it for comparison.
+# The figures of a run: three overview figures, then one pair per dataset that supports a fit,
+# each against its own data with the systematic trend beside it.
 function FissionTemperatureRatio.write_figures(
     result::ExtractionResult, directory::AbstractString
 )

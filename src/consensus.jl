@@ -99,19 +99,20 @@ Laird, Control. Clin. Trials **7**, 177 (1986), doi:10.1016/0197-2456(86)90046-2
 w = 1 / (σ² + τ²),    r̄ = Σ w r / Σ w,    σ_r̄ = (Σ w)^(-1/2).
 ```
 
-This is what the pooled curve requires rather than a refinement of it. Concatenating the datasets
-and weighting by the quoted uncertainties alone hands the result to whichever author quoted the
-smallest ones, and counts a dataset with many points more heavily than one with few, neither of
-which is a statement about the measurements. Because the datasets here disagree by ten to twenty
-times their quoted uncertainties, `τ²` dominates, the weights become nearly equal, and the
-uncertainty of the combination reflects the disagreement instead of hiding it.
+Concatenating the datasets and weighting by the quoted uncertainties alone would let the dataset
+with the smallest quoted uncertainties decide the result, and would weight a dataset by its
+number of points. Because the datasets disagree by ten to twenty times their quoted
+uncertainties, `τ²` dominates, the weights become nearly equal, and the uncertainty of the
+combination reflects the disagreement.
 
 Where a mass number has one measurement only, that value and its uncertainty pass through: there
 is no dispersion to estimate. Where none of the values at a mass number carries a quoted
 uncertainty, the mean is taken and the standard error of the values supplies the uncertainty,
 `s/√k` with `s` their standard deviation about it; identical values leave nothing to estimate it
-from, and the combined point then quotes no uncertainty. Points quoting no uncertainty alongside points that
-do are given the median of the latter, as [`fit_weights`](@ref) does.
+from, and the combined point then quotes no uncertainty. Points quoting no uncertainty alongside
+points that do take the median of the quoted uncertainties at that mass number;
+[`fit_weights`](@ref) imputes the median weight instead, which differs from the median
+uncertainty where the quoted count is even.
 
 `weights`, one factor per curve, scales the weight of every value of that curve, in the
 fixed-effect stage and in the combination alike: `w = f/(σ² + τ²)`. A dataset whose masses were
@@ -144,18 +145,9 @@ function consensus(
     return first(_consensus(curves, label, weights))
 end
 
-# The combined curve, the measured fraction of each of its points, the uncertainty each point
-# has as one measurement, and, for each point, the curves combined there with the share of the
-# combination each of them carries. The fraction is the pooling weights of the values combined
-# there, averaged with the weights they were combined with: a point resting on measured values
-# counts as one measurement; one resting on interpolated values, as their share. The standard
-# error of the curve already carries that fraction, as `σ/√f`; the uncertainty of one measurement
-# is the same quantity with the fraction taken out, so that `f/σ²` is the weight of the point
-# however it is split between the two, and a fit that takes both applies the fraction once. The
-# shares are the normalized weights `w/Σw`, which are also the parts of the variance `1/Σw` of
-# the combined value that the curves contribute; `members` indexes `curves`. The weight of a
-# curve is one factor for all its points or one factor per point, as a curve that is itself a
-# combination carries them.
+# The combined curve, the measured fraction of each point, the uncertainty of each point as one
+# measurement, and per point the members combined there, as indices into `curves`, with their
+# shares of the combination.
 function _consensus(curves::Vector{RatioCurve}, label::AbstractString, weights::AbstractVector)
     length(weights) == length(curves) || throw(
         DimensionMismatch("one weight per curve: $(length(weights)) for $(length(curves))")
@@ -223,22 +215,12 @@ function _combine(
     quoted = .!ismissing.(uncertainties)
     if !any(quoted)
         # No value quotes an uncertainty: the weighted mean, with the dispersion s of the values
-        # about it standing for the uncertainty of one of them. s² is estimated with the weights
-        # of the mean, Σ f (r − r̄)² over its expectation in units of s², Σf − Σf²/Σf, which is
-        # the estimate of τ² below for values of no quoted variance; it is the sample variance
-        # where the fractions are equal. The standard error, s/√(Σf), carries the fractions as
-        # σ/√f does for a single value, and the uncertainty of one measurement is the standard
-        # error with the fraction taken out, as in the quoted case.
+        # about it standing for the uncertainty of one of them.
         total = sum(factors)
         μ = sum(factors .* values) / total
         fraction = sum(factors .^ 2) / total
         dispersion = sqrt(sum(factors .* (values .- μ) .^ 2) / (total - fraction))
-        # Identical values leave no dispersion to estimate from. The point then quotes no
-        # uncertainty, as none of its values does, and takes the median weight in a fit; a zero
-        # would claim an exact value. With unequal fractions the weighted mean of identical
-        # values differs from them by rounding, so the dispersion is held against the size of
-        # the values and not against zero: tabulated values that differ at all do so in their
-        # seventh significant digit or before.
+        # Identical values leave no dispersion to estimate from.
         share = factors ./ total
         dispersion > UNRESOLVED_DISPERSION * maximum(abs, values) ||
             return (μ, missing, fraction, missing, share)
@@ -255,11 +237,8 @@ function _combine(
     total = sum(w₀)
     fixed = sum(w₀ .* values) / total
     Q = sum(w₀ .* (values .- fixed) .^ 2)
-    # What Q is expected to be with no variance between the datasets. The weights are f/σ² and
-    # the values have the variance σ², so E[Q] = Σ w₀σ² − Σ w₀²σ²/Σ w₀ = Σ f − Σ w₀f/Σ w₀, which
-    # is k − 1 only where every f is one; the general weights of DerSimonian and Kacker's
-    # method of moments. Taking k − 1 for a pool that holds interpolated datasets underestimates
-    # τ² by about σ²(1 − f)/f.
+    # E[Q] with no between-dataset variance, for the weights f/σ²: Σf − Σ w₀f/Σ w₀ (DerSimonian
+    # and Kacker); k − 1 only where every f is one.
     expected = sum(factors) - sum(w₀ .* factors) / total
     # The estimator is truncated at zero: a Q below its expectation means the datasets agree
     # better than their uncertainties suggest, not that the variance between them is negative.

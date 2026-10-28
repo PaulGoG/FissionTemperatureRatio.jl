@@ -1,12 +1,5 @@
 # Continuous piecewise-linear regression with unknown breakpoints.
 #
-# The multiplicity ratio r_ν(A_H) has a known systematic shape — below one half from the symmetric
-# split to the most probable fragmentation, a minimum at the heavy magic fragment, then an almost
-# linear rise — while the ratio extracted point by point from ν(A) data is scattered and, for some
-# datasets, sparse. Describing the ratio by a small number of joined straight segments imposes
-# that shape, and the temperature ratio obtained from the fitted ratio is smooth enough to serve
-# as tabulated input elsewhere.
-#
 # The model is written in the truncated-power basis
 #
 #   f(x) = β₀ + β₁ (x - x₀) + Σₖ γₖ (x - ψₖ)₊,   (u)₊ = max(u, 0),
@@ -15,6 +8,13 @@
 # and the fit at fixed breakpoints is a single weighted linear least-squares solve which yields
 # the full parameter covariance. See Muggeo, Stat. Med. 22, 3055 (2003), doi:10.1002/sim.1545, for
 # the formulation.
+
+# A design whose Gram matrix is conditioned worse than this is treated as rank-deficient.
+const RANK_CONDITION_LIMIT = 1e10
+# Tolerance on the unit diagonal, the symmetry and the eigenvalues of a correlation matrix.
+const CORRELATION_TOLERANCE = 1e-8
+# Pivots that differ by less than this, relative to their size, describe a flat curve.
+const FLAT_CURVE_TOLERANCE = 1e-12
 
 """
     SegmentedFit
@@ -74,17 +74,31 @@ Number of straight segments of the fit.
 """
 segments(fit::SegmentedFit) = length(fit.breakpoints) + 1
 
+# The truncated-power basis at `x`: `[1,] (x − x₀), (x − ψ₁)₊, …`, the intercept absent for a
+# pinned fit. One row of the design matrix, and the vector a fitted value is propagated through.
+function _basis_row(x::Real, x₀::Integer, ψ::AbstractVector{<:Integer}, pinned::Bool)
+    row = Vector{Float64}(undef, (pinned ? 1 : 2) + length(ψ))
+    index = 1
+    if !pinned
+        row[index] = 1.0
+        index += 1
+    end
+    row[index] = x - x₀
+    for ψₖ in ψ
+        index += 1
+        row[index] = max(x - ψₖ, 0)
+    end
+    return row
+end
+
 function _design_matrix(
     x::AbstractVector{<:Real}, x₀::Integer, ψ::AbstractVector{<:Integer}, pinned::Bool
 )
-    n = length(x)
-    columns = Vector{Vector{Float64}}()
-    pinned || push!(columns, ones(n))
-    push!(columns, Float64[xi - x₀ for xi in x])
-    for ψₖ in ψ
-        push!(columns, Float64[max(xi - ψₖ, 0) for xi in x])
+    X = Matrix{Float64}(undef, length(x), (pinned ? 1 : 2) + length(ψ))
+    for (i, xᵢ) in enumerate(x)
+        X[i, :] .= _basis_row(xᵢ, x₀, ψ, pinned)
     end
-    return reduce(hcat, columns)
+    return X
 end
 
 """
@@ -145,27 +159,20 @@ function fit_weights(σ::AbstractVector{<:Union{Missing,Real}})
     return (w, imputed)
 end
 
-# Weighted least squares at fixed breakpoints. Returns nothing if the design is rank-deficient,
-# which happens when a candidate breakpoint set leaves a segment without enough leverage.
-function _solve(X::Matrix{Float64}, y::Vector{Float64}, w::Vector{Float64})
-    root_w = sqrt.(w)
+# Weighted least squares at fixed breakpoints, on the weighted ordinate `yw = √w .* y`. Returns
+# `nothing` where the design is rank-deficient, as when a breakpoint set leaves a segment
+# without leverage.
+function _solve(X::Matrix{Float64}, yw::Vector{Float64}, root_w::Vector{Float64})
     Xw = root_w .* X
-    yw = root_w .* y
     gram = Xw' * Xw
-    (isfinite(cond(gram)) && cond(gram) < 1e10) || return nothing
+    cond(gram) < RANK_CONDITION_LIMIT || return nothing
     β = Xw \ yw
-    residual = yw .- Xw * β
-    wrss = sum(abs2, residual)
-    return (β, wrss, gram)
+    return (β, gram)
 end
 
-# The factor the coefficient covariance is scaled by: wrss over its expectation, which is the
-# degrees of freedom for independent points. Where the data quote uncertainties the weights are
-# inverse variances and the ratio is a reduced chi-squared: the covariance is inflated where the
-# residuals exceed what the quoted uncertainties predict and left alone where they do not, since
-# shrinking it below the quoted scale would claim a precision the data do not carry. Where no
-# point quotes an uncertainty the weights are uniform and carry no scale at all; the noise is then
-# estimated from the residuals, which is ordinary least squares.
+# wrss over its expectation. With quoted uncertainties the weights are inverse variances, so the
+# covariance is inflated where the residuals exceed the quoted scale and never shrunk below it;
+# with none quoted the weights carry no scale and the ratio alone sets it.
 function _covariance_scale(wrss::Float64, expected::Real, imputed::Int, n::Int)
     imputed == n && return wrss / expected
     return max(1.0, wrss / expected)
@@ -181,15 +188,14 @@ function _correlation_matrix(correlation::AbstractMatrix{<:Real}, n::Int)
         ),
     )
     R = Matrix{Float64}(correlation)
-    tolerance = 1e-8
-    all(abs(R[m, m] - 1) ≤ tolerance for m in 1:n) ||
+    all(abs(R[m, m] - 1) ≤ CORRELATION_TOLERANCE for m in 1:n) ||
         throw(ArgumentError("the diagonal of a correlation matrix is one"))
-    isapprox(R, R'; atol = tolerance) ||
+    isapprox(R, R'; atol = CORRELATION_TOLERANCE) ||
         throw(ArgumentError("a correlation matrix is symmetric"))
-    all(abs(r) ≤ 1 + tolerance for r in R) ||
+    all(abs(r) ≤ 1 + CORRELATION_TOLERANCE for r in R) ||
         throw(ArgumentError("the entries of a correlation matrix lie in [-1, 1]"))
     lowest = eigmin(Symmetric(R))
-    lowest ≥ -tolerance || throw(
+    lowest ≥ -CORRELATION_TOLERANCE || throw(
         ArgumentError(
             "a correlation matrix is positive semi-definite; its smallest eigenvalue is \
              $(lowest)"
@@ -237,17 +243,7 @@ function _within_bounds(
     lower, upper = bounds
     offset = pinned_value === nothing ? 0.0 : Float64(pinned_value)
     for x in Iterators.flatten((first(xs):first(xs), ψ, last(xs):last(xs)))
-        value = offset
-        index = 1
-        if !pinned
-            value += β[index]
-            index += 1
-        end
-        value += β[index] * (x - first(xs))
-        index += 1
-        for (k, ψₖ) in enumerate(ψ)
-            value += β[index + k - 1] * max(x - ψₖ, 0)
-        end
+        value = dot(_basis_row(x, first(xs), ψ, pinned), β) + offset
         (value > lower && value < upper) || return false
     end
     return true
@@ -257,7 +253,8 @@ function _bic(wrss::Float64, n::Real, parameters::Int)
     # Gaussian likelihood with the noise scale estimated from the residuals, plus the Schwarz
     # penalty, Ann. Stat. 6, 461 (1978), doi:10.1214/aos/1176344136. The breakpoints are counted
     # as parameters: they are fitted, and a criterion that ignored them would always prefer more
-    # segments.
+    # segments. On data a model fits exactly, wrss is of rounding size and the criterion
+    # depends on round-off.
     return n * log(wrss / n) + parameters * log(n)
 end
 
@@ -322,9 +319,68 @@ function Base.showerror(io::IO, exception::InsufficientDataError)
     return print(io, "InsufficientDataError: ", exception.msg)
 end
 
+# The running best of one order of the search, mutated in place so that the closure passed to
+# `_each_breakpoint_set` reassigns no captured variable.
+mutable struct _BestModel
+    found::Bool
+    bic::Float64
+    ψ::Vector{Int}
+    β::Vector{Float64}
+    gram::Matrix{Float64}
+    wrss::Float64
+end
+
+# The best model with `count` interior breakpoints by the criterion, or `nothing` where no
+# breakpoint set is admissible. Exhaustive over `candidates`.
+function _best_for_order(
+    xs::Vector{Int},
+    ys::Vector{Float64},
+    w::Vector{Float64},
+    root_w::Vector{Float64},
+    yw::Vector{Float64},
+    candidates::Vector{Int},
+    count::Int,
+    min_points::Int,
+    min_span::Int,
+    windows::Vector{UnitRange{Int}},
+    pinned::Bool,
+    pinned_value::Union{Real,Nothing},
+    bounds::Union{Tuple{Real,Real},Nothing},
+    n_measured::Float64,
+)
+    parameters = (pinned ? 1 : 2) + 2 * count
+    dof = n_measured - parameters
+    dof > 0 || return nothing
+    best = _BestModel(false, NaN, Int[], Float64[], Matrix{Float64}(undef, 0, 0), NaN)
+    _each_breakpoint_set(xs, candidates, count, min_points, min_span, windows) do ψ
+        X = _design_matrix(xs, first(xs), ψ, pinned)
+        solved = _solve(X, yw, root_w)
+        solved === nothing && return nothing
+        β, gram = solved
+        # Counted in measurements: the weights carry each point's measured fraction.
+        wrss = sum(w .* (ys .- X * β) .^ 2)
+        _within_bounds(bounds, xs, ψ, β, pinned, pinned_value) || return nothing
+        criterion = _bic(wrss, n_measured, parameters)
+        # The first admissible candidate is kept whatever its criterion, as before.
+        if !best.found || criterion < best.bic
+            best.found = true
+            best.bic = criterion
+            best.ψ = ψ
+            best.β = β
+            best.gram = gram
+            best.wrss = wrss
+        end
+        return nothing
+    end
+    best.found || return nothing
+    return (
+        ψ = best.ψ, β = best.β, gram = best.gram, wrss = best.wrss, dof = dof, bic = best.bic
+    )
+end
+
 """
-    fit_segments(x, y, σ; max_segments, min_points_per_segment, min_segment_span, pinned_value,
-                 required_windows, bounds) -> SegmentedFit
+    fit_segments(x, y, σ; max_segments, min_segments, min_points_per_segment, min_segment_span,
+                 pinned_value, required_windows, bounds, measured, correlation) -> SegmentedFit
 
 Fit `y(x)` by a continuous piecewise-linear function, selecting both the number of segments and
 the breakpoint positions from the data.
@@ -355,10 +411,9 @@ for correlated ones, `P` being the residual projector of the weighted fit.
 - `min_points_per_segment`: smallest number of data points a segment may contain; the
   identifiability guard on the search.
 - `min_segment_span`: smallest extent of a segment in units of the abscissa, from its first
-  pivot to its last, `1` by default. The point count bounds how much data a segment rests on and
-  the span bounds how short a feature it may assert; at four points per segment on consecutive
-  mass numbers the two coincide at three mass units, so the span guard acts where the abscissae
-  repeat or the point count is set lower.
+  pivot to its last, `1` by default. On distinct consecutive abscissae a segment of
+  `min_points_per_segment` points already spans `min_points_per_segment − 1` units, so the span
+  guard binds only where it exceeds that or where abscissae repeat.
 - `pinned_value`: when given, the fit is constrained to pass through `(first(x), pinned_value)`.
   For the multiplicity ratio of a fissioning nucleus of even mass number this is exact at the
   symmetric split, where the two fragments are identical and the ratio is one half.
@@ -414,7 +469,7 @@ julia> fit.breakpoints
  130
 ```
 
-[`pivots`](@ref) returns the joined points, which is the form the parameterization is supplied in:
+[`pivots`](@ref) returns the joined points, the form in which the fit is supplied:
 
 ```jldoctest fit
 julia> [(x, round(value; digits = 3)) for (x, value) in pivots(fit)]
@@ -470,15 +525,15 @@ function fit_segments(
                              min_points_per_segment = $(min_points_per_segment)"))
 
     xs = collect(Int, x)
-    ys = collect(Float64, y)
-    pinned && (ys = ys .- pinned_value)
+    ys = pinned ? collect(Float64, y) .- Float64(pinned_value) : collect(Float64, y)
     w, imputed = fit_weights(σ)
     # The measured fraction enters here and nowhere else: one weight f/σ² for the solve, for χ²
     # and for the information matrix.
     w .*= fraction
-    # Several datasets of one fissioning nucleus contribute points at the same mass number, so
-    # the abscissae repeat. Breakpoints are positions, not points: the candidates are the distinct
-    # interior mass numbers.
+    root_w = sqrt.(w)
+    yw = root_w .* ys
+    # Abscissae may repeat, as when several datasets are concatenated. Breakpoints are
+    # positions, not points: the candidates are the distinct interior abscissae.
     distinct = unique(xs)
     length(distinct) ≥ 3 || throw(
         InsufficientDataError(
@@ -497,33 +552,22 @@ function fit_segments(
         count ≤ length(candidates) || break
         n ≥ (count + 1) * min_points_per_segment || break
 
-        best_for_order = nothing
-        _each_breakpoint_set(
+        best_for_order = _best_for_order(
             xs,
+            ys,
+            w,
+            root_w,
+            yw,
             candidates,
-            count,
+            Int(count),
             min_points_per_segment,
             Int(min_segment_span),
             required_windows,
-        ) do ψ
-            X = _design_matrix(xs, first(xs), ψ, pinned)
-            solved = _solve(X, ys, w)
-            solved === nothing && return nothing
-            β, _, gram = solved
-            parameters = length(β) + length(ψ)
-            # Counted in measurements: the weights carry each point's measured fraction.
-            wrss = sum(w .* (ys .- X * β) .^ 2)
-            dof = n_measured - parameters
-            dof > 0 || return nothing
-            _within_bounds(bounds, xs, ψ, β, pinned, pinned_value) || return nothing
-            criterion = _bic(wrss, n_measured, parameters)
-            if best_for_order === nothing || criterion < best_for_order.bic
-                best_for_order = (
-                    ψ = ψ, β = β, gram = gram, wrss = wrss, dof = dof, bic = criterion
-                )
-            end
-            return nothing
-        end
+            pinned,
+            pinned_value,
+            bounds,
+            n_measured,
+        )
 
         best_for_order === nothing && continue
         push!(selection, (count + 1, best_for_order.bic))
@@ -535,10 +579,12 @@ function fit_segments(
     best === nothing && throw(
         InsufficientDataError(
             "no piecewise-linear model satisfies the constraints: $(n) points, \
+             $(length(distinct)) distinct abscissae, \
              max_segments = $(max_segments), \
              min_points_per_segment = $(min_points_per_segment), \
              min_segment_span = $(min_segment_span), \
-             required_windows = $(required_windows)"
+             required_windows = $(required_windows), \
+             pinned_value = $(pinned_value), bounds = $(bounds)"
         ),
     )
 
@@ -566,13 +612,7 @@ end
 
 # The basis vector at `x`: the row of the design matrix a point there would contribute.
 function _basis(fit::SegmentedFit, x::Real)
-    j = Float64[]
-    fit.pinned_value === nothing && push!(j, 1.0)
-    push!(j, x - fit.x₀)
-    for ψ in fit.breakpoints
-        push!(j, max(x - ψ, 0))
-    end
-    return j
+    return _basis_row(x, fit.x₀, fit.breakpoints, fit.pinned_value !== nothing)
 end
 
 """
@@ -627,7 +667,7 @@ function covariance(fit::SegmentedFit, xs::AbstractVector{<:Real})
 end
 
 """
-    evaluate(fit, x_range) -> RatioCurve
+    evaluate(fit, x_range; label) -> RatioCurve
 
 Evaluate the fit over a range of integer abscissae, returning a curve with propagated
 uncertainties and the label `label`.
@@ -651,8 +691,7 @@ end
 The fit as a list of joined points, `(x, value)` at the start of the range, at every breakpoint,
 and at the end.
 
-This is the representation a piecewise-linear parameterization is normally supplied in, and the
-form written to the segment output file.
+The form a piecewise-linear curve is supplied in, and the one written to the pivot table.
 """
 function pivots(fit::SegmentedFit)
     abscissae = [fit.x₀; fit.breakpoints; fit.x_max]
@@ -678,7 +717,7 @@ function unresolved_minimum(fit::SegmentedFit)
     any(j -> values[j] < values[j - 1] && values[j] < values[j + 1], 2:(m - 1)) &&
         return nothing
     # Flat to rounding: a fitted line through equal values has a slope of rounding size.
-    maximum(values) - minimum(values) ≤ 1e-12 * max(1.0, maximum(abs, values)) &&
+    maximum(values) - minimum(values) ≤ FLAT_CURVE_TOLERANCE * max(1.0, maximum(abs, values)) &&
         return "no interior minimum: the segmented ratio is flat between A_H = $(fit.x₀) and \
                 $(fit.x_max)"
     lowest = argmin(values)

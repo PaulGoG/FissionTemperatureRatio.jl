@@ -68,16 +68,14 @@ written to disk by [`write_results`](@ref).
 - `r_ν`, `R_T`: the multiplicity and temperature ratios extracted point by point from each
   dataset.
 - `masses`, `model`, `charge`, `domain`: the mass table, the level density model, the charge
-  distribution and the fragmentation domain built from them, all FissionFragmentsDomain's, which
-  the consuming emission code partitions on too.
+  distribution and the fragmentation domain built from them, all FissionFragmentsDomain's.
 - `averaging`: how the relation between `R_T` and `E*_H/TXE` was reduced over the charge
   distribution, with the excitation weights where a `⟨TKE⟩(A)` dataset was given.
 - `mean_kinetic_energy`: that dataset carried onto the heavy-mass range, or `nothing`.
 - `qualifiers`: the reaction-code qualifiers the retrieval recorded for each multiplicity dataset,
   keyed by label.
 - `segmented_curves`: one [`ExtractedCurve`](@ref) per dataset that supports a fit and reaches the
-  coverage floor, followed by the systematic-trend curve. Alternatives offered to a prompt
-  emission code, not an ensemble.
+  coverage floor, followed by the systematic-trend curve. A consuming code takes one of them.
 - `range_mean_R_T`: for each segmented curve, the mean of its temperature ratio over its mass
   range with the uncertainty propagated through the curve's covariance; see [`range_mean`](@ref)
   for why this is not the total average.
@@ -642,14 +640,10 @@ function run_pipeline(configuration::Configuration; leave_one_out::Bool = true)
         @info "dataset curve flagged" dataset = c.label reason
     end
 
-    # One curve following the systematic behaviour of the ratio: the minimum at the heavy magic
-    # fragment placed rather than fitted, and the rise above the most probable fragmentation taken
-    # through the whole body of data, so its slope falls between those of the individual datasets.
-    # This is the curve to use where a dataset is too sparse or too scattered to determine the
-    # shape on its own.
-    # Datasets named in the configuration are kept out of the pooling but not out of the run: they
-    # are still fitted, written and diagnosed, so an exclusion is visible rather than a silent
-    # absence. An exclusion names its dataset by EXFOR accession.
+    # The systematic trend: the minimum at the heavy magic fragment placed by the required
+    # windows, the rise above the most probable fragmentation fitted through the pooled data.
+    # Datasets the configuration excludes stay out of the pool but are still fitted, written and
+    # diagnosed.
     candidates = _candidates(configuration, datasets, r_ν)
     isempty(candidates) && throw(
         ArgumentError("every usable dataset is excluded from the pooling by configuration")
@@ -1241,7 +1235,7 @@ function _symmetry_diagnostics(
     end
 
     R_T_symmetric = missing
-    if iseven(A₀) && (A₀ ÷ 2) in domain.heavy_masses
+    if has_symmetric_split(configuration) && (A₀ ÷ 2) in domain.heavy_masses
         value = temperature_ratio(averaging, model, domain, A₀ ÷ 2, 0.5)
         if value !== nothing
             R_T_symmetric = value
@@ -1273,8 +1267,8 @@ end
 # The run record a consuming code reads: the system, the quantity tabulated, the domain the curves
 # were extracted on, and for every segmented curve its label, its kind, the two files it is
 # tabulated in and, for a dataset curve, its archive accession, written by FissionFragmentsDomain's
-# writer and nothing besides. What else a run
-# knows about each curve is in the segmented-curves table and in the run metadata.
+# writer and nothing besides. What else a run knows about each curve is in the segmented-curves
+# table and in the run metadata.
 function _write_manifest(
     result::ExtractionResult,
     directory::AbstractString,
@@ -1318,11 +1312,6 @@ function _write_manifest(
     return write_temperature_ratio_manifest(path, manifest)
 end
 
-function _summarize_range(masses::Vector{Int})
-    isempty(masses) && return "none"
-    return "$(first(masses)):$(last(masses)) ($(length(masses)) mass numbers)"
-end
-
 # A ratio table: the abscissa, the quantity, then its uncertainty. The quantity names its own
 # column, so a reader holding the file knows what is in it without consulting the file name. An
 # unquoted uncertainty is an empty field, never a zero, which would denote an exact value.
@@ -1353,13 +1342,13 @@ rest, writes `metadata.toml`, and calls [`write_figures`](@ref).
 The manifest, `manifest_<run identifier>.toml`, is the contract with a consuming code, which
 stages the whole directory and selects the manifest by that prefix; it holds the system, the
 domain and, per segmented curve, the label, the kind, the two files and the accession of a dataset
-curve, and nothing else. What else
-a run reports about each curve — segments, pin, span, pairs, coverage, reduced chi-squared, range
-mean — is one row per manifest curve, keyed by its label, in `segmented_curves_<run
-identifier>.csv`; the total averages are in `total_average_R_T_<run identifier>.csv`, and the
-trend refitted with each pooled dataset left out, where the run made those refits, in
-`leave_one_out_<run identifier>.csv`. `dataset_diagnostics.csv` flags, with the reason, every
-dataset curve that resolves no minimum over a range covering a required window.
+curve, and nothing else. What else a run reports about each curve — segments, pin, span, pairs,
+coverage, reduced chi-squared, range mean — is one row per manifest curve, keyed by its label,
+in `segmented_curves_<run identifier>.csv`; the total averages are in
+`total_average_R_T_<run identifier>.csv`, and the trend refitted with each pooled dataset left
+out, where the run made those refits, in `leave_one_out_<run identifier>.csv`.
+`dataset_diagnostics.csv` flags, with the reason, every dataset curve that resolves no minimum
+over a range covering a required window.
 
 The tables of a dataset are named by the stem of its input file, which for a retrieved dataset is
 `<accession>_<Author>_<year>`: `R_T_vs_A_H_segmented_<accession>_<Author>_<year>.csv`. The label
@@ -1376,9 +1365,10 @@ function write_results(result::ExtractionResult, directory::AbstractString)
         )
     configuration = result.configuration
     identifier = run_identifier(configuration)
-    # The files named by the identifier; a name longer than a file system admits would fail
-    # halfway through writing the run, so it is refused before anything is written.
-    for name in _identifier_file_names(identifier)
+    tokens = _file_tokens(result)
+    # A name longer than a file system admits would fail halfway through writing the run, so
+    # every name is checked before anything is written.
+    for name in _file_names(identifier, tokens)
         ncodeunits(name) <= MAX_FILE_NAME_BYTES || throw(
             ArgumentError("the file name $(name) is $(ncodeunits(name)) bytes, beyond the \
                  $(MAX_FILE_NAME_BYTES) a file system admits")
@@ -1387,7 +1377,6 @@ function write_results(result::ExtractionResult, directory::AbstractString)
     mkpath(directory)
     digits = configuration.output.significant_digits
     written = Dict{String,String}()
-    tokens = _file_tokens(result)
     accessions = curve_accessions(result)
 
     for (curves, name, quantity) in (
@@ -1410,7 +1399,7 @@ function write_results(result::ExtractionResult, directory::AbstractString)
             A_H = [point[1] for point in points],
             r_nu = [round(point[2]; sigdigits = digits) for point in points],
             # The propagated uncertainty at each pivot. The fit carries it, and a file that states
-            # the parameterization without it invites the reader to assume there is none.
+            # the segmented description without it invites the reader to assume there is none.
             r_nu_uncertainty = [
                 round(last(evaluate(curve.fit, Float64(point[1]))); sigdigits = digits) for
                 point in points
@@ -1691,8 +1680,7 @@ end
 # The longest file name, in bytes, that common file systems admit (NAME_MAX).
 const MAX_FILE_NAME_BYTES = 255
 
-# The files of a run directory that carry the run identifier in their names, the longest names a
-# run writes.
+# The files of a run directory that carry the run identifier in their names.
 function _identifier_file_names(identifier::AbstractString)
     return (
         "manifest_$(identifier).toml",
@@ -1700,6 +1688,22 @@ function _identifier_file_names(identifier::AbstractString)
         "total_average_R_T_$(identifier).csv",
         "leave_one_out_$(identifier).csv",
     )
+end
+
+# Every file name a run writes: those named by the identifier and the tables of each curve.
+function _file_names(identifier::AbstractString, tokens::AbstractDict)
+    names = collect(String, _identifier_file_names(identifier))
+    for token in values(tokens)
+        push!(
+            names,
+            "r_nu_vs_A_H_$(token).csv",
+            "R_T_vs_A_H_$(token).csv",
+            "r_nu_vs_A_H_segmented_$(token).csv",
+            "R_T_vs_A_H_segmented_$(token).csv",
+            "r_nu_vs_A_H_pivots_$(token).csv",
+        )
+    end
+    return names
 end
 
 _file_token(label::AbstractString) = replace(strip(label), r"[^A-Za-z0-9.\-]+" => "_")

@@ -7,8 +7,8 @@
 # the run named by its identifier. A run directory is never overwritten: one that already exists
 # is moved aside as <run>#1, <run>#2, … before the new one is written. The provenance record
 # metadata.toml sits beside the tables with copies of the configuration and of the resolved
-# Manifest.toml of this environment. Set DRWATSON_STOREPATCH=true to record the uncommitted diff
-# of a dirty checkout beside the commit.
+# Manifest.toml of this environment; it is written before the figures. Set
+# DRWATSON_STOREPATCH=true to record the uncommitted diff of a dirty checkout beside the commit.
 
 include(joinpath(@__DIR__, "activate.jl"))
 
@@ -40,11 +40,10 @@ function main(arguments::Vector{String})
     identifier = run_identifier(configuration)
     destination = joinpath(ROOT, "data", "sims", system, identifier)
     figures = joinpath(ROOT, "plots", system, identifier)
-    move_aside(destination)
-    move_aside(figures)
+    move_aside((destination, figures))
     written = write_results(result, destination)
-    write_figures(result, figures)
     write_provenance(destination, result, written, path, data)
+    write_figures(result, figures)
 
     for curve in result.segmented_curves
         averages = get(result.total_average_R_T, curve.label, nothing)
@@ -64,16 +63,20 @@ function main(arguments::Vector{String})
     return 0
 end
 
-# Never overwrite a run. An existing directory moves to <name>#1, <name>#2, …: the numbering
-# DrWatson's safesave applies to a file, applied here to a whole run directory.
-function move_aside(directory::AbstractString)
-    isdir(directory) || return nothing
+# Never overwrite a run. Existing directories move to <name>#1, <name>#2, …: the numbering
+# DrWatson's safesave applies to a file, applied here to whole run directories. Both trees of a
+# run move under the same suffix, the first that neither already carries.
+function move_aside(directories::Tuple{Vararg{AbstractString}})
+    any(isdir, directories) || return nothing
     index = 1
-    while ispath("$(directory)#$(index)")
+    while any(d -> ispath("$(d)#$(index)"), directories)
         index += 1
     end
-    mv(directory, "$(directory)#$(index)")
-    @info "existing run moved aside" from = directory to = "$(directory)#$(index)"
+    for directory in directories
+        isdir(directory) || continue
+        mv(directory, "$(directory)#$(index)")
+        @info "existing run moved aside" from = directory to = "$(directory)#$(index)"
+    end
     return nothing
 end
 

@@ -222,7 +222,9 @@ brackets and tables in braces. Every other parameter therefore enters the identi
 `h` alone.
 
 Two configurations that differ in any result-changing key give different identifiers, and two
-that agree in all of them give the same one. The second method takes the parameters as
+that agree in all of them give the same one. The multiplicity directory is not a parameter: it
+is `<system>/nu_vs_A` by convention, so two runs of one system on different directories share
+an identifier. The second method takes the parameters as
 `metadata.toml` records them under `[identifier.parameters]`, so the identifier of a run is
 recomputed from its own record. The run directory is `data/sims/<system>/<identifier>/`.
 
@@ -406,7 +408,7 @@ function run_metadata(result::ExtractionResult)
             # The EXFOR accession of every yield distribution averaged over, from its retrieval
             # record.
             "mass_yield_accessions" => Dict{String,Any}(
-                y.label => _accession_of(y.source) for y in result.mass_yields
+                y.label => _dataset_accession(y.source) for y in result.mass_yields
             ),
             "datasets" => [basename(data.source) for data in result.datasets],
             "mass_yields" => [basename(data.source) for data in result.mass_yields],
@@ -433,7 +435,7 @@ function run_metadata(result::ExtractionResult)
         ),
         "mean_kinetic_energy" => _kinetic_energy_record(result),
         "source" => Dict{String,Any}(
-            "package_version" => string(PACKAGE_VERSION),
+            "package_version" => string(pkgversion(@__MODULE__)),
             "dependencies" => _dependency_versions(),
         ),
         "result" => Dict{String,Any}(
@@ -596,12 +598,6 @@ function _offset_record(energies, distribution, system)
 end
 
 _parent(::Nothing) = nothing
-
-function _accession_of(path::AbstractString)
-    record = retrieval_record(path)
-    record === nothing && return _accession(basename(path))
-    return string(get(record.entry, "identifier", _accession(basename(path))))
-end
 _parent(path::AbstractString) = dirname(path)
 
 # The ⟨TKE⟩(A) dataset that weighted the inversion: the file, its retrieval record entry, the
@@ -624,7 +620,7 @@ function _kinetic_energy_record(result::ExtractionResult)
     entry = Dict{String,Any}(
         "excitation_weighted" => weighted,
         "file" => _relative_input(energies.source, configuration),
-        "accession" => _accession_of(energies.source),
+        "accession" => _dataset_accession(energies.source),
         "label" => energies.label,
         "unit" => "MeV",
         "measured" => energies.measured,
@@ -651,11 +647,7 @@ function _kinetic_energy_record(result::ExtractionResult)
     return entry
 end
 
-# The manifests are not version-controlled, because this package supports a range of Julia
-# versions and a manifest is resolved against one of them. The versions a run actually used are
-# recorded here instead, so a result remains attributable to the code that produced it. The active
-# project is read directly rather than through Pkg, which a library has no other reason to depend
-# on.
+# The versions the run used, read from the active manifest; manifests are not version-controlled.
 function _dependency_versions()
     project = Base.active_project()
     project === nothing && return Dict{String,Any}("status" => "unavailable")

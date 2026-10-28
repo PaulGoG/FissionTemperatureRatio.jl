@@ -110,14 +110,14 @@ end
 """
     SegmentSettings
 
-Controls of the piecewise-linear parameterization: the largest number of segments examined, the
+Controls of the segmented description: the largest number of segments examined, the
 smallest number of data points and the smallest extent in mass units a segment may have, whether
 the ratio is pinned to one half at the symmetric split, mass-number windows that must each
 contain a breakpoint, and the pair coverage a dataset needs to be offered as a curve at all.
 
 `required_windows` places a breakpoint where physics says there is one — the minimum at the heavy
 magic fragment, `A_H` near 130, where the `Z = 50`, `N = 82` shell closure fixes the sharing. It
-constrains the systematic-trend curve by default and the per-dataset parameterizations only when
+constrains the systematic-trend curve by default and the dataset curves only when
 `windows_apply_to_datasets` is set, since a dataset that resolves the feature on its own should be
 left to do so.
 
@@ -214,8 +214,8 @@ end
     has_symmetric_split(configuration) -> Bool
 
 Whether the fissioning nucleus has a symmetric split, that is, whether `A₀` is even. The
-multiplicity ratio equals one half there by the identity of the two fragments, which is what
-pinning the parameterization relies on.
+multiplicity ratio equals one half there by the identity of the two fragments, which is what the
+pin relies on.
 """
 has_symmetric_split(configuration::Configuration) = iseven(configuration.system.compound.A)
 
@@ -348,11 +348,9 @@ function _one_of(value::String, options, path::String)
     return value
 end
 
-# Datasets kept out of the pooling, each with the reason written down. A reason is required:
-# excluding a measurement is a judgement, and an unexplained one is indistinguishable from a
-# mistake to anyone reading the configuration later. An exclusion names its dataset by accession,
-# which does not change when a second dataset of the same author and year is retrieved, as a label
-# does; the label form is for a dataset that carries no accession.
+# Datasets kept out of the pooling, each with its reason; a reason is required. An exclusion names
+# its dataset by accession, which does not change when a second dataset of the same author and
+# year is retrieved; the label form is for a dataset that carries no accession.
 function _exclusions(section::AbstractDict, path::String)
     entries = @NamedTuple{by::Symbol, name::String, reason::String}[]
     haskey(section, "exclude") || return entries
@@ -791,15 +789,6 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
     end
 
     segments_section = _section(document, "segments", source)
-    haskey(segments_section, "min_dataset_coverage") && throw(
-        ArgumentError(
-            "segments.min_dataset_coverage is retired, having gated two measures: set \
-             segments.min_pair_coverage, the fraction of the range's heavy masses a ν(A) \
-             dataset must pair to offer a curve, and yield.min_yield_coverage, the share of \
-             the primary distribution's heavy-fragment yield a Y(A) must cover to be \
-             averaged over",
-        ),
-    )
     _refuse_unknown(segments_section, SEGMENT_KEYS, "[segments]")
     max_segments = Int(
         _in_bounds(

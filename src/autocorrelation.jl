@@ -10,6 +10,9 @@ const CORRELOGRAM_LAGS = 8
 # The lags an autocorrelation is fitted to where the configuration does not say.
 const DEFAULT_AUTOCORRELATION_LAGS = 4
 
+# Deviations below this, relative to the values, are rounding, as between identical datasets.
+const ROUNDING_DEVIATION = 1e-12
+
 """
     deviation_correlogram(curves, combined; lags, weights) -> Vector{Union{Missing,Float64}}
 
@@ -87,7 +90,7 @@ function deviation_correlogram(
     end
     # Deviations at the level of rounding, as between identical datasets, say nothing.
     correlogram = Vector{Union{Missing,Float64}}(missing, lags)
-    (terms == 0 || sqrt(squared / terms) ≤ 1e-12) && return correlogram
+    (terms == 0 || sqrt(squared / terms) ≤ ROUNDING_DEVIATION) && return correlogram
     for k in 1:lags
         scale = sqrt(leading[k] * trailing[k])
         scale > 0 && (correlogram[k] = lagged[k] / scale)
@@ -130,8 +133,8 @@ function autocorrelation_decay(
     grid = 0.0:0.001:0.999
     i = argmin(S.(grid))
     i == 1 && return 0.0
-    a = clamp(grid[max(i - 1, 1)], 0.0, 0.999)
-    b = clamp(grid[min(i + 1, length(grid))], 0.0, 0.999)
+    a = grid[i - 1]
+    b = grid[min(i + 1, length(grid))]
     φ = (sqrt(5) - 1) / 2
     c = b - φ * (b - a)
     d = a + φ * (b - a)
@@ -148,7 +151,7 @@ function autocorrelation_decay(
             S_d = S(d)
         end
     end
-    return clamp((a + b) / 2, 0.0, 0.999)
+    return (a + b) / 2
 end
 
 """
