@@ -88,29 +88,49 @@ end
     end
 
     @testset "each constraint is enforced" begin
+        # Each case with the text the loader's message must contain: the offending key, or the
+        # section it sits in.
         cases = [
             (
                 "missing section",
                 replace(MINIMAL_CONFIGURATION, "[output]\nsignificant_digits = 6\n" => ""),
+                "[output]",
             ),
-            ("missing key", replace(MINIMAL_CONFIGURATION, "target_A = 252\n" => "")),
+            (
+                "missing key",
+                replace(MINIMAL_CONFIGURATION, "target_A = 252\n" => ""),
+                "system.target_A",
+            ),
             (
                 "wrong type",
                 replace(MINIMAL_CONFIGURATION, "target_A = 252" => "target_A = \"252\""),
+                "system.target_A",
             ),
             (
                 "even charges per mass",
                 replace(
                     MINIMAL_CONFIGURATION, "charges_per_mass = 5" => "charges_per_mass = 4"
                 ),
+                "fragmentation.charges_per_mass",
             ),
             (
-                "charge above mass",
+                "charge number out of bounds",
                 replace(MINIMAL_CONFIGURATION, "target_Z = 98" => "target_Z = 300"),
+                "system.target_Z",
+            ),
+            (
+                "charge number not below mass number",
+                replace(
+                    MINIMAL_CONFIGURATION,
+                    "target_A = 252" => "target_A = 100",
+                    "target_Z = 98" => "target_Z = 100",
+                ),
+                "system.target_Z",
             ),
             (
                 "unknown channel",
                 replace(MINIMAL_CONFIGURATION, "channel = \"sf\"" => "channel = \"p,f\""),
+                "system.channel",
             ),
             (
                 "energy given for spontaneous fission",
@@ -118,18 +138,21 @@ end
                     MINIMAL_CONFIGURATION,
                     "channel = \"sf\"" => "channel = \"sf\"\nincident_energy = 1.0",
                 ),
+                "system.incident_energy",
             ),
             (
                 "heavy mass range below symmetry",
                 replace(
                     MINIMAL_CONFIGURATION, "heavy_mass_max = 140" => "heavy_mass_max = 100"
                 ),
+                "fragmentation.heavy_mass_max",
             ),
             (
                 "heavy mass range above A0",
                 replace(
                     MINIMAL_CONFIGURATION, "heavy_mass_max = 140" => "heavy_mass_max = 300"
                 ),
+                "fragmentation.heavy_mass_max",
             ),
             (
                 "heavy_mass_min below the symmetric split",
@@ -137,6 +160,7 @@ end
                     MINIMAL_CONFIGURATION,
                     "heavy_mass_max = 140" => "heavy_mass_min = 120\nheavy_mass_max = 140",
                 ),
+                "fragmentation.heavy_mass_min",
             ),
             (
                 "heavy_mass_min above heavy_mass_max",
@@ -144,10 +168,12 @@ end
                     MINIMAL_CONFIGURATION,
                     "heavy_mass_max = 140" => "heavy_mass_min = 141\nheavy_mass_max = 140",
                 ),
+                "fragmentation.heavy_mass_max",
             ),
             (
                 "unknown level density model",
                 replace(MINIMAL_CONFIGURATION, "model = \"BSFG\"" => "model = \"XYZ\""),
+                "level_density.model",
             ),
             (
                 "absent shell correction table",
@@ -155,6 +181,7 @@ end
                     MINIMAL_CONFIGURATION,
                     "model = \"BSFG\"" => "model = \"GC\"\nshell_correction_file = \"absent.dat\"",
                 ),
+                "level_density.shell_correction_file",
             ),
             (
                 "unknown averaging",
@@ -162,6 +189,7 @@ end
                     MINIMAL_CONFIGURATION,
                     "model = \"BSFG\"" => "model = \"BSFG\"\nratio_averaging = \"other\"",
                 ),
+                "level_density.ratio_averaging",
             ),
             (
                 "absent mass excess file",
@@ -169,6 +197,7 @@ end
                     MINIMAL_CONFIGURATION,
                     "model = \"BSFG\"" => "model = \"BSFG\"\nmass_excess_file = \"absent.dat\"",
                 ),
+                "level_density.mass_excess_file",
             ),
             (
                 "absent charge distribution table",
@@ -176,6 +205,7 @@ end
                     MINIMAL_CONFIGURATION,
                     "heavy_mass_max = 140" => "heavy_mass_max = 140\ncharge_distribution_file = \"absent.dat\"",
                 ),
+                "fragmentation.charge_distribution_file",
             ),
             (
                 "zero polarization imposed on Wahl's model",
@@ -183,6 +213,7 @@ end
                     MINIMAL_CONFIGURATION,
                     "heavy_mass_max = 140" => "heavy_mass_max = 140\nzero_polarization_at_symmetry = true",
                 ),
+                "fragmentation.zero_polarization_at_symmetry",
             ),
             (
                 "Gilbert-Cameron branch not a Boolean",
@@ -190,6 +221,7 @@ end
                     MINIMAL_CONFIGURATION,
                     "model = \"BSFG\"" => "model = \"BSFG\"\ndeformed_branch = 1",
                 ),
+                "level_density.deformed_branch",
             ),
             (
                 "excitation weights on an effective ratio",
@@ -197,6 +229,7 @@ end
                     MINIMAL_CONFIGURATION,
                     "model = \"BSFG\"" => "model = \"BSFG\"\nratio_averaging = \"ratio_of_means\"\nmean_kinetic_energy_file = \"TKE_vs_A/1_A.Author_2000.dat\"",
                 ),
+                "level_density.mean_kinetic_energy_file",
             ),
             (
                 "absent kinetic energy file",
@@ -204,6 +237,7 @@ end
                     MINIMAL_CONFIGURATION,
                     "model = \"BSFG\"" => "model = \"BSFG\"\nmean_kinetic_energy_file = \"TKE_vs_A/absent.dat\"",
                 ),
+                "level_density.mean_kinetic_energy_file",
             ),
             (
                 "kinetic energy file no retrieval record lists",
@@ -211,12 +245,14 @@ end
                     MINIMAL_CONFIGURATION,
                     "model = \"BSFG\"" => "model = \"BSFG\"\nmean_kinetic_energy_file = \"TKE_vs_A/2_B.Author_2001.dat\"",
                 ),
+                "level_density.mean_kinetic_energy_file",
             ),
             (
                 "heavy mass range of one mass",
                 replace(
                     MINIMAL_CONFIGURATION, "heavy_mass_max = 140" => "heavy_mass_max = 126"
                 ),
+                "fragmentation.heavy_mass_max",
             ),
             (
                 "absent multiplicity subdirectory",
@@ -224,16 +260,19 @@ end
                     MINIMAL_CONFIGURATION,
                     "subdirectory = \"datasets\"" => "subdirectory = \"absent\"",
                 ),
+                "multiplicity.subdirectory",
             ),
             (
                 "segment count out of range",
                 replace(MINIMAL_CONFIGURATION, "max_segments = 3" => "max_segments = 99"),
+                "segments.max_segments",
             ),
             (
                 "significant digits out of range",
                 replace(
                     MINIMAL_CONFIGURATION, "significant_digits = 6" => "significant_digits = 0"
                 ),
+                "output.significant_digits",
             ),
             (
                 "window outside range",
@@ -241,6 +280,7 @@ end
                     MINIMAL_CONFIGURATION,
                     "max_segments = 3" => "max_segments = 3\nrequired_windows = [[10, 20]]",
                 ),
+                "segments.required_windows",
             ),
             (
                 "malformed window",
@@ -248,6 +288,7 @@ end
                     MINIMAL_CONFIGURATION,
                     "max_segments = 3" => "max_segments = 3\nrequired_windows = [[130]]",
                 ),
+                "segments.required_windows",
             ),
             (
                 "segment span out of range",
@@ -255,6 +296,7 @@ end
                     MINIMAL_CONFIGURATION,
                     "max_segments = 3" => "max_segments = 3\nmin_segment_span = 0",
                 ),
+                "segments.min_segment_span",
             ),
             (
                 "coverage floor out of range",
@@ -262,14 +304,17 @@ end
                     MINIMAL_CONFIGURATION,
                     "max_segments = 3" => "max_segments = 3\nmin_pair_coverage = 1.5",
                 ),
+                "segments.min_pair_coverage",
             ),
             (
                 "retrieval floor not a version",
                 MINIMAL_CONFIGURATION * "\n[retrieval]\nmin_package_version = \"latest\"\n",
+                "retrieval.min_package_version",
             ),
             (
                 "unknown retrieval key",
                 MINIMAL_CONFIGURATION * "\n[retrieval]\nversion = \"0.2.7\"\n",
+                "[retrieval]",
             ),
             # A key the loader does not read is refused, not ignored: a retired or misspelt key
             # would otherwise leave the run silently on the default.
@@ -279,6 +324,7 @@ end
                     MINIMAL_CONFIGURATION,
                     "max_segments = 3" => "max_segments = 3\nparsimony = 1.0",
                 ),
+                "[segments]",
             ),
             (
                 "unknown key",
@@ -286,15 +332,25 @@ end
                     MINIMAL_CONFIGURATION,
                     "significant_digits = 6" => "significant_digits = 6\nsubdirectory = \"x\"",
                 ),
+                "[output]",
             ),
-            ("unknown section", MINIMAL_CONFIGURATION * "\n[extra]\nkey = 1\n"),
+            (
+                "unknown section",
+                MINIMAL_CONFIGURATION * "\n[extra]\nkey = 1\n",
+                "no key \"extra\"",
+            ),
         ]
-        for (name, body) in cases
+        for (name, body, key) in cases
             @testset "$(name)" begin
                 with_configuration(body) do path, directory
-                    @test_throws ArgumentError load_configuration(
-                        path; data_directory = directory
-                    )
+                    thrown = try
+                        load_configuration(path; data_directory = directory)
+                        nothing
+                    catch exception
+                        exception
+                    end
+                    @test thrown isa ArgumentError
+                    @test occursin(key, sprint(showerror, thrown))
                 end
             end
         end
@@ -587,17 +643,6 @@ end
         end
     end
 
-    @testset "the retired coverage key names its replacements" begin
-        body = replace(
-            MINIMAL_CONFIGURATION,
-            "max_segments = 3" => "max_segments = 3\nmin_dataset_coverage = 0.3",
-        )
-        with_configuration(body) do path, directory
-            replacements = ["segments.min_pair_coverage", "yield.min_yield_coverage"]
-            @test_throws replacements load_configuration(path; data_directory = directory)
-        end
-    end
-
     @testset "the yield coverage floor is its own key" begin
         with_configuration(MINIMAL_CONFIGURATION) do path, directory
             mkpath(joinpath(directory, "yields"))
@@ -725,11 +770,18 @@ end
             @test occursin(r"_mass=[0-9a-f]{8}_", identifier)
             @test longest_name(identifier) <= 160
         end
-        # And every shipped configuration, under either level density model.
-        if DATA_AVAILABLE
-            mktempdir() do directory
-                for system in SHIPPED_SYSTEMS,
-                    model in ("BSFG", "GC"),
+        # And every shipped configuration whose inputs are held, under either level density
+        # model.
+        inputs_held(system) =
+            all(isdir(joinpath(DATA_DIRECTORY, system, d)) for d in ("nu_vs_A", "Y_vs_A"))
+        mktempdir() do directory
+            for system in SHIPPED_SYSTEMS
+                # Reported, not passed over: the measured input is not shipped.
+                if !inputs_held(system)
+                    @test_skip inputs_held(system)
+                    continue
+                end
+                for model in ("BSFG", "GC"),
                     yields in (Dict(), Dict("subdirectory" => "$(system)/Y_vs_A"))
 
                     configuration = variant_configuration(
@@ -760,9 +812,6 @@ end
                     @test max(per_dataset, longest_name(identifier)) <= 160
                 end
             end
-        else
-            # Reported, not passed over: the measured input is not shipped.
-            @test_skip DATA_AVAILABLE
         end
     end
 

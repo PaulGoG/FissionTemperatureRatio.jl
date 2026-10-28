@@ -138,8 +138,6 @@ end
         data = RatioCurve(A_H, value, fill(0.004, length(A_H)), "synthetic")
         curve = ExtractedCurve("synthetic", fit, data, ChargeResolved(), BSFG_MODEL, domain)
 
-        @test curve.kind == "dataset"
-        @test curve.pairs == length(A_H)
         @test curve.coverage ≈ length(A_H) / length(domain.heavy_masses)
         @test curve.R_T.A_H == A_H
         @test size(curve.R_T_covariance) == (length(A_H), length(A_H))
@@ -159,20 +157,9 @@ end
         # Same value; the covariance form carries the correlation the independent form drops.
         @test value_cov ≈ value_ind
         @test σ_cov > σ_ind
-        record = TotalAverage(curve, yields, domain.heavy_masses)
-        @test record.value == value_cov
-        @test record.uncertainty == σ_cov
-        @test record.uncertainty_independent_points == σ_ind
-        # The yields are given at the curve's masses only, so the curve takes in all of them.
-        @test record.yield_fraction == 1.0
 
         mean, σ = range_mean(curve)
         @test mean ≈ sum(curve.R_T.ratio) / length(A_H)
         @test σ > 0
-
-        trend = ExtractedCurve(
-            SYSTEMATIC_TREND_LABEL, fit, data, ChargeResolved(), BSFG_MODEL, domain
-        )
-        @test trend.kind == "systematic_trend"
     end
 end

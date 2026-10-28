@@ -1,5 +1,5 @@
-# Benchmarks for the parts whose cost scales: the exhaustive breakpoint search, and the inversion
-# of the relation between R_T and E*_H/TXE over a full fragmentation range.
+# Benchmarks for the parts whose cost scales: the exhaustive breakpoint search as a run applies
+# it, and the inversion of the relation between R_T and E*_H/TXE over a fragmentation range.
 #
 #     julia bench/benchmarks.jl
 
@@ -19,31 +19,29 @@ function ratio_sample()
     rng = StableRNG(20260912)
     A_H = collect(126:174)
     value = @. ifelse(A_H ≤ 130, 0.5 - 0.03 * (A_H - 126), 0.38 + 0.0125 * (A_H - 130))
-    return (A_H, value .+ 0.004 .* randn(rng, length(A_H)), fill(0.004, length(A_H)))
+    noisy = value .+ 0.004 .* randn(rng, length(A_H))
+    return (A_H, value, noisy, fill(0.004, length(A_H)))
 end
 
 suite = BenchmarkGroup()
 
-let (x, y, σ) = ratio_sample()
+let (x, _, y, σ) = ratio_sample()
     suite["segments"] = BenchmarkGroup()
     for order in 2:5
         suite["segments"]["max_segments=$(order)"] = @benchmarkable fit_segments(
-            $x, $y, $σ; max_segments = $order
+            $x, $y, $σ; max_segments = $order, pinned_value = 0.5, bounds = (0.0, 1.0)
         )
     end
+    R = [0.5^abs(i - j) for i in eachindex(x), j in eachindex(x)]
+    suite["segments"]["max_segments=4,correlated"] = @benchmarkable fit_segments(
+        $x, $y, $σ; max_segments = 4, pinned_value = 0.5, bounds = (0.0, 1.0), correlation = $R
+    )
 end
-
-suite["fragmentation"] = @benchmarkable fragmentation_domain($SYSTEM, $CHARGES, 126:174)
 
 # The inversion of a full r_ν(A_H) curve, as a run applies it to every tabulated curve.
 let domain = fragmentation_domain(SYSTEM, CHARGES, 126:174)
-    A_H = collect(126:174)
-    r_ν = RatioCurve(
-        A_H,
-        @.(ifelse(A_H ≤ 130, 0.5 - 0.03 * (A_H - 126), 0.38 + 0.0125 * (A_H - 130))),
-        fill(0.004, length(A_H)),
-        "reference",
-    )
+    A_H, value, _, σ = ratio_sample()
+    r_ν = RatioCurve(A_H, value, σ, "reference")
     energies = Dict(A => 178.0 - 0.02 * (A - 132)^2 for A in A_H)
     weighted = ChargeResolved(mean_total_excitation(MASSES, domain, energies))
     suite["temperature_ratio"] = BenchmarkGroup()

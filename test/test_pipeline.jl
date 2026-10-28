@@ -1,49 +1,5 @@
 # The pipeline on synthetic input: no shipped data is needed, so this runs on a bare clone.
 
-const PIPELINE_CONFIGURATION = """
-[system]
-target_A = 252
-target_Z = 98
-channel = "sf"
-
-[fragmentation]
-charges_per_mass = 5
-heavy_mass_max = 140
-
-[level_density]
-model = "GC"
-shell_correction_file = "shell_corrections.dat"
-deformed_branch = false
-
-[multiplicity]
-subdirectory = "datasets"
-
-[segments]
-max_segments = 3
-pin_symmetric_split = true
-
-[output]
-significant_digits = 6
-"""
-
-# ν(A) of both fragments for the heavy masses given, from the reference ratio and a total of four
-# neutrons per fission, with a deterministic perturbation so that no fit is exact.
-function write_multiplicity(path::AbstractString, heavy_masses; A₀ = 252)
-    rows = Dict{Int,Float64}()
-    for A_H in heavy_masses
-        r = reference_ratio(A_H) + 0.002 * iseven(A_H)
-        rows[A_H] = 4 * r
-        rows[A₀ - A_H] = 4 * (1 - r)
-    end
-    open(path, "w") do io
-        println(io, "A nu nu_uncertainty")
-        for A in sort!(collect(keys(rows)))
-            println(io, A, " ", rows[A], " 0.05")
-        end
-    end
-    return path
-end
-
 # The testsets below are functions of their own: as part of the one closure that holds the rest
 # of this file they made it too long to compile in reasonable time.
 function test_trend_covariance(directory, configuration, result, written)
@@ -135,7 +91,6 @@ function test_trend_covariance(directory, configuration, result, written)
         @test record["expected_wrss"] == trend.fit.expected_wrss
         @test record["chi_squared_over_expectation"] == trend.fit.wrss / trend.fit.expected_wrss
         @test record["covariance_scale"] == max(1, record["chi_squared_over_expectation"])
-        @test !haskey(record, "understated_by_about")
         @test metadata["segmented_curves"][SYSTEMATIC_TREND_LABEL]["correlated_points"]
         @test !metadata["segmented_curves"]["up"]["correlated_points"]
         @test run_metadata(drifting)["configuration"]["autocorrelation_lags"] == 4

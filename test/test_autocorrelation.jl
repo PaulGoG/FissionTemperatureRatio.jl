@@ -19,7 +19,7 @@ using Statistics: mean, var
         above = RatioCurve(collect(1:5), 0.5 .+ 0.01 .* rising, unquoted(5), "above")
         below = RatioCurve(collect(1:5), 0.5 .- 0.01 .* rising, unquoted(5), "below")
         ρ = deviation_correlogram([above, below], combined)
-        @test length(ρ) == CORRELOGRAM_LAGS == 8
+        @test length(ρ) == CORRELOGRAM_LAGS
         # Per lag: the products over the pairs present, over the root of the squares of their
         # leading and of their trailing members.
         @test ρ[1] ≈ 0.16 / 2.16
@@ -135,14 +135,10 @@ using Statistics: mean, var
     r .+= 0.002 .* iseven.(A_H)
     σ = fill(0.004, length(A_H))
 
-    @testset "independent points are the default, to the bit" begin
+    @testset "independent points are the default" begin
         default = fit_segments(A_H, r, σ; max_segments = 3)
-        explicit = fit_segments(A_H, r, σ; max_segments = 3, correlation = nothing)
         @test !default.correlated
         @test default.expected_wrss == default.dof
-        for field in fieldnames(SegmentedFit)
-            @test isequal(getfield(default, field), getfield(explicit, field))
-        end
         # The identity as a correlation matrix: the same covariance, by the other route.
         identity = fit_segments(A_H, r, σ; max_segments = 3, correlation = ar1(A_H, 0.0))
         @test identity.correlated

@@ -170,3 +170,49 @@ const SHIPPED_TOLERANCE = Dict(
     ("Pu239_nth", "Yu.S. Zamyatnin 1979", "K. Nishio 1995") => 0.0030431,
     ("Pu239_nth", "J.S. Fraser 1966", "K. Nishio 1995") => 0.0080452,
 )
+
+# The synthetic configuration and input the pipeline, experiment and plotting tests run on.
+
+const PIPELINE_CONFIGURATION = """
+[system]
+target_A = 252
+target_Z = 98
+channel = "sf"
+
+[fragmentation]
+charges_per_mass = 5
+heavy_mass_max = 140
+
+[level_density]
+model = "GC"
+shell_correction_file = "shell_corrections.dat"
+deformed_branch = false
+
+[multiplicity]
+subdirectory = "datasets"
+
+[segments]
+max_segments = 3
+pin_symmetric_split = true
+
+[output]
+significant_digits = 6
+"""
+
+# ν(A) of both fragments for the heavy masses given, from the reference ratio and a total of four
+# neutrons per fission, with a deterministic perturbation so that no fit is exact.
+function write_multiplicity(path::AbstractString, heavy_masses; A₀ = 252)
+    rows = Dict{Int,Float64}()
+    for A_H in heavy_masses
+        r = reference_ratio(A_H) + 0.002 * iseven(A_H)
+        rows[A_H] = 4 * r
+        rows[A₀ - A_H] = 4 * (1 - r)
+    end
+    open(path, "w") do io
+        println(io, "A nu nu_uncertainty")
+        for A in sort!(collect(keys(rows)))
+            println(io, A, " ", rows[A], " 0.05")
+        end
+    end
+    return path
+end

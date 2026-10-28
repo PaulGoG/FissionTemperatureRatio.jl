@@ -43,4 +43,32 @@
             return nothing
         end
     end
+
+    @testset "write_figures writes one file per content key" begin
+        # The synthetic run of the pipeline tests.
+        mktempdir() do directory
+            open(joinpath(directory, "shell_corrections.dat"), "w") do io
+                println(io, "n S_N S_Z")
+                for n in 20:119
+                    println(io, n, " 0.0 0.0")
+                end
+                println(io, 120, " 1.0 1.0")
+            end
+            mkpath(joinpath(directory, "datasets"))
+            write_multiplicity(joinpath(directory, "datasets", "full.dat"), 126:140)
+            write_multiplicity(joinpath(directory, "datasets", "partial.dat"), 131:140)
+            write_multiplicity(joinpath(directory, "datasets", "sparse.dat"), 126:4:138)
+            path = joinpath(directory, "configuration.toml")
+            write(path, PIPELINE_CONFIGURATION)
+            result = run_pipeline(
+                load_configuration(path; data_directory = directory); leave_one_out = false
+            )
+
+            figures = joinpath(directory, "figures")
+            written = write_figures(result, figures)
+            @test !isempty(written)
+            @test all(isfile, values(written))
+            @test all(endswith(".pdf"), values(written))
+        end
+    end
 end
