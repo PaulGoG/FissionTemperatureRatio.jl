@@ -512,7 +512,7 @@ function run_pipeline(configuration::Configuration; leave_one_out::Bool = true)
              $(configuration.segments.min_points_per_segment)"),
     )
     for curve in segmented_curves
-        @info "segmented curve" dataset = curve.label segments = segments(curve.fit) breakpoints =
+        @info "segmented curve" dataset = curve.label segments = segment_count(curve.fit) breakpoints =
             curve.fit.breakpoints reduced_chi_squared = curve.fit.wrss / curve.fit.dof
     end
     symmetry = _symmetry_diagnostics(configuration, relation, segmented_curves)
@@ -830,7 +830,7 @@ function _segment_count_sensitivity(
 )
     sensitivity = Dict{String,Vector{Tuple{Int,Float64}}}()
     isempty(averaged) && return sensitivity
-    selected = segments(trend.fit)
+    selected = segment_count(trend.fit)
     alternatives = ExtractedCurve[trend]
     for extra in 1:2
         refit = _segment(
@@ -848,7 +848,7 @@ function _segment_count_sensitivity(
     for distribution in averaged
         _overlaps(trend.R_T, distribution) || continue
         sensitivity[distribution.label] = [
-            (segments(c.fit), first(total_average(c, distribution))) for c in alternatives
+            (segment_count(c.fit), first(total_average(c, distribution))) for c in alternatives
         ]
         @info "trend ⟨R_T⟩ against the number of segments" yield = distribution.label values = sensitivity[distribution.label]
     end
@@ -905,7 +905,7 @@ function _leave_one_out(
             LeaveOneOut(
                 left_out,
                 outcome,
-                segments(refit.fit),
+                segment_count(refit.fit),
                 copy(refit.fit.breakpoints),
                 refit.fit.wrss / refit.fit.dof,
                 averages,
@@ -1507,7 +1507,7 @@ function _segmented_curve_rows(
             accession = _text_field(accessions[curve.label]),
             kind = _kind(curve),
             pooled = _is_trend(curve) || curve.label in pooled,
-            segments = segments(curve.fit),
+            segments = segment_count(curve.fit),
             pinned_at_symmetric_split = curve.fit.pinned_value !== nothing,
             first_A_H = first(curve.R_T.A_H),
             last_A_H = last(curve.R_T.A_H),
@@ -1583,7 +1583,7 @@ function _total_average_rows(result::ExtractionResult, digits::Integer)
                 Tuple{Int,Float64}[]
             end
             alternative(extra) = begin
-                found = findfirst(t -> t[1] == segments(curve.fit) + extra, more)
+                found = findfirst(t -> t[1] == segment_count(curve.fit) + extra, more)
                 found === nothing ? missing : rounded(more[found][2])
             end
             spread =

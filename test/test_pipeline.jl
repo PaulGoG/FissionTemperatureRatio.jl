@@ -869,7 +869,7 @@ end
                 only(filter(c -> c.label != SYSTEMATIC_TREND_LABEL, one.segmented_curves)).fit
             trend = systematic_trend(one).fit
             @test dataset.measured_points ≈ 15 * 20 / 29
-            @test segments(trend) > 1
+            @test segment_count(trend) > 1
             # The pooling fraction enters once: the same weights, χ², degrees of freedom,
             # selection and covariance as the dataset's own fit, to the last bit.
             for field in

@@ -323,7 +323,7 @@ function run_metadata(result::ExtractionResult)
     curves = Dict{String,Any}(
         curve.label => Dict{String,Any}(
             "kind" => _kind(curve),
-            "segments" => FissionTemperatureRatio.segments(curve.fit),
+            "segments" => FissionTemperatureRatio.segment_count(curve.fit),
             "breakpoints" => curve.fit.breakpoints,
             "pivots" => [[point[1], point[2]] for point in pivots(curve.fit)],
             "reduced_chi_squared" => curve.fit.wrss / curve.fit.dof,

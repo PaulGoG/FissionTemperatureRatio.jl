@@ -377,7 +377,7 @@ end
 # rather than printing a number that means nothing.
 function _fit_annotation(curve)
     fit = curve.fit
-    count = FissionTemperatureRatio.segments(fit)
+    count = FissionTemperatureRatio.segment_count(fit)
     quality = if fit.weights_imputed == fit.points
         LaTeXString("no quoted uncertainties")
     else

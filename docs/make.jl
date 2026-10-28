@@ -4,8 +4,13 @@ using Documenter
 using DocumenterCitations
 using FissionTemperatureRatio
 
+# The doctests use public names that `using` does not bring in.
 DocMeta.setdocmeta!(
-    FissionTemperatureRatio, :DocTestSetup, :(using FissionTemperatureRatio); recursive = true
+    FissionTemperatureRatio,
+    :DocTestSetup,
+    :(using FissionTemperatureRatio;
+    using FissionTemperatureRatio: covariance, evaluate, fit_weights, multiplicity, pivots);
+    recursive = true,
 )
 
 bib = CitationBibliography(joinpath(@__DIR__, "src", "references.bib"); style = :numeric)

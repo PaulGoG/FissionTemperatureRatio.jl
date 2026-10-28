@@ -226,7 +226,7 @@ DATA_AVAILABLE && @testset "the handoff to a consuming code" begin
             @test metadata["inputs"]["mass_yield_accessions"] ==
                 Dict{String,Any}("P. Geltenbort 1985" => "21981005")
             sensitivity = metadata["result"]["segment_count_sensitivity"]["P. Geltenbort 1985"]
-            selected = segments(systematic_trend(result).fit)
+            selected = segment_count(systematic_trend(result).fit)
             @test first.(sensitivity) == [selected, selected + 1, selected + 2]
             @test haskey(record["retrieval_run"], "package_revision")
             @test length(record["retrieval_record_sha1"]) == 40

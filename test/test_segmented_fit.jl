@@ -10,7 +10,7 @@ using LinearAlgebra: LinearAlgebra
 
     @testset "recovers a known breakpoint" begin
         fit = fit_segments(A_H, noisy, σ; max_segments = 4, min_points_per_segment = 4)
-        @test segments(fit) == 2
+        @test segment_count(fit) == 2
         @test only(fit.breakpoints) == 130
         @test first(evaluate(fit, 126)) ≈ 0.5 atol = 0.01
         @test first(evaluate(fit, 170)) ≈ reference_ratio(170) atol = 0.01
@@ -154,7 +154,7 @@ using LinearAlgebra: LinearAlgebra
         points = pivots(fit)
         @test first(points)[1] == 126
         @test last(points)[1] == 170
-        @test length(points) == segments(fit) + 1
+        @test length(points) == segment_count(fit) + 1
     end
 
     @testset "a single order can be fitted rather than selected" begin
@@ -167,11 +167,11 @@ using LinearAlgebra: LinearAlgebra
         # inspected on its own; the criterion still prefers two here.
         for k in 1:4
             fit = fit_segments(A_H, value, σ; min_segments = k, max_segments = k)
-            @test segments(fit) == k
+            @test segment_count(fit) == k
             @test length(fit.selection) == 1
             @test first(only(fit.selection)) == k
         end
-        @test segments(fit_segments(A_H, value, σ; max_segments = 4)) == 2
+        @test segment_count(fit_segments(A_H, value, σ; max_segments = 4)) == 2
 
         @test_throws ArgumentError fit_segments(A_H, value, σ; min_segments = 0)
         @test_throws ArgumentError fit_segments(

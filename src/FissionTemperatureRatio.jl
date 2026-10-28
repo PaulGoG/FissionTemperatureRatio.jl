@@ -127,59 +127,32 @@ include("plotting.jl")
 include("pipeline.jl")
 include("provenance.jl")
 
-# Configuration
+# What a run is driven by, reads and returns, exported.
 export Configuration, load_configuration
-export build_mass_table, build_level_density_model, build_charge_model
-export A_H_range, has_symmetric_split
-
-# Input data
-export Multiplicity, read_multiplicity, read_multiplicity_directory, multiplicity
-export read_mass_yield_directory, mass_yield_coverage, yield_fraction
-export MeanKineticEnergy, read_mean_kinetic_energy, mean_kinetic_energy_offset
-export RetrievalRecord,
-    PairSumScale,
-    retrieval_record,
-    retrieval_records,
-    check_retrieval_versions,
-    FLAGGED_QUALIFIERS
-
-# Physics
-export RatioCurve, multiplicity_ratio
-export DatasetDiagnostics, diagnose, consensus
-
-# Segmented description of the ratio
-export SegmentedFit,
-    fit_segments,
-    fit_weights,
-    evaluate,
-    covariance,
-    pivots,
-    segments,
-    unresolved_minimum,
-    InsufficientDataError
+export Multiplicity,
+    read_multiplicity, read_multiplicity_directory, RatioCurve, multiplicity_ratio
+export MeanKineticEnergy, read_mean_kinetic_energy
+export RetrievalRecord, retrieval_record, retrieval_records
+export SegmentedFit, fit_segments, segment_count, InsufficientDataError
 export ExtractedCurve, TotalAverage, range_mean
-
-# Pipeline
-export ExtractionResult,
-    SymmetryDiagnostics,
-    run_pipeline,
-    write_results,
-    systematic_trend,
-    manifest_domain,
-    curve_accessions,
-    pooled_datasets,
-    superseded_datasets,
-    deviation_autocorrelation,
-    CORRELOGRAM_LAGS,
-    deviation_correlogram,
-    autocorrelation_decay,
-    pooled_correlation,
-    LeaveOneOut,
-    leave_one_out_spread
-export run_identifier, run_parameters, run_metadata, RUN_IDENTIFIER_ABBREVIATIONS
-
-# Figures
+export ExtractionResult, LeaveOneOut, run_pipeline, write_results, systematic_trend
+export leave_one_out_spread, run_identifier, run_metadata
 export publication_theme, plot_multiplicities, plot_ratio, save_figure, write_figures
+
+# The rest of the interface, public and reached qualified: the builders and accessors a caller
+# composing its own run needs, the stages of the method, and the constants they are defined by.
+# Generic names such as `evaluate` and `covariance` are not exported, so that `using` does not
+# bring them into a namespace where another package defines its own.
+public build_mass_table, build_level_density_model, build_charge_model
+public A_H_range, has_symmetric_split, SHIPPED_MASS_TABLE, SHIPPED_SHELL_CORRECTIONS
+public multiplicity, read_mass_yield_directory, mass_yield_coverage, yield_fraction
+public mean_kinetic_energy_offset, PairSumScale, check_retrieval_versions, FLAGGED_QUALIFIERS
+public DatasetDiagnostics, diagnose, consensus
+public fit_weights, evaluate, covariance, pivots, unresolved_minimum
+public CORRELOGRAM_LAGS, deviation_correlogram, autocorrelation_decay, pooled_correlation
+public SymmetryDiagnostics, manifest_domain, curve_accessions, pooled_datasets
+public superseded_datasets, deviation_autocorrelation, run_parameters
+public RUN_IDENTIFIER_ABBREVIATIONS
 
 function __init__()
     Base.Experimental.register_error_hint(MethodError) do io, exception, _, _

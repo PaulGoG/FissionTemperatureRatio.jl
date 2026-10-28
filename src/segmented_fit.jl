@@ -68,11 +68,11 @@ struct SegmentedFit
 end
 
 """
-    segments(fit) -> Int
+    segment_count(fit) -> Int
 
 Number of straight segments of the fit.
 """
-segments(fit::SegmentedFit) = length(fit.breakpoints) + 1
+segment_count(fit::SegmentedFit) = length(fit.breakpoints) + 1
 
 # The truncated-power basis at `x`: `[1,] (x − x₀), (x − ψ₁)₊, …`, the intercept absent for a
 # pinned fit. One row of the design matrix, and the vector a fitted value is propagated through.
@@ -453,7 +453,7 @@ julia> r .+= 0.002 .* iseven.(A_H);  # a deterministic perturbation, so the fit 
 
 julia> fit = fit_segments(A_H, r, fill(0.004, length(A_H)); max_segments = 3);
 
-julia> segments(fit)
+julia> segment_count(fit)
 2
 
 julia> fit.breakpoints

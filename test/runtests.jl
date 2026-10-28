@@ -5,6 +5,33 @@ using Test
 using FissionFragmentsDomain
 using Measurements: Measurements
 using FissionTemperatureRatio
+# The public names the tests reach that `using` does not bring in.
+using FissionTemperatureRatio:
+    A_H_range,
+    has_symmetric_split,
+    multiplicity,
+    read_mass_yield_directory,
+    mass_yield_coverage,
+    yield_fraction,
+    mean_kinetic_energy_offset,
+    check_retrieval_versions,
+    consensus,
+    fit_weights,
+    evaluate,
+    covariance,
+    pivots,
+    unresolved_minimum,
+    CORRELOGRAM_LAGS,
+    deviation_correlogram,
+    autocorrelation_decay,
+    pooled_correlation,
+    manifest_domain,
+    curve_accessions,
+    pooled_datasets,
+    superseded_datasets,
+    deviation_autocorrelation,
+    run_parameters,
+    RUN_IDENTIFIER_ABBREVIATIONS
 
 include("fixtures.jl")
 

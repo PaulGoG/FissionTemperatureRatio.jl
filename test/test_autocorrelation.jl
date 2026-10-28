@@ -331,7 +331,7 @@ using Statistics: mean, var
         )
         @test fit_segments(A_H, r, σ; max_segments = 3, required_windows = [128:132]).breakpoints ==
             [130]
-        @test segments(fit_segments(A_H, r, σ; max_segments = 1)) == 1
+        @test segment_count(fit_segments(A_H, r, σ; max_segments = 1)) == 1
     end
 
     @testset "the jackknife over leave-one-out refits" begin
@@ -371,7 +371,7 @@ using Statistics: mean, var
         # Two segments that both rise: a kink, not a minimum.
         kinked = [a ≤ 130 ? 0.20 + 0.002 * (a - 120) : 0.22 + 0.02 * (a - 130) for a in A_H]
         fit = fit_segments(A_H, kinked .+ ripple, σ; max_segments = 3)
-        @test segments(fit) ≥ 2
+        @test segment_count(fit) ≥ 2
         @test occursin("rises from A_H = 120", unresolved_minimum(fit))
 
         # Equal values: neither rising nor falling.

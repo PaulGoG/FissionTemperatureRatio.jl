@@ -12,6 +12,7 @@ using CairoMakie
 using FissionFragmentsDomain:
     Nuclide, neutron_induced_fission, spontaneous_fission, system_notation
 using FissionTemperatureRatio
+using FissionTemperatureRatio: A_H_range, consensus, evaluate, pivots, pooled_datasets
 using LaTeXStrings: @L_str
 using TOML: TOML
 

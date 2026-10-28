@@ -35,7 +35,7 @@ end
         trend = fit_segments(
             pooled.A_H, pooled.ratio, σ_measurement; settings..., measured = measured
         )
-        @test segments(trend) > 1
+        @test segment_count(trend) > 1
         @test trend.breakpoints == own.breakpoints
         @test trend.coefficients == own.coefficients
         @test trend.wrss == own.wrss
@@ -46,7 +46,7 @@ end
 
         # Fitted to the standard error with the fraction beside it, the fraction would enter
         # twice: χ² of a residual at f²/σ², where a measurement of the dataset enters at f/σ².
-        order = (min_segments = segments(own), max_segments = segments(own))
+        order = (min_segments = segment_count(own), max_segments = segment_count(own))
         once = fit_segments(masses, ratio, spread; settings..., order..., measured = fractions)
         twice = fit_segments(
             masses, ratio, pooled.σ; settings..., order..., measured = fractions
