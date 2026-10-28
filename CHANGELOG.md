@@ -7,14 +7,70 @@ the minor version and a patch release carries none.
 
 ## [Unreleased]
 
+No result changes: the four shipped configurations give the tables, the curves and the manifests
+of 0.4.1. Only the text of the exclusion reasons in `dataset_diagnostics.csv` and in the
+`[configuration]` table of `metadata.toml` differs, and the mean of a `⟨TKE⟩(A)` dataset in
+`[mean_kinetic_energy]` may differ in its last bits.
+
+### Changed
+
+- The breakpoint search of `fit_segments` is type-stable and does less repeated work: the running
+  best of an order lives in a mutable record instead of a reassigned closure variable, the
+  weighted ordinate is formed once per fit, and the condition number once per candidate. The
+  basis of the fit is written in one place, `_basis_row`. The fits are bit-identical.
+- `mean_kinetic_energy_offset` sums over the mass numbers in ascending order, so the recorded mean
+  no longer depends on the iteration order of a dictionary.
+- The accession recorded for a yield distribution and for the `⟨TKE⟩(A)` dataset in
+  `metadata.toml` is validated like every other, and is empty for a tabulation that carries none.
+- `write_results` checks every file name a run writes against the 255 bytes a file system admits,
+  the per-dataset tables included, before creating the directory.
+- `scripts/run.jl` writes `metadata.toml` before the figures, so a failure of the plotting stack
+  leaves the provenance record in place, and moves the table and figure trees of an earlier run
+  aside under one suffix.
+- Calling a figure function without CairoMakie loaded says so in the error.
+- The exclusion reasons of the shipped configurations are one clause each and point to
+  `data/README.md`, which carries the attribution; the configuration comments state what a key is,
+  its choices, bounds and units, and nothing else.
+- Dates is no longer a dependency. The compatibility floors of CairoMakie, DataFrames, DrWatson,
+  LaTeXStrings and MathTeXEngine are the minor versions, where they were the patch releases
+  current when the package was created.
+- `docs/assets.jl` takes the palette of the package's own figures from the extension, edits a
+  configuration by parsing it rather than by text replacement, and fits the animated selection
+  with the segment span and the measured fraction the pipeline uses. The shipped figures are not
+  regenerated.
+- The benchmarks measure the pinned, bounded fit a run applies, with one correlated case, and no
+  longer time FissionFragmentsDomain.jl's domain construction.
+- The test suite: the consensus tests have their own file; tests that restated the implementation
+  are removed; every loader constraint asserts that the message names the offending key; the pin
+  of FissionFragmentsDomain.jl is asserted equal across the five environments; `write_figures`
+  runs on a synthetic result.
+- CI: the documentation job no longer repeats the doctests after deployment and installs the
+  package through the documentation environment alone; Dependabot covers the scripts environment
+  and ignores exactly the standard libraries that carry compat entries; the formatting gate runs
+  with read-only permissions and covers the root scripts; the formatter is pinned to one release
+  so the local gate and CI agree.
+- Documentation only. The README is an entry point again: the sections that repeated the method,
+  consuming and naming pages are cut to a paragraph with a link, and the Method section precedes
+  the environments. The prose of every page, of `data/README.md` and of the changelog preambles
+  is rewritten in shorter sentences, with the same content. `data/README.md` states that the
+  package reads `correlated_with` and the qualifiers, which v0.2.7 of the retrieval introduced,
+  and that reproducibility rests on the stored subentries and the recorded parser revision. The
+  method page states that the span guard never binds at the shipped settings. The von Egidy
+  erratum, the AME2020 papers and Pearson's mass formula are cited.
+
+### Removed
+
+- The special refusal of the retired key `segments.min_dataset_coverage`; it is refused as any
+  unknown key is.
+- `PACKAGE_VERSION`; the package version is read with `pkgversion`.
+
 ## [0.4.1] - 2026-10-15
 
-FissionFragmentsDomain.jl 0.2.4. The `[domain]` table of a manifest now records whether `ΔZ = 0`
-was imposed at the symmetric split, the choice the identifier's `dZ0` token shows. No result
-changes: the four shipped configurations give the tables, the curves and the manifests of 0.4.0,
-the new key and the package version in the `[domain]` table apart. The inputs are those of
-ExforFissionData.jl v0.5.0, whose 240 tables and stored subentries are byte-identical to those of
-v0.4.0; of its records, one gains a key this package does not read.
+Requires FissionFragmentsDomain.jl 0.2.4. The `[domain]` table of the manifest records whether
+`ΔZ = 0` was imposed at the symmetric split (the `dZ0` token of the identifier). Results are
+unchanged: the four shipped configurations reproduce the tables, curves and manifests of 0.4.0
+except for the new key and the package version in `[domain]`. Inputs: ExforFissionData.jl v0.5.0,
+whose 240 tables and stored subentries are byte-identical to those of v0.4.0.
 
 ### Changed
 
@@ -26,22 +82,17 @@ v0.4.0; of its records, one gains a key this package does not read.
   configuration. The two agree for every configuration this package accepts, since
   `zero_polarization_at_symmetry = true` is refused with `"wahl"`, and the test suite asserts
   that the manifest, the metadata and the `dZ0` token agree, for Wahl's model and for a tabulated
-  distribution with the choice imposed. `Nuclide` hashes by value in 0.2.4, so a quantity summed
-  over a dictionary keyed by nuclides comes out the same from one build to the next.
-  `bounded_fragment_yield`, new in 0.2.4, is not taken up: this package reads `⟨TKE⟩(A)` for the
-  excitation weighting alone and builds no `P(TKE|A,Z)`, and the trend moves by at most
-  2 × 10⁻⁴ under a shift of the whole table by 3 MeV.
+  distribution with the choice imposed. `Nuclide` hashes by value in 0.2.4, so sums over
+  nuclide-keyed dictionaries are reproducible between builds.
 - Documentation only. The statements that `dZ0` is not recorded in the `[domain]` table are
   corrected, and the example manifest of the consuming page carries the key.
 
 ## [0.4.0] - 2026-10-14
 
-The run identifier is short: the parameters of the fragmentation domain, readable, and a hash of
-every result-changing parameter. No result of a run changes: the four shipped configurations give
-the tables, the curves and the manifests of 0.3.1, the identifier in the names of four files and
-in `metadata.toml` apart. The inputs are those of ExforFissionData.jl v0.4.0, whose tables are
-byte-identical to those of v0.2.8 and v0.2.7; its records add keys and reword two conventions and
-the normalisation of a yield, none of which this package reads.
+Shorter run identifier: the fragmentation-domain parameters in readable form and a hash of every
+result-changing parameter. Results are unchanged; only the identifier differs from 0.3.1, in the
+names of four files and in `metadata.toml`. Inputs: ExforFissionData.jl v0.4.0, whose tables are
+byte-identical to those of v0.2.7 and v0.2.8.
 
 ### Changed
 
@@ -115,15 +166,13 @@ ExforFissionData.jl v0.2.7; v0.2.8 and v0.3.0 write the same tables.
 
 ## [0.3.0] - 2026-10-05
 
-The uncertainty of every systematic trend grows: its covariance takes the error of a pooled
-dataset as correlated along the mass axis, and the tabulated `σ(R_T)` of the trend rises by a
-median factor of 3.7, 1.8, 2.6 and 2.7 for ²⁵²Cf, ²³⁵U, ²³⁹Pu and ²³³U. The ²⁵²Cf trend moves
-from `⟨R_T⟩` = 1.0878 to 1.0821, Basova 1979 and Zamyatnin 1979 being pooled as one experiment;
-the ²³⁹Pu trend from 1.0268 to 1.0388, through the same pooling and the exclusion of Nishio 1995.
-The ²³⁵U and ²³³U trends keep their values, and no dataset curve changes in value or in
-uncertainty. The run identifiers of the shipped ²⁵²Cf, ²³⁵U and ²³³U configurations are those of
-0.2.3; that of ²³⁹Pu changes in its `excl` token, its exclusion list having gained an entry. The
-results quoted rest on inputs retrieved with ExforFissionData.jl v0.2.7.
+The covariance of every systematic trend takes the error of a pooled dataset as correlated along
+the mass axis; the tabulated `σ(R_T)` of the trends rises by a median factor of 3.7, 1.8, 2.6 and
+2.7 for ²⁵²Cf, ²³⁵U, ²³⁹Pu and ²³³U. Basova 1979 and Zamyatnin 1979 are pooled as one
+experiment, and Nishio 1995 is excluded from the ²³⁹Pu pool: `⟨R_T⟩` of the ²⁵²Cf trend moves
+from 1.0878 to 1.0821, that of ²³⁹Pu from 1.0268 to 1.0388. The ²³⁵U and ²³³U trends keep their
+values; no dataset curve changes in value or uncertainty. The ²³⁹Pu run identifier changes in its
+`excl` token. Inputs: ExforFissionData.jl v0.2.7.
 
 0.2.3, a patch release, carried two changes that break an accepted input and belonged in this
 release: `read_multiplicity_directory`, `read_mass_yield_directory` and `load_configuration` throw
@@ -166,12 +215,7 @@ run metadata changed for a `[yield] exclude` without `subdirectory`.
   `[result.flagged_curves]` in `metadata.toml`. A curve that begins above the start of the window
   is limited in range, which the `coverage` and `first_pair` columns already state, and is not
   flagged; without a required window nothing is flagged. A flagged curve stays in the manifest.
-  The test is of the shape of the fitted curve, not of `χ²/dof`, which has no common scale across
-  datasets: in the shipped runs it runs from 2 × 10⁻⁵ for a dataset quoting no uncertainties to 26
-  for one quoting small ones. Flagged there are ²³⁹Pu Tsuchiya 2000, one segment from `A_H` = 123,
-  and ²³³U Fraser 1966, which rises from its first pair at `A_H` = 126. None is flagged for ²⁵²Cf
-  and ²³⁵U: Bowman 1963, Britt 1964 and Mehta 1973 of ²⁵²Cf begin at `A_H` = 133, 132 and 135,
-  past the start of the window.
+  In the shipped runs ²³⁹Pu Tsuchiya 2000 and ²³³U Fraser 1966 are flagged.
 - `superseded_datasets(result)` and `ExtractionResult.superseded`: the datasets a republication
   supersedes, each with its successor. Of an experiment whose records all give the relation
   `republication`, the superseding dataset alone enters the pool; the superseded one, which its
@@ -203,34 +247,15 @@ run metadata changed for a `[yield] exclude` without `subdirectory`.
   deviations from the combined curve, each less its mean, fitted to its first
   `autocorrelation_lags` lags and bounded to [0, 0.999]. A dataset that shares fewer than three
   mass numbers with the others does not enter the correlogram, two deviations less their mean
-  being opposite and equal. The estimate of a short centred series is low, by about `(1 + 3ρ)/n`
-  for `n` points (Marriott and Pope, doi:10.1093/biomet/41.3-4.390; Kendall,
-  doi:10.1093/biomet/41.3-4.403), 0.07 to 0.11 for the 30 to 50 masses of a dataset at `ρ` near
-  0.8, so that `ρ`, and with it the uncertainty of the trend, is on the low side; no correction
-  is applied. The coefficient covariance is the sandwich `(XᵀWX)⁻¹ XᵀW Σ W X (XᵀWX)⁻¹` with `Σ = W^(−1/2) R W^(−1/2)`, scaled by
+  being opposite and equal. The coefficient covariance is the sandwich `(XᵀWX)⁻¹ XᵀW Σ W X (XᵀWX)⁻¹` with `Σ = W^(−1/2) R W^(−1/2)`, scaled by
   `max(1, χ²/E[χ²])` in place of `max(1, χ²/dof)`, where `E[χ²] = dof · tr(PR)/tr(P)` with `P`
   the residual projector of the weighted design: with positively correlated errors a smooth fit
   absorbs part of the error and `E[χ²]` falls below the degrees of freedom. Coefficients,
   breakpoints and the selected number of segments are unchanged by it. `deviation_autocorrelation`
   returns the `ρ` the covariance was formed with, `missing` where no lag could be estimated and the
   trend is fitted with independent points. A dataset curve is fitted with independent points as
-  before. With `⟨R_T⟩` over the primary yield distribution, `ρ`, `χ²/dof` and `χ²/E[χ²]` being
-  the columns `deviation_autocorrelation`, `reduced_chi_squared` and
-  `chi_squared_over_expectation` of the curve table:
-
-  | System | `ρ` | `χ²/dof` | `χ²/E[χ²]` | `⟨R_T⟩` ± `R_T_uncertainty` | `R_T_uncertainty_leave_one_out` |
-  |---|---|---|---|---|---|
-  | ²⁵²Cf(sf) | 0.872 | 2.02 | 3.83 | 1.0821 ± 0.0159 | 0.0085 |
-  | ²³⁵U(nth,f) | 0.690 | 0.44 | 0.63 | 1.1230 ± 0.0153 | 0.0222 |
-  | ²³⁹Pu(nth,f) | 0.814 | 0.73 | 1.29 | 1.0388 ± 0.0269 | 0.0257 |
-  | ²³³U(nth,f) | 0.800 | 1.70 | 2.43 | 1.0724 ± 0.0936 | 0.1381 |
-
-  Refitted with the combined points taken as independent, a number a run does not write, the four
-  uncertainties would be 0.0037, 0.0075, 0.0091 and 0.0319, the tabulated `σ(R_T)` of the trends
-  being larger by a median factor of 3.7, 1.8, 2.6 and 2.7. For ²³⁵U and ²³³U the jackknife
-  uncertainty exceeds the propagated one, by a factor of 1.4 to 1.5: the datasets differ by offsets the kernel does not hold, most of all for ²³³U, whose four
-  datasets give `⟨R_T⟩` from 0.98 to 1.18 with one left out. For ²³⁹Pu the two are about equal;
-  for ²⁵²Cf, with thirteen experiments, the jackknife is about half the propagated uncertainty.
+  before. Values for the four shipped systems are on the method page, under The uncertainty of the
+  trend.
 - Pooled datasets of one experiment, those whose retrieval records name one another under
   `correlated_with`, enter the pool as one curve, at the uncertainty of one measurement with the
   measured fraction of each of its points, so that the experiment counts once in the
@@ -245,18 +270,10 @@ run metadata changed for a `[yield] exclude` without `subdirectory`.
   every member states, or two state differently, are combined by the rule a pool is combined with.
   In the shipped inputs Basova 1979 and Zamyatnin 1979 are alternative analyses of one experiment, for ²⁵²Cf (EXFOR 41720002
   and 41694002) and for ²³⁹Pu (41720004 and 41694003), whose tables differ by 0.34 and 0.36
-  neutrons rms. The ²⁵²Cf trend moves from 5 to 4 segments, breakpoints 130, 137, 143, 149 to 130,
-  136, 150, `χ²/dof` 1.53 to 2.02 and `⟨R_T⟩` 1.0878 to 1.0821, and gives 1.0806 with the
-  experiment left out. The ²³⁹Pu trend, with Nishio 1995 still pooled, keeps 6 segments,
-  breakpoints 126, 130, 137, 149, 154 to 126, 130, 137, 148, 154, `χ²/dof` 0.44 to 0.54 and
-  `⟨R_T⟩` 1.0268 to 1.0113.
+  neutrons rms.
 - Nishio 1995 (EXFOR 23012008) is kept out of the ²³⁹Pu pool by the shipped configuration, with
   the reason; its own curve is still fitted and written, and the published rows resting on it are
-  unaffected. Its `ν(m*)` is a difference of fragment masses, no neutron being detected; the paper,
-  J. Nucl. Sci. Technol. 32, 404 (1995), doi:10.1080/18811248.1995.9731725, gives a total about
-  10 % above the evaluated value and fixes its plasma-delay correction with the pooled `ν(m*)` of
-  Apalin et al. Over `A_H` = 130 to 150 its `⟨ν_H⟩` is 1.68 against 1.20 to 1.48 in the other four
-  sets; the README gives the attribution. With it the ²³⁹Pu trend took 6 segments, `χ²/dof` = 0.54
+  unaffected. The README gives the attribution. With it the ²³⁹Pu trend took 6 segments, `χ²/dof` = 0.54
   and `⟨R_T⟩` = 1.0113; without it, 4 segments, 0.73 and 1.0388, and 1.0296 with Basova 1979 and
   Zamyatnin 1979 left out. The `excl` token of its run identifier changes.
 - `FLAGGED_QUALIFIERS` is `("DERIV", "SPA", "preliminary")`. A dataset whose record carries a
@@ -998,7 +1015,8 @@ branch:
   check so a partially present tree failed, and results were overwritten in place with no run
   identifier, commit or hardware record.
 
-[unreleased]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.4.0...HEAD
+[unreleased]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.2.3...v0.3.0

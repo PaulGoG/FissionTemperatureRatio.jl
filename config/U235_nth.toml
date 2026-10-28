@@ -4,36 +4,36 @@
 target_A = 235                                # mass number of the target nuclide, 2 to 400
 target_Z = 92                                 # charge number of the target nuclide, 1 to 118
 channel = "nth"                               # entrance channel; one of: "nfast" | "nres" | "nth" | "sf"
-incident_energy = 2.53e-8                     # MeV, at least 0; must be 0 for the "sf" channel
+incident_energy = 2.53e-8                     # incident neutron energy in MeV, at least 0; 0 for "sf"
 
 [fragmentation]
 charges_per_mass = 5                          # charge numbers per mass number, odd, 1 to 15
 heavy_mass_min = 118                          # smallest heavy-fragment mass number, at least the symmetric split A0/2
 heavy_mass_max = 160                          # largest heavy-fragment mass number, below A0
-charge_distribution_file = "wahl"             # one of: "wahl" | "mean", or a table A dZ sigma_Z relative to data/
+charge_distribution_file = "wahl"             # isobaric charge distribution; one of: "wahl" | "mean", or a table A dZ sigma_Z relative to data/
 zero_polarization_at_symmetry = false         # dZ = 0 at A0/2 for a table or "mean"; not allowed with "wahl"
 
 [level_density]
-model = "BSFG"                                # one of: "BSFG" | "GC"
-mass_excess_file = "ame2020"                  # "ame2020", the evaluation FissionFragmentsDomain ships, or a table relative to data/
-shell_correction_file = "gilbert_cameron_1965"  # "gilbert_cameron_1965", Table III as FissionFragmentsDomain ships it, or a table relative to data/; read by "GC"
-deformed_branch = true                        # "GC" only: true takes c = 0.120 for deformed nuclei (eq. 21), false c = 0.142 throughout (eq. 20)
-ratio_averaging = "charge_resolved"           # one of: "charge_resolved" | "ratio_of_means" | "mean_of_ratios"
+model = "BSFG"                                # level density model; one of: "BSFG" | "GC"
+mass_excess_file = "ame2020"                  # "ame2020" (shipped), or a mass-excess table relative to data/
+shell_correction_file = "gilbert_cameron_1965"  # "gilbert_cameron_1965" (shipped), or a table relative to data/; read by "GC"
+deformed_branch = true                        # "GC" only; true: eq. (21) for deformed nuclei, false: eq. (20) throughout
+ratio_averaging = "charge_resolved"           # reduction of a_L/a_H over the charges; one of: "charge_resolved" | "ratio_of_means" | "mean_of_ratios"
 mean_kinetic_energy_file = "U235_nth/TKE_vs_A/23164007_A.Al-adili_2016.dat"  # pre-neutron <TKE>(A) in MeV, relative to data/; "charge_resolved" only; optional
 
 [multiplicity]
 subdirectory = "U235_nth/nu_vs_A"             # under data/; whitespace-separated A nu nu_uncertainty
-# exclude: datasets kept out of the pooled trend, as [{ accession = EXFOR dataset identifier, reason = text }]; one that forms fragment pairs still offers its own curve
+# exclude: datasets kept out of the pooled trend, [{ accession = EXFOR dataset identifier, reason = text }]; optional
 exclude = [
-    { accession = "41738002", reason = "EXFOR 41738002, Zeynalov 2019, the 235-U result of the paper and analysis excluded for 252-Cf (41739002), statistical uncertainties only: weighted with the Al-Adili 2016 Y(A) over A_H = 130 to 150, its light- and heavy-fragment multiplicities are 1.02 and 1.36 against 1.36 to 1.66 and 1.02 to 1.17 in Fraser 1966, Nishio 1998, Al-Adili 2020 and Vorobyev 2010; the pair sum, 2.39, is on the scale of nu-bar, so the neutrons are divided wrongly between the wings, and r_nu is 0.57 against 0.41 to 0.44 (Apalin 1965: 0.49)" },
-    { accession = "41502005", reason = "EXFOR 41502005, Batenkov 2004 (AIP Conf. Proc. 769, 1003, doi:10.1063/1.1945175), preliminary results with statistical uncertainties only: 21 masses on a 4-u grid, 81 to 161, on which no mass has its complement at A0 = 236, so it forms no fragment pair and is not paired against interpolated complements; the authors report substantial deviations from earlier data in the symmetric region and at the edges of the distribution" },
+    { accession = "41738002", reason = "EXFOR 41738002: neutrons divided wrongly between the wings, r_nu 0.57 against 0.41 to 0.44; see data/README.md" },
+    { accession = "41502005", reason = "EXFOR 41502005: preliminary; 4-u grid forms no fragment pair; see data/README.md" },
 ]
 
 [yield]
-mass_yield_file = "U235_nth/Y_vs_A/23164005_A.Al-adili_2016.dat"  # primary pre-neutron Y(A), A Y Y_uncertainty, relative to data/; averaged over alone, or the coverage reference of subdirectory
+mass_yield_file = "U235_nth/Y_vs_A/23164005_A.Al-adili_2016.dat"  # primary pre-neutron Y(A), A Y Y_uncertainty, relative to data/
 # subdirectory: every Y(A) under data/ to average over in place of the primary alone; optional
 # exclude: Y(A) under subdirectory kept out of every average, as [{ accession = EXFOR dataset identifier, reason = text }]; optional
-symmetrize = true                             # Y(A) and Y(A0 - A) averaged where both are measured (pre-neutron identity)
+symmetrize = true                             # average Y(A) and Y(A0 - A) where both are measured
 min_yield_coverage = 0.3                      # share of the primary Y(A)'s heavy-fragment yield a distribution must cover to be averaged over, 0 to 1
 
 [segments]
@@ -47,7 +47,7 @@ min_pair_coverage = 0.3                       # fraction of the range's heavy ma
 autocorrelation_lags = 4                      # lags of the deviation correlogram the trend's autocorrelation is fitted to, 1 to 8
 
 [retrieval]
-min_package_version = "0.2.7"                 # lowest ExforFissionData version whose retrieval records are accepted; a record below it, or stating none, is refused
+min_package_version = "0.2.7"                 # lowest ExforFissionData version whose retrieval records are accepted
 
 [output]
 significant_digits = 6                        # significant figures in tabulated output, 1 to 15

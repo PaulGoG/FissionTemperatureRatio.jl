@@ -13,7 +13,7 @@ using FissionFragmentsDomain:
     Nuclide, neutron_induced_fission, spontaneous_fission, system_notation
 using FissionTemperatureRatio
 using LaTeXStrings: @L_str
-using Statistics: quantile
+using TOML: TOML
 
 const ASSETS = joinpath(@__DIR__, "src", "assets")
 const WIDTH = 900
@@ -24,7 +24,9 @@ function richest_measurement(configuration)
     range = A_H_range(configuration)
     datasets = read_multiplicity_directory(configuration.multiplicity_directory)
     curves = [multiplicity_ratio(data, A₀, range) for data in datasets]
-    return curves[argmax(length.(curves))]
+    i = argmax(length.(curves))
+    measured = pooling_weight(retrieval_record(datasets[i].source))
+    return (; curve = curves[i], measured)
 end
 
 """
@@ -47,8 +49,10 @@ function animate_selection(panels; path, max_segments = 6, hold = 8)
                     min_segments = k,
                     max_segments = k,
                     min_points_per_segment = panel.min_points_per_segment,
+                    min_segment_span = panel.min_segment_span,
                     pinned_value = panel.pinned_value,
                     bounds = (0.0, 1.0),
+                    measured = fill(panel.measured, length(panel.curve.A_H)),
                 )
             catch error
                 error isa InsufficientDataError || rethrow()
@@ -201,22 +205,15 @@ const SYSTEM_NOTATION = Dict(
 
 save_asset(name, figure) = save(joinpath(ASSETS, name), figure; px_per_unit = 4)
 
-# Okabe-Ito, the same order the package's own figures use, with seven markers against eight
-# colours so that the pairs stay distinct.
-const SERIES_COLOURS = [
-    RGBf(0.0, 0.447, 0.698),
-    RGBf(0.835, 0.369, 0.0),
-    RGBf(0.0, 0.62, 0.451),
-    RGBf(0.8, 0.475, 0.655),
-    RGBf(0.337, 0.706, 0.914),
-    RGBf(0.902, 0.624, 0.0),
-    RGBf(0.35, 0.35, 0.35),
-]
-const SERIES_MARKERS = [:circle, :rect, :utriangle, :diamond, :dtriangle, :xcross, :star5]
-dataset_colour(i::Integer) = SERIES_COLOURS[mod1(i, length(SERIES_COLOURS))]
-# Marker edge: the fill darkened, as the package's own figures do.
-darker(colour::RGBf) = RGBf(0.6f0 * colour.r, 0.6f0 * colour.g, 0.6f0 * colour.b)
-dataset_marker_symbol(i::Integer) = SERIES_MARKERS[mod1(i, length(SERIES_MARKERS))]
+# The palette and markers of the package's own figures, from the extension, so that a dataset
+# keeps its colour here and in a run's figures.
+const EXTENSION = Base.get_extension(
+    FissionTemperatureRatio, :FissionTemperatureRatioCairoMakieExt
+)
+EXTENSION === nothing && error("the CairoMakie extension did not load")
+dataset_colour(i::Integer) = EXTENSION.dataset_color(i)
+darker(colour) = EXTENSION._darker(colour)
+dataset_marker_symbol(i::Integer) = EXTENSION.dataset_marker(i)
 
 "Published total averages against the ones this package produces, with the residuals beneath."
 function figure_published_comparison(results)
@@ -393,8 +390,7 @@ function figure_method_chain(result, count = 5)
     # them together.
     rowgap!(figure.layout, 28)
 
-    # The symmetric split separates the light wing from the heavy one, which is what a label on
-    # each wing used to say — and it says it without sitting on top of the data.
+    # The symmetric split.
     for axis in axes
         vlines!(axis, [A₀ / 2]; color = (:grey, 0.55), linestyle = :dot, linewidth = 1.5)
     end
@@ -454,8 +450,7 @@ function figure_method_chain(result, count = 5)
         tellwidth = false,
         padding = (0, 0, 0, 0),
     )
-    # Set after the legend, because adding a row renumbers the gaps: indexing one of them by hand
-    # tightened the wrong one and ran two panels' tick labels together.
+    # Set after the legend, because adding a row renumbers the gaps.
     rowgap!(figure.layout, 28)
     # The far-asymmetric tail of some measurements reaches tens of neutrons per fragment; scaled
     # to those, the sawtooth that carries the physics collapses to a line. Bounded by the bulk, as
@@ -527,14 +522,13 @@ end
 # shipped configurations do not take.
 function every_distribution(system)
     source = joinpath(dirname(@__DIR__), "config", "$(system).toml")
-    text = replace(
-        read(source, String),
-        r"^(mass_yield_file = .*)$"m =>
-            SubstitutionString("\\1\nsubdirectory = \"$(system)/Y_vs_A\""),
-    )
+    document = TOML.parsefile(source)
+    document["yield"]["subdirectory"] = "$(system)/Y_vs_A"
     return mktempdir() do directory
         path = joinpath(directory, "$(system).toml")
-        write(path, text)
+        open(path, "w") do io
+            return TOML.print(io, document)
+        end
         return run_pipeline(load_configuration(path; data_directory = DATA_DIRECTORY))
     end
 end
@@ -551,7 +545,7 @@ function main()
 
     panels = map(systems) do system
         configuration = configurations[system]
-        curve = richest_measurement(configuration)
+        (; curve, measured) = richest_measurement(configuration)
         settings = configuration.segments
         # As the pipeline does: the pin is an identity at the symmetric split and nowhere else.
         pinned =
@@ -565,7 +559,9 @@ function main()
             curve,
             label = "$(system_notation(configuration.system)) · $(curve.label)",
             min_points_per_segment = settings.min_points_per_segment,
+            min_segment_span = settings.min_segment_span,
             pinned_value = pinned,
+            measured,
         )
     end
 
@@ -588,7 +584,11 @@ function main()
     source = joinpath(dirname(@__DIR__), "config", "U233_nth.toml")
     gilbert_cameron = mktempdir() do directory
         path = joinpath(directory, "gilbert_cameron.toml")
-        write(path, replace(read(source, String), "model = \"BSFG\"" => "model = \"GC\""))
+        document = TOML.parsefile(source)
+        document["level_density"]["model"] = "GC"
+        open(path, "w") do io
+            return TOML.print(io, document)
+        end
         return run_pipeline(load_configuration(path; data_directory = DATA_DIRECTORY))
     end
 

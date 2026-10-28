@@ -44,19 +44,19 @@ run over ``p(Z, A_H)``. The three coincide for a single charge per mass and diff
 in the spread of ``\rho_Z`` over the charge window. The paper adopts the ratio of means and shows
 it beside the mean of ratios in its Fig. 2; it remains selectable for that reason.
 
-No fit and no prompt emission calculation enters. The fragmentation domain — heavy masses, the
-charges retained about ``Z_p(A)``, their probabilities — the mass table, the level density
-parameters and the relation between ``R_T`` and ``E_H^*/\mathrm{TXE}`` are those of
-FissionFragmentsDomain.jl, which the codes that consume ``R_T(A_H)`` partition on as well, so the
-two sides do not hold diverging copies of one definition. The charge distribution is Wahl's
-``Z_p`` model with the parameters of [Wahl1988](@cite) for the four reactions evaluated there and
-the systematics of [Wahl2002](@cite) otherwise. The level density parameter is taken from the
-back-shifted Fermi-gas systematics of [vonEgidy2005, vonEgidy2009](@cite) by default, or from the
-formula of [GilbertCameron1965](@cite) with the shell corrections of its Table III, whose
-eq. (21), ``a/A = 0.00917\,S + 0.120``, applies to the nuclei it counts as deformed and eq. (20),
-``0.00917\,S + 0.142``, to the rest; about a third of the yield-weighted ``^{252}``Cf fragments
-lie in the first deformed region. The shell corrections ``S`` are referred to a spherical
-reference, and eq. (21) is what corrects them for the deformation of those nuclei
+The extraction involves no fit and no prompt emission calculation. The fragmentation domain —
+heavy masses, the charges retained about ``Z_p(A)``, their probabilities — the mass table
+(AME2020, [Huang2021, Wang2021](@cite)), the level density parameters and the relation between
+``R_T`` and ``E_H^*/\mathrm{TXE}`` are those of FissionFragmentsDomain.jl, and the codes that
+consume ``R_T(A_H)`` use the same definitions. The charge distribution is Wahl's ``Z_p`` model
+with the parameters of [Wahl1988](@cite) for the four reactions evaluated there and the
+systematics of [Wahl2002](@cite) otherwise. The level density parameter is taken from the
+back-shifted Fermi-gas systematics of [vonEgidy2005, vonEgidy2006, vonEgidy2009](@cite) by
+default, or from the formula of [GilbertCameron1965](@cite) with the shell corrections of its
+Table III. Its eq. (21), ``a/A = 0.00917\,S + 0.120``, applies to the nuclei it counts as
+deformed, and eq. (20), ``0.00917\,S + 0.142``, to the rest; about a third of the yield-weighted
+``^{252}``Cf fragments lie in the first deformed region. The shell corrections ``S`` are referred
+to a spherical reference, and eq. (21) corrects them for the deformation of those nuclei
 [BrancazioCameron1969](@cite), so both formulas apply by default. `deformed_branch = false`
 applies eq. (20) throughout, the spherical-only setting of Table 2 of [Tudora2024](@cite).
 
@@ -64,7 +64,7 @@ applies eq. (20) throughout, the spherical-only setting of Table 2 of [Tudora202
 
 From the measured sawtooth to the temperature ratio, on a shared abscissa: the multiplicity of each
 fragment of the pair, the ratio formed from them, and the temperature ratio that follows by the
-exact inversion. No fit and no prompt emission calculation enters any step.
+exact inversion.
 
 Gilbert-Cameron, `model = "GC"`, returns for fission fragments markedly larger parameters away from
 closed shells than the back-shifted Fermi gas, with its deformed-nucleus formula where the 1965
@@ -92,7 +92,7 @@ a symmetric error bar.
 2. **It returns ``R_T = 1`` from ``r_\nu = 1/2`` at the symmetric split** exactly, provided the
    charge set there is its own mirror under ``Z \to Z_0 - Z``. The terms of the sum then pair as
    ``\rho`` and ``1/\rho`` with equal weight, and ``1/(1 + \rho) + 1/(1 + 1/\rho) = 1``; the
-   excitation weights pair the same way, ``Z`` and ``Z_0 - Z`` being one fragmentation.
+   excitation weights pair the same way, since ``Z`` and ``Z_0 - Z`` are one fragmentation.
 3. **The excitation weight is the premise itself.** ``\nu_L/\nu_H = E_L^*/E_H^*`` holds, if at
    all, fragmentation by fragmentation; a mass-resolved multiplicity weights each fragmentation by
    the excitation it shares out. At the ``Z = 50`` shell the ``Q``-value and ``a_L/a_H`` change
@@ -108,9 +108,9 @@ a symmetric error bar.
 4. **FIFRELIN fixes ``R_T(A_{\mathrm{CN}}/2) = 1``** [Piau2023](@cite); the charge-resolved
    inversion reaches the same value from the data rather than by construction.
 5. **Uncertainties propagate with the exact slope** ``\partial R_T/\partial r_\nu`` of the
-   inversion, the reciprocal of
-   ``-\sum_Z w_Z\, 2 \rho_Z R_T/(1 + \rho_Z R_T^2)^2`` with the normalized weights ``w_Z``,
-   in place of the closed-form ``-1/(2 R_T R_a r_\nu^2)`` of an effective ratio.
+   inversion, the reciprocal of ``-\sum_Z w_Z\, 2 \rho_Z R_T/(1 + \rho_Z R_T^2)^2`` with the
+   normalised weights ``w_Z``, in place of the closed-form ``-1/(2 R_T R_a r_\nu^2)`` of an
+   effective ratio.
 
 ## Exact behaviour at the symmetric split
 
@@ -119,14 +119,12 @@ nuclide. The charge polarization vanishes there, ``\Delta Z(A_0/2) = 0``, as a p
 charge model rather than an imposition: Wahl's 1988 fits pass through point X of their Fig. 2 at
 the symmetric split, and the steep branch of the 2002 systematics crosses zero there linearly
 [Wahl1988, Wahl2002](@cite). The retained charges are then invariant under ``Z \to Z_0 - Z``, and
-the multiplicity ratio is exactly one half, which the parameterization pins. ``R_T(A_0/2) = 1``
+the multiplicity ratio is exactly one half, which the fit pins. ``R_T(A_0/2) = 1``
 follows under the charge-resolved inversion and under the ratio of means, whose two averages run
 over one set of nuclides. The mean of ratios cannot reproduce it: the per-charge ratios come in
 reciprocal pairs of equal weight, and the arithmetic mean of ``x`` and ``1/x`` exceeds one unless
-``x = 1``, which leaves ``R_T(A_0/2)`` below one, by ``1 \times 10^{-5}`` to
-``2 \times 10^{-4}`` on the four shipped domains. The identity at the
-symmetric split therefore no longer singles out the ratio of means, as it did when that was the
-only order compared with the mean of ratios.
+``x = 1``. This leaves ``R_T(A_0/2)`` below one, by ``1 \times 10^{-5}`` to ``2 \times 10^{-4}``
+on the four shipped domains.
 
 A run checks both conditions — the invariance of the charge set, and ``R_T`` from ``r_\nu = 1/2``
 at ``A_0/2`` — and records them, so that an input violating them is reported rather than silently
@@ -137,12 +135,12 @@ the published extraction did.
 ## Description by joined segments
 
 The ratio extracted point by point is scattered, and for some datasets sparse, so it is
-``r_\nu`` that is described by joined segments and ``R_T`` that follows by the exact relation above.
-In the paper the segments were drawn by hand through the ratio of each dataset, and this package
-was not used. Here their number and their breakpoints are selected from the data, and the
-combination of several datasets into one trend, further down, is this package's own; the total
-averages therefore agree with the published ones at the per-cent level, not to the digits quoted. The model is
-continuous and piecewise-linear, written in the truncated-power basis
+``r_\nu`` that is described by joined segments and ``R_T`` that follows by the exact relation
+above. In the paper the segments were drawn by hand through the ratio of each dataset, and this
+package was not used. Here their number and their breakpoints are selected from the data, and the
+combination of several datasets into one trend (Combining datasets, below) is this package's own.
+The total averages therefore agree with the published ones at the per-cent level, not to the
+quoted digits. The model is continuous and piecewise-linear, written in the truncated-power basis
 
 ```math
 f(x) = \beta_0 + \beta_1 (x - x_0) + \sum_k \gamma_k (x - \psi_k)_+,
@@ -155,10 +153,11 @@ tractable over a fragment mass range and returns the global optimum. The number 
 chosen by the Bayesian information criterion [Schwarz1978](@cite), which prices both the extra
 slope and the extra breakpoint; the criterion for every order examined is retained, so the choice
 can be audited. Its sample size and the degrees of freedom are counted in measurements, not in
-points: a dataset interpolated onto the integer masses by its retrieval contributes its measured
-points over its written rows for each of its points, and a point of the combined curve the
-average of its contributors' fractions, weighted as they are combined. Interpolated points share
-their bracketing measurements, and counted as independent they would buy extra segments.
+points. Each point of a dataset that the retrieval interpolated onto integer masses counts for the
+ratio of the dataset's measured points to its written rows; a point of the combined curve counts
+for the average of its contributors' fractions, weighted as in the combination. Interpolated
+points share their bracketing measurements, and counted as independent they would favour extra
+segments.
 
 That fraction ``f`` enters a fit once. A point of uncertainty ``\sigma``, taken as one
 measurement, carries the weight ``f/\sigma^2``, and the same weight serves the solve,
@@ -182,9 +181,10 @@ Where no point quotes an uncertainty the weights are uniform and carry no scale,
 ordinary least squares and the covariance is scaled by ``\chi^2/\mathrm{dof}`` alone.
 
 Each segment must hold `min_points_per_segment` data points and extend over at least
-`min_segment_span` mass units from its first pivot to its last. At four points per segment on
-consecutive mass numbers the two guards coincide; the span guard acts where abscissae repeat, as
-in a combined curve, or where the point count is set lower.
+`min_segment_span` mass units from its first pivot to its last. On consecutive mass numbers a
+segment of `min_points_per_segment` points already spans `min_points_per_segment − 1` units, so
+with the shipped values of 4 and 3 the span guard never binds; it acts only where it is set above
+that.
 
 A dataset is offered as a segmented curve of its own only if it provides a complete fragment pair
 at a fraction `min_pair_coverage` of the mass numbers of the fragmentation range. Below that
@@ -193,11 +193,11 @@ it alone: with pairs at few mass numbers the breakpoint search cannot place the 
 data do not reach, and the curve it returns asserts structure between the measurements that a
 consuming code could not tell from a measured feature.
 
-Two constraints are enforced during the search because they are exact, not preferences: the fit
-is pinned to one half at the symmetric split — for a dataset whose complete pairs begin above
-it the identity has no abscissa to act on, and that curve is fitted unpinned — and it may not leave the interval ``(0, 1)``, outside which the
-temperature ratio relation is undefined. Since a piecewise-linear function attains its extrema at
-its pivots, the bound is tested exactly rather than sampled.
+Two exact constraints are enforced during the search. The fit is pinned to one half at the
+symmetric split; a dataset whose complete pairs begin above the split gives the identity no
+abscissa, and its curve is fitted unpinned. The fit may not leave the interval ``(0, 1)``, outside
+which the temperature ratio relation is undefined. Since a piecewise-linear function attains its
+extrema at its pivots, the bound is tested exactly rather than sampled.
 
 ## One curve per dataset, and one systematic trend
 
@@ -206,19 +206,19 @@ they do, the temperature ratio can only be determined separately for each of the
 produces one segmented curve per dataset that reaches the coverage floor, fitted to that dataset
 alone.
 
-A dataset curve whose segmented ``r_\nu`` has no interior minimum, no interior pivot below both of
-its neighbours, although its range covers a required window, the window of `required_windows` in
-which the minimum lies, is flagged with the reason in the dataset diagnostics and in the run
-metadata. A curve that begins above the start of the window is limited in range, which its
-coverage and its first pair already state, and is not flagged; without a required window nothing
-is flagged. A flagged curve stays in the manifest: a consuming code selects a curve by its label
-and can read the flag. The test is of the shape of the fitted curve and not of its
-``\chi^2/\mathrm{dof}``, which has no common scale across datasets; in the shipped runs it runs
+A dataset curve is flagged when its range covers a required window, the window of
+`required_windows` in which the minimum lies, but its segmented ``r_\nu`` has no interior minimum,
+that is, no interior pivot below both its neighbours. The reason is recorded in the dataset
+diagnostics and the run metadata. A curve that begins above the start of the window is limited in
+range, which its coverage and its first pair already state, and is not flagged; without a required
+window nothing is flagged. A flagged curve stays in the manifest: a consuming code selects a curve
+by its label and can read the flag. The test is of the shape of the fitted curve and not of its
+``\chi^2/\mathrm{dof}``, which has no common scale across datasets. In the shipped runs it ranges
 from ``2 \times 10^{-5}`` for a dataset quoting no uncertainties to 26 for one quoting small ones.
 The shipped runs flag Tsuchiya 2000 for ²³⁹Pu, one segment from ``A_H`` = 123, and Fraser 1966 for
 ²³³U, which rises from its first pair at ``A_H`` = 126. No ²⁵²Cf or ²³⁵U curve is flagged: Bowman
-1963, Britt 1964 and Mehta 1973 of ²⁵²Cf begin at ``A_H`` = 133, 132 and 135, past the start of the
-window, and do not cover it.
+1963, Britt 1964 and Mehta 1973 of ²⁵²Cf begin at ``A_H`` = 133, 132 and 135, past the start of
+the window, and do not cover it.
 
 Alongside them it produces a systematic-trend curve, fitted through the whole body of data with
 the minimum at the heavy magic fragment *placed* rather than fitted: `required_windows` in the
@@ -228,10 +228,10 @@ fragmentation therefore falls between those of the individual sets. This is the 
 a dataset is too sparse or too scattered to resolve the shape on its own, and where no energy
 partition from a scission model is available.
 
-These are alternatives, not an ensemble to be averaged. A prompt emission code takes one of them
-as input; which one describes reality is settled downstream, by comparing the prompt neutron
-multiplicity distributions and the fragment yields that code produces against experimental data.
-The package's job is to supply the candidates, each traceable to the measurement it came from.
+The curves are alternatives and are not averaged. A prompt emission code takes one of them as
+input, and the choice is made downstream by comparing the prompt neutron multiplicity
+distributions and fragment yields the code produces with experimental data. Each curve is
+traceable to the measurement it came from.
 
 ## The total average
 
@@ -243,24 +243,25 @@ distribution,
 \langle R_T \rangle = \frac{\sum_{A_H} Y(A_H)\, R_T(A_H)}{\sum_{A_H} Y(A_H)},
 ```
 
-taken over the heavy branch, with ``Y`` the pre-neutron mass yield — the temperature ratio is a
+taken over the heavy branch, with ``Y`` the pre-neutron mass yield. The temperature ratio is a
 function of the primary heavy-fragment mass number, so a post-neutron distribution would weight
-each ratio by the yield of a different fragmentation. The normalization of ``Y`` cancels. The two fragments of a split are counted in one event, so pre-neutron
-``Y(A) = Y(A_0 - A)`` exactly; by default each mass of a distribution measured on both wings takes
-the mean of the two before the average, so that a difference between the wings — a backing loss
-on one side of a double-energy measurement — enters once and alike, and a mass measured on one
-wing alone gives the yield of its complement. The published averages took the distributions as
-measured.
+each ratio by the yield of a different fragmentation. The normalisation of ``Y`` cancels. The two
+fragments of a split are counted in one event, so the pre-neutron yield obeys
+``Y(A) = Y(A_0 - A)`` exactly. By default, where a distribution is measured on both wings, each
+mass takes the mean of the two before the average; a difference between the wings, such as a
+backing loss on one side of a double-energy measurement, then enters once and equally. A mass
+measured on one wing alone gives the yield of its complement. The published averages took the
+distributions as measured.
 
 A distribution measured over part of the heavy wing gives the ratio averaged over that part, which
 is not a property of the fission yield. Coverage is measured in yield, against the primary
 distribution of the system: the share of its heavy-fragment yield over the fragmentation range at
 the masses the distribution holds. The distribution's own yields cannot measure it, since a sparse
 digitisation normalised over the masses it holds sums to as much as a complete one. A distribution
-below `min_yield_coverage` is therefore read but not averaged over, and every average states its
-yield fraction, the share of the distribution's
-yield over the range that falls at the mass numbers of the curve: one for a curve spanning the
-range, less for a dataset whose complete pairs stop short of it.
+below `min_yield_coverage` is therefore read but not averaged over. Every average states its yield
+fraction, the share of the distribution's yield over the range that falls at the mass numbers of
+the curve: one for a curve spanning the range, less for a dataset whose complete pairs stop short
+of it.
 
 This is the quantity the literature tabulates, and it is not the mean over the fragment mass
 range. That mean weights every mass number equally, so the far-asymmetric tail, where the yield is
@@ -278,16 +279,15 @@ covariance,
 
 with ``J \Sigma J^\mathsf{T}`` the covariance of the fitted ``r_\nu`` at the tabulated mass numbers
 and ``D`` the diagonal matrix of the slope ``\partial R_T/\partial r_\nu`` of the inversion at
-each of them. The
-tabulated points of a fitted curve are functions of a few coefficients and are not independent.
-The independent-points form, which replaces ``w^\mathsf{T} C w`` by
-``\sum (Y/\sum Y)^2 \sigma_{R_T}^2``, is the approximation of the published tables; it is written
+each of them. The tabulated points of a fitted curve are functions of a few coefficients and are
+not independent. The independent-points form, which replaces ``w^\mathsf{T} C w`` by
+``\sum (Y/\sum Y)^2 \sigma_{R_T}^2``, is the approximation of the published tables. It is written
 beside the propagated uncertainty, as `R_T_uncertainty_independent_points`, and understates it by
 a factor of two to five for the curves of the four shipped systems. It concerns the tabulated
-points of a curve and has nothing to do with the correlation between the combined points of a
-trend, set out below. The yield term is common to both, which is why a multiplicity dataset
-quoting no uncertainties still yields an uncertain average. Correlations between the yields at
-different mass numbers are neglected, the sources not reporting them.
+points of a curve, not the correlation between the combined points of a trend treated below. The
+yield term is common to both forms, so a multiplicity dataset quoting no uncertainties still has
+an uncertain average. Correlations between the yields at different mass numbers are neglected,
+since the sources do not report them.
 
 ## Combining datasets
 
@@ -375,37 +375,37 @@ datasets agree within their uncertainties and ``Q`` lies near its expectation: t
 then truncated to zero where it should not be.
 
 Two readings of ``f`` are in use, and they are not the same. The estimate of ``\tau^2`` reads it
-as a weight on a value whose variance is ``\sigma^2 + \tau^2``, the tabulated ``\sigma^2`` being
-taken as the variance of an interpolated value. The standard error written for the combined
+as a weight on a value whose variance is ``\sigma^2 + \tau^2``, and takes the tabulated
+``\sigma^2`` as the variance of an interpolated value. The standard error written for the combined
 curve reads it as the share of a measurement a value amounts to: ``\sigma/\sqrt{f}`` for a value
 alone at its mass number and ``(\sum f/(\sigma^2 + \tau^2))^{-1/2}`` otherwise. For the mean
 under the first reading the written standard error is conservative, by ``1/\sqrt{f}`` where the
 fractions are equal.
 
 Where no value at a mass number quotes an uncertainty, the values are averaged with the weights
-``f`` and their dispersion about that mean, ``s^2 = \sum f (r - \bar{r})^2 / (\sum f - \sum f^2/\sum f)``,
-stands for the variance of one of them: the same estimate as ``\tau^2`` above for values of no
-quoted variance, and the sample variance where the fractions are equal. The mean has the standard
-error ``s/\sqrt{\sum f}``; values that coincide leave nothing to estimate it from, and the
-combined point then quotes none.
+``f`` and their dispersion about that mean,
+``s^2 = \sum f (r - \bar{r})^2 / (\sum f - \sum f^2/\sum f)``, stands for the variance of one of
+them: the same estimate as ``\tau^2`` above for values of no quoted variance, and the sample
+variance where the fractions are equal. The mean has the standard error ``s/\sqrt{\sum f}``;
+values that coincide leave nothing to estimate it from, and the combined point then quotes none.
 
-The reason is empirical. The datasets of one system disagree by ten to twenty times their quoted
-uncertainties, so ``\tau^2`` dominates ``\sigma^2``, the weights become nearly equal, and the
-combination stops being decided by whichever author quoted the smallest errors. It also makes the
+The datasets of one system disagree by ten to twenty times their quoted uncertainties.
+``\tau^2`` therefore dominates ``\sigma^2``, the weights become nearly equal, and the combination
+is no longer decided by whichever author quoted the smallest errors. ``\tau^2`` also makes the
 fitted chi-squared of the combined curve a statement about the fit rather than about the
 disagreement: for ²⁵²Cf it falls from about 16 to about 2.
 
 A reduced chi-squared of the trend below one is the expected outcome of this, not a sign of too
 many segments. The standard error of a combined value treats the disagreement between datasets as
-independent from one mass number to the next, and it is not: the deviation of a dataset from the
-combined curve is largely an offset and a slow drift, correlated along the mass axis as the next
-section sets out, so the combined curve scatters about a smooth line far less than its standard
-error says. For ²³⁵U the residuals of the trend give a reduced chi-squared of 6.5 against the
-quoted uncertainties alone and of 0.44 with ``\tau^2``, which is ten to twenty times
-``\sigma^2`` at the median; ²³⁹Pu behaves alike, at 0.73 with ``\tau^2``. The selection of the segment
-count does not depend on that scale, the criterion taking the noise from the residuals, and it is
-not held by the limit on the count: with `max_segments` raised from 6 to 12 the ²³⁵U trend still
-selects five segments, and the ²³⁹Pu trend selects four, below the limit.
+independent from one mass number to the next. It is not: the deviation of a dataset from the
+combined curve is largely an offset and a slow drift, correlated along the mass axis (next
+section). The combined curve therefore scatters about a smooth line far less than its standard
+error implies. For ²³⁵U the residuals of the trend give a reduced chi-squared of 6.5 against the
+quoted uncertainties alone and of 0.44 with ``\tau^2``, which is ten to twenty times ``\sigma^2``
+at the median. ²³⁹Pu gives 0.73 with ``\tau^2``. The selection of the segment count does not
+depend on that scale, since the criterion takes the noise from the residuals. Nor is it held by
+the limit on the count: with `max_segments` raised from 6 to 12 the ²³⁵U trend still selects five
+segments, and the ²³⁹Pu trend selects four, below the limit.
 
 The same disagreement is why no dataset is rejected for being far from the others. In units of
 the quoted uncertainties none of them agrees with any other, so such a criterion rejects whatever
@@ -415,13 +415,13 @@ identity at the symmetric split, whether complementary multiplicities sum to the
 reported for every dataset, and exclusions are named explicitly rather than inferred.
 
 The archive itself is the first filter: the retrieval rejects datasets whose reaction code or
-units say they are not the quantity asked for, and records why. The diagnostics here are the
-second, structural filter, and they do catch sloppy data — for ²⁵²Cf the complementary sums
-separate cleanly into sets consistent with the total multiplicity of 3.76 (Alkhazov 3.75, Mehta
-3.72, Budtz-Jørgensen 3.70, Vorobiev 3.83) and sets a tenth high (Basova 4.27, Zamyatnin 4.21,
-Ding Shengyao 4.18, Göök 4.17), which is a normalization discrepancy rather than a measurement
-one. The shipped configurations name four exclusions, each with its reason; `data/README.md` of the
-repository gives the attribution of each.
+units say they are not the quantity asked for, and records why. The structural diagnostics are the
+second filter, and they detect defective data. For ²⁵²Cf the complementary sums separate into sets
+consistent with the total multiplicity of 3.76 (Alkhazov 3.75, Mehta 3.72, Budtz-Jørgensen 3.70,
+Vorobiev 3.83) and sets a tenth high (Basova 4.27, Zamyatnin 4.21, Ding Shengyao 4.18, Göök
+4.17), a discrepancy of normalisation rather than of measurement. The shipped configurations name
+four exclusions, each with its reason; `data/README.md` of the repository gives the attribution of
+each.
 
 ## The uncertainty of the trend
 
@@ -439,14 +439,15 @@ mean of each dataset's deviations is removed before the products are formed. The
 ```math
 \rho_k = \frac{\sum f\, d(A)\, d(A + k)}
               {\left[\sum f\, d(A)^2 \, \sum f\, d(A + k)^2\right]^{1/2}},
-\qquad k = 1, \dots, 8,
+\qquad k = 1, \dots, 8.
 ```
 
-every sum running over the pairs of mass numbers ``k`` apart that one dataset holds and over the
-pooled datasets, ``f`` being the pooling factor of a dataset. A mass number held by one dataset
-alone is left out, the deviation there vanishing by construction, and a lag no dataset spans has
-no value. A dataset that shares fewer than three mass numbers with the others is left out as well:
-two deviations less their mean are opposite and equal, a first lag of minus one by construction.
+Each sum runs over the pooled datasets and, within each, over the pairs of mass numbers ``k``
+apart that it holds; ``f`` is the pooling factor of the dataset. A mass number held by one dataset
+alone is left out, since the deviation there vanishes by construction. A lag that no dataset spans
+has no value. A dataset that shares fewer than three mass numbers with the others is left out as
+well: two deviations less their mean are opposite and equal, a first lag of minus one by
+construction.
 
 The estimate is low rather than high. Centred per dataset, it is the estimate of a short centred
 series, and for a series of ``n`` points and a lag-one correlation ``\rho`` its expectation falls
@@ -459,21 +460,21 @@ correction is applied.
 
 The kernel ``\rho^k`` of an AR(1) error is fitted to the first lags of the correlogram in least
 squares, minimising ``\sum_k (\rho_k - \rho^k)^2`` over `autocorrelation_lags` of them, four by
-default. It is fitted to several lags rather than read from the first, the measured correlograms
-decaying more slowly than the powers of their first lag. ``\rho`` is bounded to ``[0, 0.999]``: a
-negative estimate is taken as no correlation. Where no lag can be estimated the trend is fitted
-with independent points.
+default. It is fitted to several lags rather than read from the first, because the measured
+correlograms decay more slowly than the powers of their first lag. ``\rho`` is bounded to
+``[0, 0.999]``: a negative estimate is taken as no correlation. Where no lag can be estimated the
+trend is fitted with independent points.
 
 Each pooled dataset is taken to err along the mass axis with that correlation and independently
 of the others. The combined value at ``A`` carries the share ``s_i(A)`` of dataset ``i``, its
-normalized weight, the shares at one mass number summing to one, and two combined values are
+normalised weight; the shares at one mass number sum to one. Two combined values are then
 correlated as
 
 ```math
 R(A, A') = \rho^{|A - A'|} \sum_i \left[s_i(A)\, s_i(A')\right]^{1/2},
 ```
 
-the sum running over the datasets that hold both mass numbers. Where the same datasets hold both
+where the sum runs over the datasets holding both mass numbers. Where the same datasets hold both
 with the same shares, ``R(A, A') = \rho^{|A - A'|}``. A dataset held at one of the two and not at
 the other brings an error the other value does not share, and lowers the entry: a dataset on a
 two-unit mass grid lowers the correlation between neighbouring combined points and not that
@@ -493,8 +494,8 @@ with ``W`` the fit weights ``f/\sigma^2`` of the combined points; for ``R = I`` 
 
 Its scale refers ``\chi^2`` to what a fit to such errors leaves of it. With
 ``M = I - X (X^\mathsf{T} W X)^{-1} X^\mathsf{T} W``, the expected residual sum of squares is
-``\mathrm{tr}(M^\mathsf{T} W M \Sigma) = \mathrm{tr}(PR)``, ``P`` being the residual projector of
-the weighted design ``\tilde{X} = W^{1/2} X``, and it is referred to the fit's own degrees of
+``\mathrm{tr}(M^\mathsf{T} W M \Sigma) = \mathrm{tr}(PR)``, where ``P`` is the residual projector
+of the weighted design ``\tilde{X} = W^{1/2} X``. It is referred to the fit's own degrees of
 freedom, which count measured fractions and breakpoints:
 
 ```math
@@ -510,12 +511,13 @@ of the ²³⁵U trend, 0.44, is what correlated errors under a smooth fit give: 
 expectation ``\chi^2`` is 0.63. That of the ²³⁹Pu trend, 0.73, is 1.29 times its expectation,
 and the covariance of that trend is scaled by it.
 
-For the four shipped systems, with ``\langle R_T \rangle`` over the primary yield distribution and
-the inputs retrieved by ExforFissionData.jl v0.5.0, the tables of v0.2.7, as a run writes them: ``\rho``,
-``\chi^2/\mathrm{dof}`` and ``\chi^2/\mathrm{E}[\chi^2]`` in the columns
-`deviation_autocorrelation`, `reduced_chi_squared` and `chi_squared_over_expectation` of the curve
-table, and ``\langle R_T \rangle``, its propagated uncertainty and the jackknife in the columns
-`R_T`, `R_T_uncertainty` and `R_T_uncertainty_leave_one_out` of the total averages:
+The table gives the values a run writes for the four shipped systems, with
+``\langle R_T \rangle`` over the primary yield distribution and inputs retrieved by
+ExforFissionData.jl v0.5.0. ``\rho``, ``\chi^2/\mathrm{dof}`` and ``\chi^2/\mathrm{E}[\chi^2]``
+are the columns `deviation_autocorrelation`, `reduced_chi_squared` and
+`chi_squared_over_expectation` of the curve table; ``\langle R_T \rangle``, its propagated
+uncertainty and the jackknife are the columns `R_T`, `R_T_uncertainty` and
+`R_T_uncertainty_leave_one_out` of the total averages:
 
 | System | ``\rho`` | ``\chi^2/\mathrm{dof}`` | ``\chi^2/\mathrm{E}[\chi^2]`` | ``\langle R_T \rangle`` ± `R_T_uncertainty` | `R_T_uncertainty_leave_one_out` |
 | :--- | ---: | ---: | ---: | ---: | ---: |
@@ -525,8 +527,8 @@ table, and ``\langle R_T \rangle``, its propagated uncertainty and the jackknife
 | ``^{233}``U(nth,f) | 0.800 | 1.70 | 2.43 | 1.0724 ± 0.0936 | 0.1381 |
 
 Refitted with the combined points taken as independent, a number a run does not write, the four
-uncertainties of ``\langle R_T \rangle`` would be 0.0037, 0.0075, 0.0091 and 0.0319, the
-tabulated ``\sigma(R_T)`` of the trends being larger by a median factor of 3.7, 1.8, 2.6 and 2.7.
+uncertainties of ``\langle R_T \rangle`` would be 0.0037, 0.0075, 0.0091 and 0.0319. The
+tabulated ``\sigma(R_T)`` of the trends is larger by a median factor of 3.7, 1.8, 2.6 and 2.7.
 
 What the matrix does not hold is a constant offset of one dataset from the others: the
 correlogram removes the mean of each dataset, so such an offset is in no lag and in no matrix
@@ -537,14 +539,15 @@ each yield distribution averaged over, its number of segments, its breakpoints a
 delete-one jackknife standard error
 
 ```math
-\sigma_{\mathrm{jack}} = \left[\frac{k - 1}{k} \sum_{i=1}^{k} \left(\theta_i - \bar{\theta}\right)^2\right]^{1/2},
+\sigma_{\mathrm{jack}} = \left[\frac{k - 1}{k} \sum_{i=1}^{k} \left(\theta_i - \bar{\theta}\right)^2\right]^{1/2}.
 ```
 
-written beside the propagated uncertainty together with the least and the greatest ``\theta_i``;
-it is the last column of the table. A refit that gave no curve is not among the ``k``, and the log
-says so. With two pooled experiments the jackknife is half the difference of the two refits, which
-the log states as well. The least and the greatest ``\langle R_T \rangle`` among the refits are the
-columns `R_T_leave_one_out_min` and `R_T_leave_one_out_max` of the total averages:
+It is written beside the propagated uncertainty, with the least and greatest ``\theta_i``, and is
+the last column of the table above. A refit that gives no curve is not counted among the ``k`` and
+is reported in the log. With two pooled experiments the jackknife reduces to half the difference
+of the two refits; the log notes this case. The least and the greatest ``\langle R_T \rangle``
+among the refits are the columns `R_T_leave_one_out_min` and `R_T_leave_one_out_max` of the total
+averages:
 
 | System | `R_T_leave_one_out_min` | `R_T_leave_one_out_max` |
 | :--- | ---: | ---: |

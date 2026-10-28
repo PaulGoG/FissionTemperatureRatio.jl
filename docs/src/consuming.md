@@ -52,39 +52,42 @@ multiplicity_ratio_pivots_file = "r_nu_vs_A_H_pivots_systematic_trend.csv"
 What else the run reports about each curve is in `segmented_curves_<run identifier>.csv`, one row
 per manifest curve keyed by the same label, and in `metadata.toml`.
 
-Four things worth knowing before writing against it.
+### The domain must match
 
-**The domain must match.** `[domain]` records the fragmentation domain the curves were extracted
-on: the level density model and its Gilbert-Cameron branch, the averaging and its excitation
-weighting, the charges per mass, the charge model, the mass table, whether `ΔZ = 0` was imposed
-at the symmetric split and the version of FissionFragmentsDomain.jl. A code that partitions the
-excitation energy on another domain does not
-invert the same relation, and
-[DeterministicSequentialEmission.jl](https://github.com/PaulGoG/DeterministicSequentialEmission.jl), which reads these
-curves, refuses such a curve.
+`[domain]` records the fragmentation domain the curves were extracted on: the level density model
+and its Gilbert-Cameron branch, the averaging and its excitation weighting, the charges per mass,
+the charge model, the mass table, whether `ΔZ = 0` was imposed at the symmetric split and the
+version of FissionFragmentsDomain.jl. A code that partitions the excitation energy on another
+domain does not invert the same relation.
+[DeterministicSequentialEmission.jl](https://github.com/PaulGoG/DeterministicSequentialEmission.jl),
+which reads these curves, refuses such a curve.
 
-**Read the columns by position, and read `temperature_ratio_file`.** `columns` says what the three
-columns hold; it is not there to be matched against the header text. `R_T` is not piecewise-linear
-even where the multiplicity ratio is, because the level density parameters carry the shell
-structure into it, so it is tabulated at every mass number and whatever interpolation a consumer
-applies reproduces the tabulated value; the pivot file holds `r_ν`, not `R_T`. The tabulated
-`R_T_uncertainty` is the square root of the diagonal of the propagated covariance of the curve;
-the tabulated points are not independent, so summing their uncertainties in quadrature understates
-the uncertainty of any average over them. `total_average_R_T_<run identifier>.csv` carries the
-covariance-propagated uncertainty of each total average first and the independent-points one
-beside it.
+### Read the columns by position, and read `temperature_ratio_file`
 
-**The curves are alternatives, not an ensemble.** Take one. Which one describes reality is settled
-by running your code with each and comparing what it produces against experiment; that is what
-they are for. `kind = "systematic_trend"`, labelled `systematic_trend`, is the one to take where a
-dataset is too sparse or too scattered to resolve the shape.
+`columns` says what the three columns hold; it is not there to be matched against the header
+text. `R_T` is not piecewise-linear even where the multiplicity ratio is, because the level
+density parameters carry the shell structure into it. It is therefore tabulated at every mass
+number, and whatever interpolation a consumer applies reproduces the tabulated value. The pivot
+file holds `r_ν`, not `R_T`. The tabulated `R_T_uncertainty` is the square root of the diagonal of
+the propagated covariance of the curve. The tabulated points are not independent, so summing
+their uncertainties in quadrature understates the uncertainty of any average over them.
+`total_average_R_T_<run identifier>.csv` carries the covariance-propagated uncertainty of each
+total average first and the independent-points one beside it.
 
-**The default inverts a per-pair partition exactly.** A code that forms `a_L/a_H` for every
-fragmentation `(A_H, Z_H)` and applies `R_T(A_H)` to each recovers the measured `r_ν(A_H)` to
-rounding from a `charge_resolved` curve, and from an excitation-weighted one when it weights the
-pairs by their excitation as the measured multiplicities do. A `ratio_of_means` curve, the
-published setting, misses that round trip by up to 4 × 10⁻³ in `R_T` at the doubly magic heavy
-fragment.
+### One curve is taken
+
+The curves are alternatives and are not averaged. Which one describes the system is decided by
+running the consuming code with each and comparing its output with experiment. The curve of
+`kind = "systematic_trend"`, labelled `systematic_trend`, is meant for use where a dataset is too
+sparse or too scattered to resolve the shape.
+
+### The default inverts a per-pair partition exactly
+
+A code that forms `a_L/a_H` for every fragmentation `(A_H, Z_H)` and applies `R_T(A_H)` to each
+recovers the measured `r_ν(A_H)` to rounding from a `charge_resolved` curve. From an
+excitation-weighted curve it does so when it weights the pairs by their excitation, as the
+measured multiplicities do. A `ratio_of_means` curve, the published setting, misses that round
+trip by up to 4 × 10⁻³ in `R_T` at the doubly magic heavy fragment.
 
 `test/test_manifest.jl` is a consumer: it reads a run through FissionFragmentsDomain.jl's reader
-and nothing else, and checks the contract this section describes.
+and nothing else, and checks the contract this page describes.

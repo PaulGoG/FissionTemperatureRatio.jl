@@ -9,21 +9,14 @@ configuration it cannot honour. A key that is absent takes its default; a sectio
 must be present even where every key of it has one. The shipped configurations set every key they
 read, so that the file states what the run honoured.
 
-Every key that changes the result is a parameter of the run identifier under the short key of the
-fifth column, through [`RUN_IDENTIFIER_ABBREVIATIONS`](@ref), and is written in full under
-`[identifier.parameters]` of `metadata.toml`, a path relative to the data directory and a table
-FissionFragmentsDomain.jl ships by its name. The identifier shows `ldm`, `avg`, `nZ`, `chg`,
-`mass`, `dZ0` and, in a Gilbert-Cameron run, `def`: the keys behind the `[domain]` table of the
-manifest, the zero polarization at the symmetric split among them. A path
-among them appears as the first eight hexadecimal digits of the SHA-1 of its spelling. Every
-parameter, these included, enters the hash `h` of the identifier, taken over the canonical text
-that `metadata.toml` records beside the parameters (see [`run_identifier`](@ref)). The system is
-not a parameter, since it names the directory the identifier sits in.
+Every key that changes the result is a parameter of the run identifier, under the short key of the
+fifth column; [Naming](naming.md) defines the identifier and `metadata.toml` records the
+parameters in full.
 
 ## `[system]`, required
 
-What was irradiated. The reaction code, the fissioning nucleus and the system label
-`<symbol><A>_<channel>` are derived from these keys, and the file is named by that label.
+The keys describe what was irradiated. The reaction code, the fissioning nucleus and the system
+label `<symbol><A>_<channel>` are derived from them, and the file is named by that label.
 
 | Key | Type | Default | Constraint | Short key | Meaning |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -52,7 +45,7 @@ The level density parameters and how the inversion averages over the charges.
 | Key | Type | Default | Constraint | Short key | Meaning |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | `model` | string | required | `"BSFG"`, `"GC"` | `ldm` | back-shifted Fermi gas, or Gilbert-Cameron |
-| `mass_excess_file` | string | `"ame2020"` | `"ame2020"`, or the path of a mass-excess table under the data directory | `mass` | the atomic mass evaluation |
+| `mass_excess_file` | string | `"ame2020"` | `"ame2020"`, or the path of a mass-excess table under the data directory | `mass` | the atomic mass evaluation [Huang2021, Wang2021](@cite) |
 | `shell_correction_file` | string | `"gilbert_cameron_1965"` | `"gilbert_cameron_1965"`, or the path of a table under the data directory; read by `"GC"` alone | `sc`, a Gilbert-Cameron run only | the shell corrections, Table III of Gilbert and Cameron |
 | `deformed_branch` | boolean | `true` | read by `"GC"` alone | `def`, a Gilbert-Cameron run only | eq. (21) of the 1965 paper for the nuclei it counts as deformed; `false` applies eq. (20) throughout |
 | `ratio_averaging` | string | `"charge_resolved"` | `"charge_resolved"`, `"ratio_of_means"`, `"mean_of_ratios"` | `avg` | how the per-charge ratio ``a_L/a_H`` enters the inversion |
@@ -74,9 +67,6 @@ exclude = [
     { accession = "31845003", reason = "one usable fragment pair in range" },
 ]
 ```
-
-An excluded dataset is still read, still fitted where its coverage allows, still written and still
-diagnosed. It is excluded from the combination, not from the record.
 
 An exclusion names its dataset by EXFOR accession. A label, `Author year`, takes the accession of
 each dataset as soon as a second one of the same author and year is retrieved, and an exclusion
@@ -106,7 +96,7 @@ The segmented description of ``r_\nu(A_H)``; every key has a default.
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | `max_segments` | integer | `6` | 1 to 12 | `nseg` | largest segment count examined |
 | `min_points_per_segment` | integer | `4` | 2 to 50 | `npts` | data points a segment must contain |
-| `min_segment_span` | integer | `3` | 1 to 50 | `span` | smallest extent of a segment in mass units, from its first pivot to its last |
+| `min_segment_span` | integer | `3` | 1 to 50 | `span` | smallest extent of a segment in mass units, from its first pivot to its last; binds only where it exceeds `min_points_per_segment − 1` |
 | `pin_symmetric_split` | boolean | `true` | needs an even ``A_0`` and `heavy_mass_min` at the symmetric split | `pin` | fix ``r_\nu = 1/2`` at the symmetric split |
 | `required_windows` | array of `[first, last]` | none | ordered integer pairs inside `heavy_mass_min:heavy_mass_max` | `win` | windows the trend curve must break in; `[[128, 132]]` in the shipped configurations |
 | `windows_apply_to_datasets` | boolean | `false` | — | `wdat` | apply the windows to every dataset curve as well |

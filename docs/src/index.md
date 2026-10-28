@@ -47,15 +47,11 @@ refuses one that already holds files. The script names that directory
 `<run identifier>#1`, `#2`, …, and adds the provenance record `metadata.toml` beside copies of the
 configuration, as `configuration.toml`, and of the resolved manifest of its environment, as
 `Manifest.toml`. The figures go to `plots/<system>/<run identifier>/`. The run identifier covers
-every configuration key that changes the result, so the directory name alone identifies the run;
-inside it, `manifest_<run identifier>.toml`, `segmented_curves_<run identifier>.csv`,
+every configuration key that changes the result, so the directory name alone identifies the run.
+Inside it, `manifest_<run identifier>.toml`, `segmented_curves_<run identifier>.csv`,
 `total_average_R_T_<run identifier>.csv` and `leave_one_out_<run identifier>.csv` carry the
-identifier again, and a consuming code stages
-the whole directory and selects the manifest by its prefix. The manifest records the domain the
-curves were extracted on, and a consuming code refuses a curve extracted on another. The file
-layout is set out under [Naming](naming.md), and every key of the configuration, with its type,
-bounds, default and run-identifier token, under [Configuration](configuration.md).
-
-The vocabulary the package uses for identifiers, configuration keys, files and column headers is
-set out under [Naming](naming.md); it is the same vocabulary the retrieval that supplies the
-experimental input writes, and the one a consuming code reads.
+identifier again. A consuming code stages the whole directory and selects the manifest by its
+prefix. The manifest records the domain the curves were extracted on, and a consuming code
+refuses a curve extracted on another. [Naming](naming.md) describes the file layout, and
+[Configuration](configuration.md) lists every key of the configuration with its type, bounds,
+default and run-identifier token.

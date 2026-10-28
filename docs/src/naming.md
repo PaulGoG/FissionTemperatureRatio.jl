@@ -9,12 +9,10 @@ struct field, configuration key, directory name, file name, column header, figur
 The spelling changes register between contexts — `heavy_mass_max` in a configuration, `A_H` in a
 path — but the *quantity* does not.
 
-The corollary is the rule that decides the hard cases: **a name says what the thing is, not what
-was convenient to type.** `R_T_vs_A_H` is a statement; `R_T_A_H` is a list of symbols. `Data` as a
-suffix carries nothing. A column called `value` forces the reader to know the file name in order
-to know what the file holds.
+A name says what the thing is: `R_T_vs_A_H`, not `R_T_A_H`; no `Data` suffix; no column called
+`value`.
 
-This page is the vocabulary as this package applies it. The retrieval that supplies its
+This page gives the vocabulary as this package applies it. The retrieval that supplies its
 experimental input and the prompt emission codes that consume its output share the quantity table
 and the file layout, so a name learned here is the name there.
 
@@ -56,8 +54,8 @@ read from, while a ratio curve has a field `A_H`, mirroring the equations.
 | *R*_a | `R_a` | `R_a` | effective level density parameter ratio, ⟨a_L⟩/⟨a_H⟩ or ⟨a_L/a_H⟩ |
 | *R*_T | `R_T` | `R_T` | temperature ratio, T_L/T_H |
 
-`rms` is retired. It named a root-mean-square of nothing stated; the quantity is the Gaussian
-dispersion of the isobaric charge distribution, and the field writes σ_Z.
+`rms` is not used: the quantity is the Gaussian dispersion of the isobaric charge distribution,
+σ_Z.
 
 ### Uncertainty
 
@@ -85,7 +83,7 @@ Verb prefixes are a small closed set — `read_`, `write_`, `build_`, `load_`, `
 function that fits none of them is named for what it returns. `read_<thing>` must return the type
 named `<Thing>`, which is the rule that decides `read_mass_excess_table` against
 `read_mass_excess`: the type is `MassExcessTable`, so the reader carries `table` too.
-`load_<thing>` reads *and* validates, which is why the configuration entry point is
+`load_<thing>` reads *and* validates, so the configuration entry point is
 [`load_configuration`](@ref) and not `read_configuration`.
 
 Type names carry no `Data` suffix: a type holding multiplicities is [`Multiplicity`](@ref), one
@@ -93,8 +91,7 @@ holding mass yields is `MassYield`, one holding the charge polarization and disp
 `ChargeDistribution`. `Table` survives only where the thing genuinely is a lookup table keyed by
 nucleon number. No adjective stands in for a noun, and no abstract noun stands in for a
 description: the piecewise-linear fit of one measurement is a [`SegmentedFit`](@ref), and the
-temperature ratio extracted through it an [`ExtractedCurve`](@ref), not a `Parameterization` —
-"segmented" says how, "parameterized" says nothing a reader can act on. The tabulated curve a
+temperature ratio extracted through it an [`ExtractedCurve`](@ref). The tabulated curve a
 consuming code reads is FissionFragmentsDomain's `SegmentedCurve`; the two names are distinct
 because the two things are.
 
@@ -105,8 +102,8 @@ never a second definition under the same name.
 
 The result type of a package is `<Verb>Result`, **one per package**. Here it is
 [`ExtractionResult`](@ref), named for what this package does: it extracts a temperature ratio.
-`PipelineResult` was not a verb, and `RunResult` would collide, on `using` both, with the same
-name in a code that consumes these curves.
+`RunResult` would collide, on `using` both, with the same name in a code that consumes these
+curves.
 
 Abbreviations are permitted only where the field itself uses them — `TKE`, `TXE`, `BSFG`, `GC`,
 `EXFOR`, `AME`, `RIPL`, `sf`, `BIC` — and never as `err`, `param`, `calc`, `val`, `idx`, `num`,
@@ -130,9 +127,9 @@ enumerated choices where it is constrained; and the bounds and the unit. No phys
 run rationale — those belong in the documentation. The loader enforces exactly what the comment
 declares, so a run cannot start from a configuration it cannot honour.
 
-**A key that can only be redundant or wrong is not in the file.** The reaction code follows from
-the entrance channel, so it is not written down; the fissioning
-nucleus follows from the target and the channel, so it is not written down either.
+A key that can only be redundant or wrong is not in the file. The reaction code follows from the
+entrance channel, so it is not written down; the fissioning nucleus follows from the target and
+the channel, so it is not written down either.
 
 `subdirectory` names a folder under a root; `directory` only ever names a root path. So a
 configuration says `[multiplicity] subdirectory = "U233_nth/nu_vs_A"`, under the data root, and
@@ -152,9 +149,9 @@ output directory:
 ```
 
 with the channel spelled as the field spells it and not as a reaction code writes it — `Cf252_sf`,
-`U235_nth`, `U235_nres`, `U233_nth`, `Pu239_nth`. `0f` is a reaction code, not a name, and it
-belongs in the run record where the reaction code already is. The channel is also what
-distinguishes a thermal from a resonance run of one system, which `n,f` alone cannot.
+`U235_nth`, `U235_nres`, `U233_nth`, `Pu239_nth`. `0f` is a reaction code and belongs in the run
+record. The channel is also what distinguishes a thermal from a resonance run of one system, which
+`n,f` alone cannot.
 
 FissionFragmentsDomain's `system_label` returns that token. The typeset form for a figure or a
 caption — `²⁵²Cf(sf)`, `²³³U(nth,f)` — is its `system_notation`, a separate function: one name may
@@ -182,10 +179,9 @@ One directory per system, one subdirectory per measured quantity, one file per m
 directory carries the quantity and the file carries the provenance, which is what makes the
 archive accession number recoverable from a figure legend.
 
-A tabular file is named `<quantity>_vs_<abscissa>[_<abscissa>]`. `vs` is what makes the name a
-statement rather than a list of symbols. Extensions state a format and nothing else: `.dat`
-whitespace-separated, `.csv` comma-separated, `.toml` metadata. **A file extension never carries a
-nuclide**, because the nuclide is already in the path.
+A tabular file is named `<quantity>_vs_<abscissa>[_<abscissa>]`. Extensions state a format and
+nothing else: `.dat` whitespace-separated, `.csv` comma-separated, `.toml` metadata. A file
+extension never carries a nuclide; the nuclide is in the path.
 
 One header line, ASCII, abscissae first, then the ordinate, then its uncertainty:
 
@@ -197,13 +193,12 @@ A dZ sigma_Z
 A_H,R_T,R_T_uncertainty
 ```
 
-**No column is named `value`.** Naming the column for its quantity is what frees the reader from
-having to know the file name to know what the file is holding, and it matters most for the files
-that cross a package boundary.
+No column is named `value`: a column named for its quantity is readable without the file name,
+which matters most for the files that cross a package boundary.
 
-Readers take columns **by position**, not by header text. That is what makes a header rename a
-no-op for code, upstream and downstream alike, and it must stay that way: every reader in this
-package says so in its docstring, and nothing may be changed to a lookup by name.
+Readers take columns **by position**, not by header text. A header rename then changes nothing,
+upstream or downstream. Every reader in this package says so in its docstring, and none may be
+changed to a lookup by name.
 
 ## Output files and run identifiers
 
@@ -261,36 +256,39 @@ pivot table included; in the point-by-point tables an uncertainty the measuremen
 an empty field, never zero. `segmented_curves_<run>.csv` has the columns `label, accession, kind,
 pooled, segments, pinned_at_symmetric_split, first_A_H, last_A_H, pairs, measured_points, coverage,
 reduced_chi_squared, chi_squared_over_expectation, weights_imputed, range_mean_R_T,
-range_mean_R_T_uncertainty, deviation_autocorrelation`, all dimensionless;
+range_mean_R_T_uncertainty, deviation_autocorrelation`, all dimensionless.
 `chi_squared_over_expectation` equals `reduced_chi_squared` for a dataset curve, and the last,
 filled for the systematic trend only, is the `ρ` its covariance was formed with.
+
 `total_average_R_T_<run>.csv` has the columns `segmented_curve, mass_yield, R_T, R_T_uncertainty,
 R_T_uncertainty_independent_points, R_T_uncertainty_leave_one_out, R_T_leave_one_out_min,
-R_T_leave_one_out_max, yield_fraction, R_T_one_more_segment, R_T_two_more_segments`, the three
-leave-one-out columns and the last two filled for the systematic trend only, and
-`R_T_uncertainty_independent_points` being the approximation of the published tables over the
-tabulated points of a curve, which has nothing to do with the correlation between combined points;
-`leave_one_out_<run>.csv` the columns `dataset_left_out, accession, mass_yield, R_T, segments,
+R_T_leave_one_out_max, yield_fraction, R_T_one_more_segment, R_T_two_more_segments`. The three
+leave-one-out columns and the last two are filled for the systematic trend only.
+`R_T_uncertainty_independent_points` is the approximation of the published tables over the
+tabulated points of a curve.
+
+`leave_one_out_<run>.csv` has the columns `dataset_left_out, accession, mass_yield, R_T, segments,
 breakpoints, reduced_chi_squared, outcome`, one row per dataset or experiment left out and yield
-distribution, the labels of an experiment joined by ` + ` and its accessions, like the
-breakpoints, separated by spaces; and `dataset_diagnostics.csv` the columns `dataset, accession,
-points, pairs, first_pair, last_pair, coverage, outside_physical_range, symmetry_departure,
-complement_sum, complement_spread, without_uncertainties, qualifiers, pooling_weight, flagged,
-pair_sum_deviation, scale_consistent, pooled, pooled_with, exclusion_reason, segmented_curve,
-curve_flagged, curve_flag_reason`, `segmented_curve` reading "segmented curve" or stating why
-there is none: no complete pair, coverage below the floor, or no fit and the reason.
+distribution. The labels of an experiment are joined by ` + `; its accessions, like the
+breakpoints, are separated by spaces.
+
+`dataset_diagnostics.csv` has the columns `dataset, accession, points, pairs, first_pair,
+last_pair, coverage, outside_physical_range, symmetry_departure, complement_sum,
+complement_spread, without_uncertainties, qualifiers, pooling_weight, flagged, pair_sum_deviation,
+scale_consistent, pooled, pooled_with, exclusion_reason, segmented_curve, curve_flagged,
+curve_flag_reason`. `segmented_curve` reads "segmented curve" or states why there is none: no
+complete pair, coverage below the floor, or no fit and the reason.
 [`write_results`](@ref) refuses a run whose identifier would make one of those names longer than
 the 255 bytes a file system admits.
 
 The manifest, the curve table, the total averages and the leave-one-out refits repeat the
-identifier in their names; the per-curve ratio tables do not, and are found through the manifest. A consuming code stages the
-whole run directory and selects the manifest by its `manifest_` prefix, and the token keeps a
-staged copy attributable after it has left `data/sims/`. A run directory holds exactly one. The
-manifest holds FissionFragmentsDomain's run record and nothing else: `[system]`, `[run]`, the
-`[domain]` the curves were extracted on, and per `[[segmented_curve]]` its label, its kind and its
-two files. The systematic-trend curve is labelled `systematic_trend`, the same token as its kind.
+identifier in their names; the per-curve ratio tables do not, and are found through the manifest.
+A consuming code stages the whole run directory and selects the manifest by its `manifest_`
+prefix, and the token keeps a staged copy attributable after it has left `data/sims/`. A run
+directory holds exactly one. [Consuming the output](consuming.md) describes the manifest. The
+systematic-trend curve is labelled `systematic_trend`, the same token as its kind.
 
-**A run-identifier parameter is the configuration key it came from.** Spelling every key out in
+A run-identifier parameter is the configuration key it came from. Spelling every key out in
 full would put some two hundred characters into every directory name, so the keys are abbreviated —
 and abbreviated in one place, [`RUN_IDENTIFIER_ABBREVIATIONS`](@ref), rather than at the point of
 use. That table is keyed by the key's dotted path in the configuration file,

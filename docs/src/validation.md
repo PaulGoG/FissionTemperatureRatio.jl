@@ -1,8 +1,5 @@
 # Validation
 
-What has been checked, and what has not. Stated explicitly because the method is published and a
-reader's first question is whether this reproduces it.
-
 Verified:
 
 - The exact identity at the symmetric split. `r_ν = 1/2` returns `R_T = 1` to 10⁻¹² on the four
@@ -19,10 +16,9 @@ Verified:
 - The shape of the result. The segmented `r_ν(A_H)` reproduces the published systematic
   behaviour — one half at the symmetric split, a minimum near the heavy magic fragment, one half
   again near the most probable fragmentation, and a near-linear rise above it.
-- **The published total averages, to within 1.0 %, one measurement aside.** The `⟨R_T⟩` of
+- The published total averages, to within 1.0 % for every measurement but one. The `⟨R_T⟩` of
   Table 1 of [Tudora2024](@cite), per `ν(A)` dataset and per `Y(A)` distribution, comes back from
-  independently retrieved archive data (ExforFissionData.jl v0.5.0, the tables of v0.2.7) with the
-  published settings —
+  independently retrieved archive data (ExforFissionData.jl v0.5.0) with the published settings:
   the ratio of means over the digitised Gaussian charge tables, or the mean values for ²³³U, on the
   shared fragmentation domain:
 
@@ -47,34 +43,34 @@ Verified:
   not asserted: the retrieval records its scale as off that of `ν̄` by 3.9 %, which cancels in
   `r_ν`.
 
-  Apalin's ²³³U masses are given as non-integer values, 52 of them, which the retrieval
-  interpolates onto 69 integers; rounded instead, as an earlier retrieval did, they paired only
-  part of the yield, and the row came back to 0.60 %. The shipped settings — Wahl's 1988 charge
-  model, the charge-resolved inversion weighted by the `⟨TXE⟩` of the configured `⟨TKE⟩(A)`
-  dataset, and `Y(A)` symmetrized — hold every other row to within 1.34 %. Wahl's model moves the
-  ²³³U rows by +0.29 % to +0.37 % from the mean values the paper used there, and the rows of the
-  other systems by less than 0.1 %; the excitation weight moves every row by −0.04 % to −0.15 %;
-  the symmetrization moves those over Göök's and Straede's distributions, the two measured on both
-  wings, by −0.1 % to −0.7 %.
+  Apalin's 52 ²³³U masses are given as non-integer values, which the retrieval interpolates onto
+  69 integers. Rounded to integers instead, they pair only part of the yield, and the row comes
+  back to 0.60 %. The shipped settings — Wahl's 1988 charge model, the charge-resolved inversion
+  weighted by the `⟨TXE⟩` of the configured `⟨TKE⟩(A)` dataset, and `Y(A)` symmetrised — hold
+  every other row to within 1.34 %. Wahl's model moves the ²³³U rows by +0.29 % to +0.37 % from
+  the mean values the paper used there, and the rows of the other systems by less than 0.1 %. The
+  excitation weight moves every row by −0.04 % to −0.15 %. The symmetrisation moves the rows over
+  Göök's and Straede's distributions, the two measured on both wings, by −0.1 % to −0.7 %.
 
-  Table 2 reproduces too for Nishio's ²³³U measurement, the Gilbert-Cameron variant to 0.20 % and
-  the one-charge-per-mass variant to 0.60 %; Apalin's rows move with the interpolation, to 1.25 %
-  and 2.08 %. The remaining datasets could not be compared because the archive query did not return
-  the `ν(A)` measurement the table names.
+  Table 2 is reproduced for Nishio's ²³³U measurement: the Gilbert-Cameron variant to 0.20 % and
+  the one-charge-per-mass variant to 0.60 %. Apalin's rows, affected by the interpolation, come
+  back to 1.25 % and 2.08 %. The remaining datasets could not be compared because the archive
+  query did not return the `ν(A)` measurement the table names.
 - The uncertainty of the total average. The independent-points uncertainty reproduces the
   published one, ±0.0020 against ±0.0021 for ²³³U Nishio over Surin, and the
   covariance-propagated uncertainty is ±0.0050, two and a half times larger, because the tabulated
   points of a fitted curve are not independent. Fraser's sparse ²³³U set carries ±0.25 in the
-  published table; read without uncertainties, as it was retrieved before, it gave ±0.23 here. The
-  retrieval now reads the uncertainties its archive entry quotes at 16 of its 33 masses, and with
-  them the covariance-propagated uncertainty is ±0.059, the independent-points one ±0.019.
+  published table; read without uncertainties it gives ±0.23. With the uncertainties its archive
+  entry quotes at 16 of its 33 masses, which the retrieval reads, the covariance-propagated
+  uncertainty is ±0.059 and the independent-points one ±0.019.
 - The suite passes on the declared Julia floor and on the current release.
 - The level density models, against their papers: the back-shifted Fermi gas coefficients, shell
-  correction, pairing term and liquid-drop coefficients of [vonEgidy2005, vonEgidy2009](@cite), and
-  the Gilbert-Cameron eqs. (20) and (21) with Table III of [GilbertCameron1965](@cite). Both are
-  FissionFragmentsDomain.jl's, which ships the table and tests the transcription; this package's
-  own implementations, checked against the same sources before they were retired, give the same
-  total averages to 5 × 10⁻⁶ under the published settings.
+  correction, pairing term and liquid-drop coefficients (the mass formula of
+  [Pearson2001](@cite)) of [vonEgidy2005, vonEgidy2006, vonEgidy2009](@cite), and the
+  Gilbert-Cameron eqs. (20) and (21) with Table III of [GilbertCameron1965](@cite). Both are
+  implemented in FissionFragmentsDomain.jl, which ships the table and tests the transcription.
+  This package's own implementations, checked against the same sources before they were retired,
+  give the same total averages to 5 × 10⁻⁶ under the published settings.
 
 Not verified:
 
