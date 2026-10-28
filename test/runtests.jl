@@ -10,6 +10,7 @@ include("fixtures.jl")
 
 @testset "FissionTemperatureRatio" begin
     include("test_quality.jl")
+    include("test_retrieval.jl")
     include("test_multiplicity_ratio.jl")
     include("test_kinetic_energy.jl")
     include("test_yields.jl")

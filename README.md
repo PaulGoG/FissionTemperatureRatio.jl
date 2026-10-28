@@ -352,11 +352,12 @@ FissionTemperatureRatio/
 │   ├── consensus.jl                combining datasets, and the diagnostics describing them
 │   ├── extracted_curve.jl          one extracted curve: fit, R_T, covariance; its averages
 │   ├── FissionTemperatureRatio.jl  module definition and public interface
-│   ├── kinetic_energy.jl           ⟨TKE⟩(A) onto the heavy-mass range; retrieval records
+│   ├── kinetic_energy.jl           ⟨TKE⟩(A) onto the heavy-mass range
 │   ├── multiplicity_ratio.jl       ν(A) input and the multiplicity ratio
 │   ├── pipeline.jl                 the run, from input to tabulated output and run record
 │   ├── plotting.jl                 figure interface; the implementation is in ext/
 │   ├── provenance.jl               run identification and metadata
+│   ├── retrieval.jl                the retrieval records beside the inputs, read once and checked
 │   ├── segmented_fit.jl            continuous piecewise-linear regression
 │   ├── temperature_ratio.jl        the inversion over a tabulated r_ν
 │   └── yields.jl                   Y(A) directories and the independent-points total average

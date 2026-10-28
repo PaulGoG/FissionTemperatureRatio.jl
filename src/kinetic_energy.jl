@@ -1,210 +1,5 @@
 # The mean total kinetic energy against heavy-fragment mass, which weights the charge-resolved
-# inversion by the excitation each fragmentation shares out, and the retrieval records that say
-# where every input dataset came from.
-
-"""
-    FLAGGED_QUALIFIERS
-
-Reaction-code qualifiers that mark a dataset as other than a direct measurement of the quantity
-at the entrance channel's energy: `DERIV`, derived from other data, and `SPA`, averaged over an
-unspecified neutron spectrum; and `preliminary`, which marks a dataset whose publication calls
-its results preliminary. A dataset carrying any of them is used, but flagged in the log, in the
-dataset diagnostics and in the run metadata.
-"""
-const FLAGGED_QUALIFIERS = ("DERIV", "SPA", "preliminary")
-
-"""
-    RetrievalRecord
-
-The entry of one dataset in the `retrieval.toml` that the EXFOR retrieval writes beside the files
-it produced, with the run of that retrieval.
-
-# Fields
-
-- `path`: the record file.
-- `qualifiers`: the reaction-code qualifiers the retrieval recorded for the dataset, as tags
-  (`"DERIV"`, `"MXW"`, …).
-- `entry`: the dataset's `[[accepted]]` table, as written.
-- `run`: the record's `[run]` table: configuration, parser version and revision, timestamp.
-  Empty for a record written before the parser recorded it.
-"""
-struct RetrievalRecord
-    path::String
-    qualifiers::Vector{String}
-    entry::Dict{String,Any}
-    run::Dict{String,Any}
-end
-
-# Every `retrieval*.toml` in a directory: one per query that contributed files to it.
-function _retrieval_documents(directory::AbstractString)
-    isdir(directory) || return Pair{String,Dict{String,Any}}[]
-    names = sort!(
-        filter(f -> startswith(f, "retrieval") && endswith(f, ".toml"), readdir(directory))
-    )
-    return [
-        joinpath(directory, name) => TOML.parsefile(joinpath(directory, name)) for name in names
-    ]
-end
-
-# "MXW: Maxwellian-averaged" → "MXW"; the retrieval writes the tag and its meaning.
-_qualifier_tag(qualifier::AbstractString) = String(strip(first(split(qualifier, ':'))))
-
-"""
-    retrieval_record(path) -> Union{RetrievalRecord,Nothing}
-
-The retrieval record of the data file at `path`: its `[[accepted]]` entry in a `retrieval*.toml`
-of the same directory, or `nothing` where no record there lists the file.
-"""
-function retrieval_record(path::AbstractString)
-    file = basename(path)
-    for (record, document) in _retrieval_documents(dirname(path))
-        for entry in get(document, "accepted", Any[])
-            entry isa AbstractDict && get(entry, "file", nothing) == file || continue
-            qualifiers = [_qualifier_tag(q) for q in get(entry, "qualifiers", String[])]
-            run = get(document, "run", Dict{String,Any}())
-            return RetrievalRecord(
-                record, qualifiers, Dict{String,Any}(entry), Dict{String,Any}(run)
-            )
-        end
-    end
-    return nothing
-end
-
-"""
-    retrieval_qualifiers(directory) -> Dict{String,Vector{String}}
-
-The reaction-code qualifier tags of every data file the retrieval records in `directory` list,
-keyed by file name. A file no record lists is absent.
-"""
-function retrieval_qualifiers(directory::AbstractString)
-    qualifiers = Dict{String,Vector{String}}()
-    for (_, document) in _retrieval_documents(directory)
-        for entry in get(document, "accepted", Any[])
-            entry isa AbstractDict && haskey(entry, "file") || continue
-            qualifiers[entry["file"]] = [
-                _qualifier_tag(q) for q in get(entry, "qualifiers", String[])
-            ]
-        end
-    end
-    return qualifiers
-end
-
-"""
-    check_retrieval_versions(directories, floor) -> Dict{String,VersionNumber}
-
-The parser version, `[run] package_version`, of every `retrieval*.toml` in `directories`, keyed by
-record path. A release of the retrieval can change what a dataset holds, its scale or whether it
-is admitted at all, so inputs written before the version a run was validated on must not re-enter
-silently.
-
-Throws an `ArgumentError` naming the record for one that states no version or one below `floor`;
-warns when the records were written by different versions. A directory holding no record, a
-tabulation not produced by the retrieval, is not judged.
-"""
-function check_retrieval_versions(directories, floor::VersionNumber)
-    versions = Dict{String,VersionNumber}()
-    for directory in unique(directories)
-        for (record, document) in _retrieval_documents(directory)
-            run = get(document, "run", nothing)
-            stated = run isa AbstractDict ? get(run, "package_version", nothing) : nothing
-            version = stated isa AbstractString ? tryparse(VersionNumber, stated) : nothing
-            version === nothing && throw(
-                ArgumentError(
-                    "the retrieval record $(record) states no [run] package_version, so it \
-                     cannot be held to retrieval.min_package_version = \"$(floor)\"; retrieve \
-                     the inputs again with ExforFissionData $(floor) or later",
-                ),
-            )
-            version < floor && throw(
-                ArgumentError(
-                    "the retrieval record $(record) was written by ExforFissionData \
-                     $(version), below retrieval.min_package_version = \"$(floor)\"; retrieve \
-                     the inputs again with $(floor) or later",
-                ),
-            )
-            versions[record] = version
-        end
-    end
-    length(unique(values(versions))) > 1 &&
-        @warn "the input directories of this run were written by different versions of the \
-               retrieval" versions = Dict(record => string(v) for (record, v) in versions)
-    return versions
-end
-
-"""
-    pooling_weight(record) -> Float64
-
-The factor by which a dataset's values are weighted where datasets are pooled: raw points over
-rows written, `mass_values_non_integer / rows_written`, for a dataset whose retrieval interpolated
-non-integer masses onto the integers (`mass_treatment = "interpolated"`), and one otherwise or
-where no record is held. Neighbouring interpolated rows share their bracketing points, so a dataset
-written at more masses than it measured carries no more information than its measurements.
-"""
-pooling_weight(::Nothing) = 1.0
-function pooling_weight(record::RetrievalRecord)
-    get(record.entry, "mass_treatment", nothing) == "interpolated" || return 1.0
-    points = get(record.entry, "mass_values_non_integer", nothing)
-    rows = get(record.entry, "rows_written", nothing)
-    (points isa Integer && rows isa Integer && 0 < points <= rows) || return 1.0
-    return points / rows
-end
-
-"""
-    correlated_datasets(record) -> Vector{String}
-
-The EXFOR identifiers of the other datasets of the experiment a dataset belongs to, as its
-retrieval record names them under `correlated_with`: runs or analyses on one apparatus, whose
-values are not independent measurements. Empty where the record names none or no record is held.
-"""
-correlated_datasets(::Nothing) = String[]
-function correlated_datasets(record::RetrievalRecord)
-    listed = get(record.entry, "correlated_with", nothing)
-    listed isa AbstractVector || return String[]
-    return String[string(identifier) for identifier in listed]
-end
-
-"""
-    correlation_relation(record) -> String
-
-How a dataset is related to those [`correlated_datasets`](@ref) names, as its retrieval record
-states it under `correlation_relation` — a republication, an alternative analysis of the same
-events, a repeated run, a part of one spectrum — or an empty string where the record states
-none or no record is held.
-"""
-correlation_relation(::Nothing) = ""
-function correlation_relation(record::RetrievalRecord)
-    return string(get(record.entry, "correlation_relation", ""))
-end
-
-"""
-    pair_sum_scale(record) -> Union{NamedTuple,Nothing}
-
-The scale of a multiplicity dataset as the retrieval states it, for one read by the complement
-test: `deviation`, the relative departure of its pair sum `ν(A) + ν(A₀ - A)`, weighted with the
-light-fragment yield, from `ν̄`; its `uncertainty`; and `consistent`, whether the two agree within
-three standard deviations. `uncertainty` and `consistent` are `missing` where the dataset states
-no uncertainty, and the result is `nothing` where the record forms no pair sum.
-
-A uniform scale cancels in `r_ν = ν_H/(ν_L + ν_H)`, so a dataset off the scale of `ν̄` is used
-and flagged, not corrected. A scale error that varies with mass does not cancel, and the pair sum
-cannot detect it; the structural diagnostics of the dataset are what bear on it.
-"""
-pair_sum_scale(::Nothing) = nothing
-function pair_sum_scale(record::RetrievalRecord)
-    deviation = get(record.entry, "pair_sum_deviation", nothing)
-    deviation isa Real || return nothing
-    uncertainty = get(record.entry, "pair_sum_deviation_uncertainty", missing)
-    consistent = get(record.entry, "scale_consistent", missing)
-    return (
-        deviation = Float64(deviation),
-        uncertainty = uncertainty isa Real ? Float64(uncertainty) : missing,
-        consistent = consistent isa Bool ? consistent : missing,
-    )
-end
-
-function _flagged(qualifiers::AbstractVector{<:AbstractString})
-    return [q for q in qualifiers if q in FLAGGED_QUALIFIERS]
-end
+# inversion by the excitation each fragmentation shares out.
 
 """
     MeanKineticEnergy
@@ -230,6 +25,7 @@ Each is listed, so that a run can say which of its weights rest on data at their
   from the nearest measured mass beyond the measured span.
 - `label`: the dataset, named as the multiplicity datasets are.
 - `source`: the file read.
+- `record`: its [`RetrievalRecord`](@ref), or `nothing` where no record beside it lists the file.
 """
 struct MeanKineticEnergy
     values::Dict{Int,Float64}
@@ -239,22 +35,27 @@ struct MeanKineticEnergy
     extrapolated::Vector{Int}
     label::String
     source::String
+    record::Union{RetrievalRecord,Nothing}
 end
 
 """
-    read_mean_kinetic_energy(path, system, heavy_masses) -> MeanKineticEnergy
+    read_mean_kinetic_energy(path, system, heavy_masses; record) -> MeanKineticEnergy
 
 Read a `⟨TKE⟩(A)` dataset — one header row, then `A TKE [TKE_uncertainty]`, whitespace-separated,
 `TKE` in MeV and pre-neutron, as the EXFOR retrieval writes `data/<system>/TKE_vs_A/` — and carry
 it onto every heavy mass number of `heavy_masses`; see [`MeanKineticEnergy`](@ref). Columns are
-taken by position.
+taken by position. `record` is the dataset's retrieval record, by default the one beside the
+file, [`retrieval_record`](@ref).
 
 Throws an `ArgumentError` naming the file when a mass number repeats, a value is not a positive
 finite energy, or no tabulated mass falls on the heavy wing of `system` directly or through the
 complement.
 """
 function read_mean_kinetic_energy(
-    path::AbstractString, system::FissioningSystem, heavy_masses::AbstractUnitRange{<:Integer}
+    path::AbstractString,
+    system::FissioningSystem,
+    heavy_masses::AbstractUnitRange{<:Integer};
+    record::Union{RetrievalRecord,Nothing} = retrieval_record(path),
 )
     table = read_delimited_table(path, MEAN_KINETIC_ENERGY_SPEC)
     masses = integer_column(table, :A)
@@ -314,7 +115,7 @@ function read_mean_kinetic_energy(
     label = _dataset_label(basename(path))
     averaged = [A_H for A_H in measured if A_H in both]
     return MeanKineticEnergy(
-        values, measured, averaged, interpolated, extrapolated, label, String(path)
+        values, measured, averaged, interpolated, extrapolated, label, String(path), record
     )
 end
 

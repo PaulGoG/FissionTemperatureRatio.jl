@@ -1,25 +1,4 @@
-# The ⟨TKE⟩(A) that weights the charge-resolved inversion, and the retrieval records every input
-# dataset is traced through.
-
-const RETRIEVAL_RECORD = """
-[[accepted]]
-file = "40112007_V.M.Surin_1972.dat"
-identifier = "40112007"
-qualifiers = []
-reaction_code = "92-U-233(N,F)MASS,PRE,KE,LF+HF"
-[[accepted]]
-file = "21981008_P.Geltenbort_1985.dat"
-identifier = "21981008"
-qualifiers = ["MXW: Maxwellian-averaged", "DERIV: derived from other data rather than measured"]
-reaction_code = "92-U-233(N,F)MASS,PRE,KE,LF+HF,MXW,DERIV"
-[[rejected]]
-identifier = "416110032"
-reason = "missing required tag \\"MASS\\""
-
-[run]
-package_revision = "87a9533"
-package_version = "0.1.0"
-"""
+# The ⟨TKE⟩(A) that weights the charge-resolved inversion.
 
 @testset "mean total kinetic energy" begin
     system = neutron_induced_fission(Nuclide(92, 233), 2.53e-8, "nth")
@@ -87,58 +66,6 @@ package_version = "0.1.0"
             far = joinpath(directory, "far.dat")
             write(far, "A TKE\n200 170.0\n")
             @test_throws ArgumentError read_mean_kinetic_energy(far, system, 117:159)
-        end
-    end
-
-    @testset "the retrieval record names the dataset and its qualifiers" begin
-        mktempdir() do directory
-            write(joinpath(directory, "retrieval.toml"), RETRIEVAL_RECORD)
-            surin = joinpath(directory, "40112007_V.M.Surin_1972.dat")
-            record = retrieval_record(surin)
-            @test record !== nothing
-            @test isempty(record.qualifiers)
-            @test record.run["package_revision"] == "87a9533"
-            @test record.entry["identifier"] == "40112007"
-
-            flagged = retrieval_record(joinpath(directory, "21981008_P.Geltenbort_1985.dat"))
-            @test flagged.qualifiers == ["MXW", "DERIV"]
-
-            @test retrieval_record(joinpath(directory, "absent.dat")) === nothing
-            # Neither dataset was interpolated onto the integers: full weight where pooled.
-            @test pooling_weight(record) == 1.0
-            @test pooling_weight(nothing) == 1.0
-            interpolated = RetrievalRecord(
-                "r",
-                String[],
-                Dict{String,Any}(
-                    "mass_treatment" => "interpolated",
-                    "mass_values_non_integer" => 52,
-                    "rows_written" => 69,
-                ),
-                Dict{String,Any}(),
-            )
-            @test pooling_weight(interpolated) ≈ 52 / 69
-            # The pair-sum scale of a multiplicity read by the complement test, as recorded.
-            @test pair_sum_scale(record) === nothing
-            @test pair_sum_scale(nothing) === nothing
-            record_of(entry...) =
-                RetrievalRecord("r", String[], Dict{String,Any}(entry...), Dict{String,Any}())
-            off = pair_sum_scale(
-                record_of(
-                    "pair_sum_deviation" => -0.1071,
-                    "pair_sum_deviation_uncertainty" => 0.0133,
-                    "scale_consistent" => false,
-                ),
-            )
-            @test off.deviation == -0.1071 &&
-                off.uncertainty == 0.0133 &&
-                off.consistent === false
-            # Without a stated uncertainty the record forms no verdict on the scale.
-            unweighed = pair_sum_scale(record_of("pair_sum_deviation" => -0.0069))
-            @test ismissing(unweighed.uncertainty) && ismissing(unweighed.consistent)
-            by_file = retrieval_qualifiers(directory)
-            @test by_file["21981008_P.Geltenbort_1985.dat"] == ["MXW", "DERIV"]
-            @test isempty(by_file["40112007_V.M.Surin_1972.dat"])
         end
     end
 end

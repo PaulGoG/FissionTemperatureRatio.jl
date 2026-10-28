@@ -12,6 +12,8 @@ An experimental prompt neutron multiplicity distribution `ν(A)` with its uncert
 - `σν`: uncertainty of `ν`; `missing` where the source quotes none.
 - `label`: identifier of the dataset, used in figure legends and output file names.
 - `source`: path of the file the data was read from, recorded for provenance.
+- `record`: the [`RetrievalRecord`](@ref) of the file, or `nothing` for a tabulation no retrieval
+  record lists; the five-argument constructor leaves it `nothing`.
 """
 struct Multiplicity
     A::Vector{Int}
@@ -19,15 +21,26 @@ struct Multiplicity
     σν::Vector{Union{Missing,Float64}}
     label::String
     source::String
+    record::Union{RetrievalRecord,Nothing}
+end
+
+function Multiplicity(
+    A::AbstractVector{<:Integer},
+    ν::AbstractVector{<:Real},
+    σν::AbstractVector,
+    label::AbstractString,
+    source::AbstractString,
+)
+    return Multiplicity(A, ν, σν, label, source, nothing)
 end
 
 Base.length(data::Multiplicity) = length(data.A)
 
 """
-    multiplicity(data, A) -> Union{Tuple{Float64,Float64},Missing}
+    multiplicity(data, A) -> Union{Tuple{Float64,Union{Float64,Missing}},Nothing}
 
-Multiplicity and its uncertainty at mass number `A`, or `missing` if the dataset has no entry
-there.
+Multiplicity and its uncertainty at mass number `A`, or `nothing` if the dataset has no entry
+there; the uncertainty is `missing` where the source quotes none.
 
 # Examples
 
@@ -37,17 +50,17 @@ julia> data = Multiplicity([120, 132], [3.10, 0.69], [0.05, 0.03], "example", ""
 julia> multiplicity(data, 132)
 (0.69, 0.03)
 
-julia> multiplicity(data, 131)
-missing
+julia> multiplicity(data, 131) === nothing
+true
 ```
 """
 function multiplicity(data::Multiplicity, A::Integer)
     index = findfirst(==(A), data.A)
-    return index === nothing ? missing : (data.ν[index], data.σν[index])
+    return index === nothing ? nothing : (data.ν[index], data.σν[index])
 end
 
 """
-    read_multiplicity(path; label) -> Multiplicity
+    read_multiplicity(path; label, record) -> Multiplicity
 
 Read a whitespace-separated `ν(A)` dataset with the column layout
 
@@ -56,9 +69,9 @@ A  nu  nu_uncertainty
 ```
 
 and a single header line, or `A nu` where the source quotes no uncertainty. An absent third
-field, and one that is zero, negative or not finite (`NaN`), is stored as `missing`: an
-unquoted uncertainty is not a datum, and it is never written as zero, which would denote an exact
-value.
+field, and one that is zero, negative or `NaN`, is stored as `missing`: an unquoted uncertainty is
+not a datum, and it is never written as zero, which would denote an exact value. `record` is the
+file's retrieval record, by default the one beside it, [`retrieval_record`](@ref).
 
 The columns are taken **by position**, not by header text: the header line is skipped, so the
 upstream retrieval may rename it without touching anything here, and nothing in this reader may
@@ -70,12 +83,19 @@ requires a documented reason specific to the dataset, which belongs with the dat
 this reader.
 
 Throws an `ArgumentError` naming the file, and the line where one is at fault, when a line holds
-fewer than two fields, when a mass number, a multiplicity or an uncertainty is not numeric, when a
-multiplicity is negative or not finite, when mass numbers repeat, or when the file holds no data.
-A field that cannot be read is refused rather than taken as unquoted: one malformed uncertainty
-must not pass for a dataset that quotes none.
+fewer than two fields, when a mass number is not an integer, when a multiplicity or an uncertainty
+is not numeric, when a multiplicity is negative or not finite, when an uncertainty is infinite,
+when mass numbers repeat, or when the file holds no data. A field that cannot be read is refused
+rather than taken as unquoted: one malformed uncertainty must not pass for a dataset that quotes
+none, and an infinite one, a value of no weight, must not take the median weight of the quoted
+ones. A non-integer mass number is not rounded: the retrieval interpolates such masses onto the
+integers and records it, and a file that holds one did not come through it.
 """
-function read_multiplicity(path::AbstractString; label::AbstractString = "")
+function read_multiplicity(
+    path::AbstractString;
+    label::AbstractString = "",
+    record::Union{RetrievalRecord,Nothing} = retrieval_record(path),
+)
     isfile(path) || throw(ArgumentError("multiplicity file not found: $(path)"))
 
     A = Int[]
@@ -91,8 +111,8 @@ function read_multiplicity(path::AbstractString; label::AbstractString = "")
         )
         length(fields) ≥ 2 || malformed("fewer than two fields")
         mass = tryparse(Float64, fields[1])
-        (mass === nothing || !isfinite(mass)) &&
-            malformed("the mass number $(repr(fields[1])) is not numeric")
+        (mass === nothing || !isinteger(mass)) &&
+            malformed("the mass number $(repr(fields[1])) is not an integer")
         value = tryparse(Float64, fields[2])
         value === nothing && malformed("the multiplicity $(repr(fields[2])) is not numeric")
         (isfinite(value) && value ≥ 0) ||
@@ -101,12 +121,13 @@ function read_multiplicity(path::AbstractString; label::AbstractString = "")
             quoted = tryparse(Float64, fields[3])
             quoted === nothing &&
                 malformed("the uncertainty $(repr(fields[3])) is not numeric")
+            isinf(quoted) && malformed("the uncertainty $(repr(fields[3])) is infinite")
             # Zero, a negative number and NaN are how a source writes "none quoted".
-            (isfinite(quoted) && quoted > 0) ? quoted : missing
+            (!isnan(quoted) && quoted > 0) ? quoted : missing
         else
             missing
         end
-        push!(A, round(Int, mass))
+        push!(A, Int(mass))
         push!(ν, value)
         push!(σν, uncertainty)
     end
@@ -116,7 +137,7 @@ function read_multiplicity(path::AbstractString; label::AbstractString = "")
 
     order = sortperm(A)
     name = isempty(label) ? splitext(basename(path))[1] : String(label)
-    return Multiplicity(A[order], ν[order], σν[order], name, String(path))
+    return Multiplicity(A[order], ν[order], σν[order], name, String(path), record)
 end
 
 """
@@ -181,7 +202,7 @@ function multiplicity_ratio(data::Multiplicity, A₀::Integer, A_H_range::UnitRa
     for mass in A_H_range
         heavy = multiplicity(data, mass)
         light = multiplicity(data, A₀ - mass)
-        (ismissing(heavy) || ismissing(light)) && continue
+        (heavy === nothing || light === nothing) && continue
         ν_H, σ_H = heavy
         ν_L, σ_L = light
         total = ν_L + ν_H

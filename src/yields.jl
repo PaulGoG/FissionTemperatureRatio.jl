@@ -25,7 +25,7 @@ function read_mass_yield_directory(directory::AbstractString)
     isdir(directory) || throw(ArgumentError("yield directory not found: $(directory)"))
     files = _data_files(directory)
     isempty(files) && throw(ArgumentError("yield directory holds no data files: $(directory)"))
-    _refuse_shared_accession(directory, files)
+    _refuse_shared_accession(directory, files, retrieval_records(directory))
     return [
         read_mass_yield(joinpath(directory, file); label = label) for
         (file, label) in zip(files, _unique_labels(files))

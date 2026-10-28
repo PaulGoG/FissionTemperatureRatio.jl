@@ -188,7 +188,11 @@ function _not_averaged(result::ExtractionResult)
     excluded = if configuration.yield_directory === nothing
         Dict{String,String}()
     else
-        _excluded_labels(configuration.excluded_mass_yields, result.mass_yields, "yield.exclude")
+        _excluded_labels(
+            configuration.excluded_mass_yields,
+            result.mass_yields,
+            result.mass_yield_records,
+        )
     end
     reasons = Dict{String,Any}()
     for (label, coverage) in result.mass_yield_coverage
@@ -408,7 +412,9 @@ function run_metadata(result::ExtractionResult)
             # The EXFOR accession of every yield distribution averaged over, from its retrieval
             # record.
             "mass_yield_accessions" => Dict{String,Any}(
-                y.label => _dataset_accession(y.source) for y in result.mass_yields
+                y.label => _accession(
+                    get(result.mass_yield_records, y.label, nothing), y.source
+                ) for y in result.mass_yields
             ),
             "datasets" => [basename(data.source) for data in result.datasets],
             "mass_yields" => [basename(data.source) for data in result.mass_yields],
@@ -416,20 +422,19 @@ function run_metadata(result::ExtractionResult)
             # Interpolated datasets, pooled at raw points over rows written.
             "pooling_weights" => Dict{String,Any}(
                 data.label => w for data in result.datasets for
-                w in (pooling_weight(retrieval_record(data.source)),) if w < 1
+                w in (_measured_fraction(data.record),) if w < 1
             ),
             # Datasets whose pair sum the retrieval finds off the scale of ν̄: used, not
             # corrected, since a uniform scale cancels in r_ν. [deviation, uncertainty].
             "scale_inconsistent_datasets" => Dict{String,Any}(
                 data.label => [s.deviation, coalesce(s.uncertainty, NaN)] for
-                data in result.datasets for
-                s in (pair_sum_scale(retrieval_record(data.source)),) if
+                data in result.datasets for s in (_pair_sum(data.record),) if
                 s !== nothing && s.consistent === false
             ),
             "flagged_mass_yields" => Dict{String,Any}(
-                label => tags for
-                (label, tags) in _yield_qualifiers(configuration, result.mass_yields) if
-                !isempty(_flagged(tags))
+                label => record.qualifiers for
+                (label, record) in result.mass_yield_records if
+                !isempty(_flagged(record.qualifiers))
             ),
             "retrievals" => _retrieval_runs(configuration),
         ),
@@ -533,11 +538,10 @@ function _correlation_group_record(result::ExtractionResult, group::Vector{Strin
     relation = _relation(result.datasets, indices)
     return Dict{String,Any}(
         "datasets" => group,
-        "accessions" => [_dataset_accession(result.datasets[i].source) for i in indices],
+        "accessions" => [_accession(result.datasets[i]) for i in indices],
         "relation" => isempty(relation) ? "unstated or differing" : relation,
-        "relations_stated" => [
-            correlation_relation(retrieval_record(result.datasets[i].source)) for i in indices
-        ],
+        "relations_stated" =>
+            [_correlation_relation(result.datasets[i].record) for i in indices],
     )
 end
 
@@ -620,7 +624,7 @@ function _kinetic_energy_record(result::ExtractionResult)
     entry = Dict{String,Any}(
         "excitation_weighted" => weighted,
         "file" => _relative_input(energies.source, configuration),
-        "accession" => _dataset_accession(energies.source),
+        "accession" => _accession(energies),
         "label" => energies.label,
         "unit" => "MeV",
         "measured" => energies.measured,
@@ -635,7 +639,7 @@ function _kinetic_energy_record(result::ExtractionResult)
             distribution in result.mass_yields
         ),
     )
-    record = retrieval_record(energies.source)
+    record = energies.record
     if record !== nothing
         entry["retrieval_record"] = _relative_input(record.path, configuration)
         entry["retrieval_record_sha1"] = bytes2hex(open(sha1, record.path))

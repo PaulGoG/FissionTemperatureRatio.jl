@@ -395,9 +395,10 @@ end
 # refused, with the accession to write in its place.
 function _resolve_exclusions(entries, directory::AbstractString, path::String)
     files = _data_files(directory)
-    _refuse_shared_accession(directory, files)
+    records = retrieval_records(directory)
+    _refuse_shared_accession(directory, files, records)
     labels = _unique_labels(files)
-    accessions = [_dataset_accession(joinpath(directory, file)) for file in files]
+    accessions = [_accession(get(records, file, nothing), file) for file in files]
     exclusions = Dict{String,String}()
     for (index, entry) in enumerate(entries)
         key = if entry.by === :accession

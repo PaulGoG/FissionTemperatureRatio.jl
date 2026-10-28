@@ -81,6 +81,8 @@ written to disk by [`write_results`](@ref).
   for why this is not the total average.
 - `mass_yields`: the fragment mass yield distributions read, symmetrized where the configuration
   says so, empty when it names none.
+- `mass_yield_records`: the [`RetrievalRecord`](@ref) of each of them, by label, where one lists
+  it.
 - `mass_yield_coverage`: for each of them, by label, the share of the heavy-fragment yield of the
   primary distribution at the masses it holds, [`mass_yield_coverage`](@ref). A distribution
   below `min_yield_coverage`, or excluded by the configuration, is read and reported but not
@@ -127,6 +129,7 @@ struct ExtractionResult
     segmented_curves::Vector{ExtractedCurve}
     range_mean_R_T::Dict{String,Tuple{Float64,Float64}}
     mass_yields::Vector{MassYield}
+    mass_yield_records::Dict{String,RetrievalRecord}
     mass_yield_coverage::Dict{String,Float64}
     total_average_R_T::Dict{String,Dict{String,TotalAverage}}
     consensus_r_ν::RatioCurve
@@ -189,10 +192,12 @@ function read_multiplicity_directory(directory::AbstractString)
     files = _data_files(directory)
     isempty(files) &&
         throw(ArgumentError("multiplicity directory holds no data files: $(directory)"))
-    _refuse_shared_accession(directory, files)
+    records = retrieval_records(directory)
+    _refuse_shared_accession(directory, files, records)
     return [
-        read_multiplicity(joinpath(directory, file); label = label) for
-        (file, label) in zip(files, _unique_labels(files))
+        read_multiplicity(
+            joinpath(directory, file); label = label, record = get(records, file, nothing)
+        ) for (file, label) in zip(files, _unique_labels(files))
     ]
 end
 
@@ -226,29 +231,18 @@ function _unique_labels(files::AbstractVector{<:AbstractString})
     ]
 end
 
-# An EXFOR dataset identifier as the manifest admits it: entry, subentry and, where the subentry
-# holds several datasets, a pointer character.
-const ACCESSION_PATTERN = r"^[0-9A-Z]{8,9}$"
-
-# The EXFOR accession of a dataset: the identifier its retrieval record gives, else the one its
-# file name leads with, else none, for a tabulation that came from no archive.
-function _dataset_accession(source::AbstractString)
-    record = retrieval_record(source)
-    candidate = if record !== nothing && haskey(record.entry, "identifier")
-        string(record.entry["identifier"])
-    else
-        first(split(basename(source), '_'))
-    end
-    return occursin(ACCESSION_PATTERN, candidate) ? String(candidate) : ""
-end
+_accession(data::Multiplicity) = _accession(data.record, data.source)
+_accession(energies::MeanKineticEnergy) = _accession(energies.record, energies.source)
 
 # Two files of one directory carrying one accession are one measurement held twice — a leftover
 # of an earlier retrieval under another spelling of the author, a copy — and would be read, fitted
 # and pooled twice, while an exclusion by that accession could name only one of them.
-function _refuse_shared_accession(directory::AbstractString, files)
+function _refuse_shared_accession(
+    directory::AbstractString, files, records::AbstractDict{String,RetrievalRecord}
+)
     held = Dict{String,String}()
     for file in files
-        accession = _dataset_accession(joinpath(directory, file))
+        accession = _accession(get(records, file, nothing), file)
         isempty(accession) && continue
         haskey(held, accession) && throw(
             ArgumentError(
@@ -266,33 +260,39 @@ end
 function _directory_keys(directory::AbstractString)
     isdir(directory) || throw(ArgumentError("directory not found: $(directory)"))
     files = _data_files(directory)
-    _refuse_shared_accession(directory, files)
+    records = retrieval_records(directory)
+    _refuse_shared_accession(directory, files, records)
     return Dict(
-        _exclusion_key(joinpath(directory, file), label) => label for
+        _exclusion_key(get(records, file, nothing), file, label) => label for
         (file, label) in zip(files, _unique_labels(files))
     )
 end
 
 # The key a dataset is excluded under: its accession, or its label where it carries none.
-function _exclusion_key(source::AbstractString, label::AbstractString)
-    accession = _dataset_accession(source)
+function _exclusion_key(
+    record::Union{RetrievalRecord,Nothing}, source::AbstractString, label::AbstractString
+)
+    accession = _accession(record, source)
     return isempty(accession) ? String(label) : accession
 end
-_exclusion_key(data::Union{Multiplicity,MassYield}) = _exclusion_key(data.source, data.label)
+_exclusion_key(data::Multiplicity) = _exclusion_key(data.record, data.source, data.label)
+function _exclusion_key(data::MassYield, records::AbstractDict{String,RetrievalRecord})
+    return _exclusion_key(get(records, data.label, nothing), data.source, data.label)
+end
 
-# The exclusions that apply to `datasets`, by label, each with its reason. One that names no
-# dataset read is an error: the configuration would claim an exclusion the run did not make.
-function _excluded_labels(exclusions::Dict{String,String}, datasets, path::AbstractString)
+# The exclusions that apply to the datasets `keyed` lists as exclusion key => label, by label,
+# each with its reason. One that names no dataset read is an error: the configuration would claim
+# an exclusion the run did not make.
+function _excluded_labels(
+    exclusions::Dict{String,String}, keyed::AbstractVector, path::AbstractString
+)
     keys_read = Dict{String,String}()
-    for data in datasets
-        key = _exclusion_key(data)
+    for (key, label) in keyed
         haskey(keys_read, key) && throw(
-            ArgumentError(
-                "$(repr(keys_read[key])) and $(repr(data.label)) are both held under \
-                 $(repr(key)); an exclusion could not tell them apart"
-            ),
+            ArgumentError("$(repr(keys_read[key])) and $(repr(label)) are both held under \
+                 $(repr(key)); an exclusion could not tell them apart")
         )
-        keys_read[key] = data.label
+        keys_read[key] = label
     end
     for key in sort!(collect(keys(exclusions)))
         haskey(keys_read, key) || throw(
@@ -303,6 +303,22 @@ function _excluded_labels(exclusions::Dict{String,String}, datasets, path::Abstr
         )
     end
     return Dict(keys_read[key] => reason for (key, reason) in exclusions)
+end
+function _excluded_labels(exclusions::Dict{String,String}, datasets::Vector{Multiplicity})
+    return _excluded_labels(
+        exclusions, [_exclusion_key(d) => d.label for d in datasets], "multiplicity.exclude"
+    )
+end
+function _excluded_labels(
+    exclusions::Dict{String,String},
+    distributions::Vector{MassYield},
+    records::AbstractDict{String,RetrievalRecord},
+)
+    return _excluded_labels(
+        exclusions,
+        [_exclusion_key(y, records) => y.label for y in distributions],
+        "yield.exclude",
+    )
 end
 
 """
@@ -326,9 +342,7 @@ end
 function _candidates(
     configuration::Configuration, datasets::Vector{Multiplicity}, r_ν::Vector{RatioCurve}
 )
-    excluded = _excluded_labels(
-        configuration.excluded_datasets, datasets, "multiplicity.exclude"
-    )
+    excluded = _excluded_labels(configuration.excluded_datasets, datasets)
     return [
         i for
         i in eachindex(datasets) if !isempty(r_ν[i]) && !haskey(excluded, datasets[i].label)
@@ -428,7 +442,7 @@ identifies the measurement in the archive, so it is written into the manifest en
 dataset curve and into the name of every file of that dataset.
 """
 function curve_accessions(result::ExtractionResult)
-    accessions = Dict(data.label => _dataset_accession(data.source) for data in result.datasets)
+    accessions = Dict(data.label => _accession(data) for data in result.datasets)
     accessions[SYSTEMATIC_TREND_LABEL] = ""
     return accessions
 end
@@ -530,7 +544,7 @@ function run_pipeline(configuration::Configuration; leave_one_out::Bool = true)
     datasets = read_multiplicity_directory(configuration.multiplicity_directory)
     # Before anything is fitted: an exclusion that names no dataset is a configuration the run
     # cannot honour. `load_configuration` has checked it; a configuration built by hand has not.
-    _excluded_labels(configuration.excluded_datasets, datasets, "multiplicity.exclude")
+    _excluded_labels(configuration.excluded_datasets, datasets)
     if configuration.yield_directory === nothing
         # No directory, so the primary distribution alone is averaged over; an exclusion would be
         # written to the run record without having been applied.
@@ -554,16 +568,13 @@ function run_pipeline(configuration::Configuration; leave_one_out::Bool = true)
             )
         end
     end
-    by_file = retrieval_qualifiers(configuration.multiplicity_directory)
-    qualifiers = Dict(
-        data.label => get(by_file, basename(data.source), String[]) for data in datasets
-    )
+    qualifiers = Dict(data.label => _qualifiers(data.record) for data in datasets)
     for data in datasets
         flagged = _flagged(qualifiers[data.label])
         isempty(flagged) ||
             @warn "the retrieval records a qualifier on this dataset; it is used, not \
                    corrected" dataset = data.label qualifiers = flagged
-        scale = pair_sum_scale(retrieval_record(data.source))
+        scale = _pair_sum(data.record)
         scale !== nothing &&
             scale.consistent === false &&
             @warn "the retrieval records the pair sum of this dataset off the scale of ν̄; a \
@@ -608,7 +619,7 @@ function run_pipeline(configuration::Configuration; leave_one_out::Bool = true)
             UnitRange{Int}[]
         end
         # Counted in measurements: an interpolated dataset's points count for raw over written.
-        fraction = pooling_weight(retrieval_record(data.source))
+        fraction = _measured_fraction(data.record)
         segmented = _segment(
             curve,
             relation,
@@ -662,7 +673,7 @@ function run_pipeline(configuration::Configuration; leave_one_out::Bool = true)
         end
     end
     # Interpolated datasets count by their measured points, not their written rows.
-    weights = [pooling_weight(retrieval_record(datasets[i].source)) for i in admitted]
+    weights = [_measured_fraction(datasets[i].record) for i in admitted]
     for (i, w) in zip(admitted, weights)
         w < 1 &&
             @info "interpolated dataset pooled at reduced weight" dataset = datasets[i].label weight =
@@ -712,6 +723,8 @@ function run_pipeline(configuration::Configuration; leave_one_out::Bool = true)
     else
         MassYield[]
     end
+    # Read before the symmetrization, which keeps the source and the label of each.
+    yield_records = _records_by_label(mass_yields)
     if configuration.symmetrize_yields && !isempty(mass_yields)
         # Before the qualifiers are looked up by file: the source and label are unchanged.
         mass_yields = [symmetrized_yield(y, A₀) for y in mass_yields]
@@ -719,11 +732,11 @@ function run_pipeline(configuration::Configuration; leave_one_out::Bool = true)
         @info "mass yields symmetrized: Y(A) and Y(A₀ - A) averaged where both are measured, \
                one wing standing for the other where it alone is"
     end
-    for (distribution, tags) in _yield_qualifiers(configuration, mass_yields)
-        flagged = _flagged(tags)
+    for distribution in mass_yields
+        flagged = _flagged(_qualifiers(get(yield_records, distribution.label, nothing)))
         isempty(flagged) ||
             @warn "the retrieval records a qualifier on this yield distribution; it is used, \
-                   not corrected" distribution qualifiers = flagged
+                   not corrected" distribution = distribution.label qualifiers = flagged
     end
     if mean_kinetic_energy !== nothing
         for distribution in mass_yields
@@ -741,7 +754,7 @@ function run_pipeline(configuration::Configuration; leave_one_out::Bool = true)
     excluded_yields = if configuration.yield_directory === nothing
         Dict{String,String}()
     else
-        _excluded_labels(configuration.excluded_mass_yields, mass_yields, "yield.exclude")
+        _excluded_labels(configuration.excluded_mass_yields, mass_yields, yield_records)
     end
     averaged_yields = filter(mass_yields) do distribution
         coverage = yield_coverage[distribution.label]
@@ -871,6 +884,7 @@ function run_pipeline(configuration::Configuration; leave_one_out::Bool = true)
         segmented_curves,
         Dict(c.label => range_mean(c) for c in segmented_curves),
         mass_yields,
+        yield_records,
         yield_coverage,
         total_average_R_T,
         pooled,
@@ -889,24 +903,25 @@ end
 
 # One field of the pair-sum scale the retrieval records for a dataset, or `missing`.
 function _scale_field(data::Multiplicity, field::Symbol, digits::Integer)
-    scale = pair_sum_scale(retrieval_record(data.source))
+    scale = _pair_sum(data.record)
     scale === nothing && return missing
     value = getfield(scale, field)
     return value isa AbstractFloat ? round(value; sigdigits = digits) : value
 end
 
-# The reaction-code qualifiers of the yield distributions a run read, keyed by label; the record
-# lists every dataset its query accepted, most of which need not be staged.
-function _yield_qualifiers(configuration::Configuration, mass_yields::Vector{MassYield})
-    isempty(mass_yields) && return Dict{String,Vector{String}}()
-    by_file = Dict{String,Vector{String}}()
-    for directory in unique(dirname(y.source) for y in mass_yields)
-        merge!(by_file, retrieval_qualifiers(directory))
-    end
-    return Dict(
-        distribution.label => get(by_file, basename(distribution.source), String[]) for
-        distribution in mass_yields
+# The retrieval record of each yield distribution, keyed by label, where one lists it; the
+# records of each directory are read once.
+function _records_by_label(mass_yields::Vector{MassYield})
+    by_directory = Dict(
+        directory => retrieval_records(directory) for
+        directory in unique(dirname(y.source) for y in mass_yields)
     )
+    records = Dict{String,RetrievalRecord}()
+    for y in mass_yields
+        record = get(by_directory[dirname(y.source)], basename(y.source), nothing)
+        record === nothing || (records[y.label] = record)
+    end
+    return records
 end
 
 # The averaging a configuration names. The charge-resolved inversion is weighted by the mean total
@@ -924,8 +939,7 @@ function _averaging(
                p(Z, A_H) alone, not by its excitation"
         return ChargeResolved()
     end
-    record = retrieval_record(mean_kinetic_energy.source)
-    flagged = record === nothing ? String[] : _flagged(record.qualifiers)
+    flagged = _flagged(_qualifiers(mean_kinetic_energy.record))
     isempty(flagged) ||
         @warn "the retrieval records a qualifier on the ⟨TKE⟩(A) dataset; it is used, not \
                corrected" dataset = mean_kinetic_energy.label qualifiers = flagged
@@ -1021,8 +1035,8 @@ end
 # relation their retrieval records state under `correlated_with`, each a list of positions in
 # `candidates`, in the order of their first members.
 function _experiments(datasets::Vector{Multiplicity}, candidates::Vector{Int})
-    accessions = [_dataset_accession(datasets[i].source) for i in candidates]
-    partners = [correlated_datasets(retrieval_record(datasets[i].source)) for i in candidates]
+    accessions = [_accession(datasets[i]) for i in candidates]
+    partners = [_correlated_with(datasets[i].record) for i in candidates]
     experiment = collect(eachindex(candidates))
     for a in eachindex(candidates), b in (a + 1):length(candidates)
         named =
@@ -1039,14 +1053,8 @@ end
 # they agree; empty where a member states none or two members differ. A relation is a statement
 # about the experiment, and one its records do not share is not acted on.
 function _relation(datasets::Vector{Multiplicity}, members::Vector{Int})
-    stated = [correlation_relation(retrieval_record(datasets[i].source)) for i in members]
+    stated = [_correlation_relation(datasets[i].record) for i in members]
     return (all(!isempty, stated) && allequal(stated)) ? first(stated) : ""
-end
-
-# The qualifier tags the retrieval records for a data file; none where no record lists it.
-function _qualifier_tags(source::AbstractString)
-    record = retrieval_record(source)
-    return record === nothing ? String[] : record.qualifiers
 end
 
 # The datasets among `candidates` that a republication supersedes, each with the dataset that
@@ -1061,7 +1069,7 @@ function _superseded(datasets::Vector{Multiplicity}, candidates::Vector{Int})
     for members in _experiments(datasets, collect(eachindex(datasets)))
         length(members) > 1 || continue
         _relation(datasets, members) == "republication" || continue
-        withdrawn = [i for i in members if "superseded" in _qualifier_tags(datasets[i].source)]
+        withdrawn = [i for i in members if "superseded" in _qualifiers(datasets[i].record)]
         current = setdiff(members, withdrawn)
         length(current) == 1 || continue
         for i in withdrawn
@@ -1421,9 +1429,7 @@ function write_results(result::ExtractionResult, directory::AbstractString)
 
     # What a run knows about each segmented curve beyond the manifest: one row per manifest curve,
     # keyed by its label. No column is an energy; the ratios are dimensionless.
-    excluded = _excluded_labels(
-        configuration.excluded_datasets, result.datasets, "multiplicity.exclude"
-    )
+    excluded = _excluded_labels(configuration.excluded_datasets, result.datasets)
     pooled = Set(pooled_datasets(result))
     superseded = superseded_datasets(result)
     # The other datasets of its experiment, for a dataset pooled as one with them.
@@ -1643,8 +1649,7 @@ function write_results(result::ExtractionResult, directory::AbstractString)
                 without_uncertainties = d.without_uncertainties,
                 qualifiers = _text_field(join(get(result.qualifiers, d.label, String[]), " ")),
                 pooling_weight = round(
-                    pooling_weight(retrieval_record(result.datasets[i].source));
-                    sigdigits = digits,
+                    _measured_fraction(result.datasets[i].record); sigdigits = digits
                 ),
                 flagged = !isempty(_flagged(get(result.qualifiers, d.label, String[]))),
                 pair_sum_deviation = _scale_field(result.datasets[i], :deviation, digits),

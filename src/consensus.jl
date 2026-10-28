@@ -60,7 +60,7 @@ function diagnose(data::Multiplicity, ratio::RatioCurve, A₀::Integer, A_H_rang
     for (index, A) in enumerate(data.A)
         2 * A ≤ A₀ && continue
         complement = multiplicity(data, A₀ - A)
-        ismissing(complement) && continue
+        complement === nothing && continue
         push!(sums, data.ν[index] + complement[1])
     end
 
@@ -117,7 +117,7 @@ uncertainty where the quoted count is even.
 `weights`, one factor per curve, scales the weight of every value of that curve, in the
 fixed-effect stage and in the combination alike: `w = f/(σ² + τ²)`. A dataset whose masses were
 interpolated onto the integers has rows that share their bracketing points and so are not
-independent; [`pooling_weight`](@ref) gives it the factor raw points over rows. A curve alone at a
+independent; its [`RetrievalRecord`](@ref) gives it the factor raw points over rows. A curve alone at a
 mass number passes through with its uncertainty divided by `√f`, and values quoting no
 uncertainty are averaged with the weights `f` to the standard error `s/√(Σf)`, `s²` being
 `Σ f (r − r̄)²/(Σf − Σf²/Σf)`.

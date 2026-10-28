@@ -237,14 +237,8 @@ function test_experiments_pooled_as_one(directory, configuration, result, writte
             record("correlated_with = [\"20000002\"]\ncorrelation_relation = \"repeated_run\""),
         )
         together = run_pipeline(load_configuration(path; data_directory = directory))
-        @test correlated_datasets(
-            retrieval_record(joinpath(experiments, "20000001_A.First_1979.dat"))
-        ) == ["20000002"]
-        @test isempty(
-            correlated_datasets(
-                retrieval_record(joinpath(experiments, "20000003_C.Other_2000.dat"))
-            ),
-        )
+        @test together.datasets[1].record.correlated_with == ["20000002"]
+        @test isempty(together.datasets[3].record.correlated_with)
 
         first_, second, other = together.r_ν
         @test isempty(apart.correlation_groups)

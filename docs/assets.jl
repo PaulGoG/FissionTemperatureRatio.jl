@@ -25,7 +25,8 @@ function richest_measurement(configuration)
     datasets = read_multiplicity_directory(configuration.multiplicity_directory)
     curves = [multiplicity_ratio(data, A₀, range) for data in datasets]
     i = argmax(length.(curves))
-    measured = pooling_weight(retrieval_record(datasets[i].source))
+    record = datasets[i].record
+    measured = record === nothing ? 1.0 : record.measured_fraction
     return (; curve = curves[i], measured)
 end
 

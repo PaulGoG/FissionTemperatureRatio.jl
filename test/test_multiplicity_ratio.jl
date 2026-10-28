@@ -68,6 +68,16 @@
             @test_throws "negative.dat, line 2" read_multiplicity(negative)
             infinite = file("infinite.dat", header * "100 Inf 0.1\n")
             @test_throws ArgumentError read_multiplicity(infinite)
+            # A mass number between two integers is not rounded onto either.
+            fractional = file("fractional.dat", header * "100 1.5 0.1\n130.5 1.6 0.1\n")
+            @test_throws "fractional.dat, line 3: the mass number \"130.5\" is not an integer" read_multiplicity(
+                fractional
+            )
+            # An infinite uncertainty is no weight at all, not an unquoted one.
+            unbounded = file("unbounded.dat", header * "100 1.5 Inf\n")
+            @test_throws "unbounded.dat, line 2: the uncertainty \"Inf\" is infinite" read_multiplicity(
+                unbounded
+            )
             empty = file("empty.dat", header)
             @test_throws "contains no usable rows" read_multiplicity(empty)
             twice = file("twice.dat", header * "100 1.5 0.1\n100 1.6 0.1\n")

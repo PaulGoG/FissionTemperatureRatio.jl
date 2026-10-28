@@ -113,6 +113,7 @@ using SHA: sha1
 using Statistics: mean, median, std
 using TOML: TOML
 
+include("retrieval.jl")
 include("multiplicity_ratio.jl")
 include("kinetic_energy.jl")
 include("yields.jl")
@@ -136,14 +137,11 @@ export Multiplicity, read_multiplicity, read_multiplicity_directory, multiplicit
 export read_mass_yield_directory, mass_yield_coverage, yield_fraction
 export MeanKineticEnergy, read_mean_kinetic_energy, mean_kinetic_energy_offset
 export RetrievalRecord,
+    PairSumScale,
     retrieval_record,
-    retrieval_qualifiers,
+    retrieval_records,
     check_retrieval_versions,
-    FLAGGED_QUALIFIERS,
-    pooling_weight,
-    correlated_datasets,
-    correlation_relation,
-    pair_sum_scale
+    FLAGGED_QUALIFIERS
 
 # Physics
 export RatioCurve, multiplicity_ratio
