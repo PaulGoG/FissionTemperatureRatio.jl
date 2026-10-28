@@ -322,7 +322,7 @@ function run_metadata(result::ExtractionResult)
 
     curves = Dict{String,Any}(
         curve.label => Dict{String,Any}(
-            "kind" => curve.kind,
+            "kind" => _kind(curve),
             "segments" => FissionTemperatureRatio.segments(curve.fit),
             "breakpoints" => curve.fit.breakpoints,
             "pivots" => [[point[1], point[2]] for point in pivots(curve.fit)],
@@ -334,7 +334,7 @@ function run_metadata(result::ExtractionResult)
             "weights_imputed" => curve.fit.weights_imputed,
             "points" => curve.fit.points,
             "measured_points" => curve.fit.measured_points,
-            "pairs" => curve.pairs,
+            "pairs" => curve.fit.points,
             "coverage" => curve.coverage,
             "range_mean_R_T" => collect(result.range_mean_R_T[curve.label]),
         ) for curve in result.segmented_curves
@@ -343,7 +343,8 @@ function run_metadata(result::ExtractionResult)
     symmetry = result.symmetry
     accessions = curve_accessions(result)
     flagged = Dict{String,Any}(
-        label => tags for (label, tags) in result.qualifiers if !isempty(_flagged(tags))
+        data.label => _qualifiers(data.record) for
+        data in result.datasets if !isempty(_flagged(_qualifiers(data.record)))
     )
     return Dict{String,Any}(
         "system" => system_record(configuration.system),
@@ -461,7 +462,9 @@ function run_metadata(result::ExtractionResult)
             "superseded_datasets" => Dict{String,Any}(superseded_datasets(result)),
             # Dataset curves that resolve no minimum, with the reason; they stay in the manifest.
             "flagged_curves" => Dict{String,Any}(result.curve_flags),
-            # The trend refitted with each pooled dataset left out, in the order read.
+            # Whether the refits with each pooled dataset left out were asked for, and the trend
+            # so refitted, in the order read.
+            "leave_one_out_requested" => result.leave_one_out_requested,
             "leave_one_out" => [
                 _leave_one_out_record(entry, accessions) for entry in result.leave_one_out
             ],

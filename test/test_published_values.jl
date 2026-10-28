@@ -122,7 +122,7 @@ DATA_AVAILABLE && @testset "published total averages" begin
             @test trend.fit.expected_wrss < trend.fit.dof
             @test all(
                 !c.fit.correlated && c.fit.expected_wrss == c.fit.dof for
-                c in run.segmented_curves if c.kind == "dataset"
+                c in run.segmented_curves if c.label != SYSTEMATIC_TREND_LABEL
             )
         end
 

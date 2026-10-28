@@ -273,10 +273,11 @@ distribution. The labels of an experiment are joined by ` + `; its accessions, l
 breakpoints, are separated by spaces.
 
 `dataset_diagnostics.csv` has the columns `dataset, accession, points, pairs, first_pair,
-last_pair, coverage, outside_physical_range, symmetry_departure, complement_sum,
-complement_spread, without_uncertainties, qualifiers, pooling_weight, flagged, pair_sum_deviation,
-scale_consistent, pooled, pooled_with, exclusion_reason, segmented_curve, curve_flagged,
-curve_flag_reason`. `segmented_curve` reads "segmented curve" or states why there is none: no
+last_pair, coverage, outside_physical_range, complement_sum, complement_spread,
+without_uncertainties, qualifiers, pooling_weight, flagged, pair_sum_deviation, scale_consistent,
+pooled, pooled_with, exclusion_reason, segmented_curve, curve_flagged, curve_flag_reason`.
+`outside_physical_range` counts the complete pairs left out because their `r_ν` falls outside
+`(0, 1)`. `segmented_curve` reads "segmented curve" or states why there is none: no
 complete pair, coverage below the floor, or no fit and the reason.
 [`write_results`](@ref) refuses a run whose identifier would make one of those names longer than
 the 255 bytes a file system admits.

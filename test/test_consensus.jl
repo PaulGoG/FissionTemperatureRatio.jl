@@ -3,6 +3,17 @@
 
 using StableRNGs: StableRNG
 
+# The combination of `curves`, each at one measured fraction, as the combined curve, the measured
+# fraction of each point and its uncertainty as one measurement.
+function combination(curves::Vector{RatioCurve}, fractions::AbstractVector{<:Real})
+    combined = FissionTemperatureRatio._consensus(
+        curves,
+        SYSTEMATIC_TREND_LABEL,
+        [fill(Float64(f), length(c)) for (c, f) in zip(curves, fractions)],
+    )
+    return combined.curve, combined.measured, combined.σ_measurement
+end
+
 @testset "consensus" begin
     @testset "a pool of one interpolated dataset is that dataset" begin
         masses = collect(126:150)
@@ -15,9 +26,7 @@ using StableRNGs: StableRNG
         settings = (max_segments = 4, pinned_value = 0.5, bounds = (0.0, 1.0))
         own = fit_segments(masses, ratio, spread; settings..., measured = fractions)
 
-        pooled, measured, σ_measurement = FissionTemperatureRatio._consensus(
-            [curve], SYSTEMATIC_TREND_LABEL, [f]
-        )
+        pooled, measured, σ_measurement = combination([curve], [f])
         # The combined curve states the standard error, fraction included; the fit takes the
         # uncertainty of one measurement and the fraction beside it.
         @test measured == fractions
@@ -52,9 +61,7 @@ using StableRNGs: StableRNG
         other = RatioCurve(
             masses[3:end], ratio[3:end] .+ 0.01, fill(0.006, length(masses) - 2), "other"
         )
-        pooled, measured, σ_measurement = FissionTemperatureRatio._consensus(
-            [one, other], SYSTEMATIC_TREND_LABEL, [1.0, 1.0]
-        )
+        pooled, measured, σ_measurement = combination([one, other], [1.0, 1.0])
         # Exactly one, and exactly the standard error: nothing of such a pool moves.
         @test all(==(1.0), measured)
         @test isequal(σ_measurement, pooled.σ)
@@ -69,9 +76,7 @@ using StableRNGs: StableRNG
         # An interpolated dataset beside a measured one: the weight of each combined point is
         # that of its standard error, however it is split between fraction and uncertainty.
         f = 52 / 69
-        pooled, measured, σ_measurement = FissionTemperatureRatio._consensus(
-            [one, other], SYSTEMATIC_TREND_LABEL, [1.0, f]
-        )
+        pooled, measured, σ_measurement = combination([one, other], [1.0, f])
         @test measured[1:2] == [1.0, 1.0]
         @test all(f .< measured[3:end] .< 1)
         @test measured ./ σ_measurement .^ 2 ≈ 1 ./ pooled.σ .^ 2
@@ -85,9 +90,7 @@ using StableRNGs: StableRNG
         one = RatioCurve(masses, base .+ 0.004 .* iseven.(masses), unquoted, "one")
         other = RatioCurve(masses, base .- 0.003 .+ 0.002 .* (masses .% 3), unquoted, "other")
         function trend(factors)
-            pooled, measured, σ_measurement = FissionTemperatureRatio._consensus(
-                [one, other], SYSTEMATIC_TREND_LABEL, factors
-            )
+            pooled, measured, σ_measurement = combination([one, other], factors)
             fit = fit_segments(
                 pooled.A_H,
                 pooled.ratio,
@@ -186,9 +189,7 @@ using StableRNGs: StableRNG
         shifted[5] = base[5]
         one = RatioCurve(masses, base, unquoted, "one")
         other = RatioCurve(masses, shifted, unquoted, "other")
-        pooled, measured, σ_measurement = FissionTemperatureRatio._consensus(
-            [one, other], SYSTEMATIC_TREND_LABEL, [1.0, 1.0]
-        )
+        pooled, measured, σ_measurement = combination([one, other], [1.0, 1.0])
         @test ismissing(pooled.σ[5]) && ismissing(σ_measurement[5])
         @test count(ismissing, pooled.σ) == 1
         @test pooled.ratio[5] == base[5]

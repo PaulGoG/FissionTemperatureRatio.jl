@@ -244,9 +244,9 @@ function test_interpolated_alternative_analyses()
             )
             @test all(measured .≈ (20 / 29 + 0.5) / 2)
             # The two-unit pool, the experiment carrying its measured fraction point by point.
-            expected = first(
-                FissionTemperatureRatio._consensus([either, other], "expected", [measured, 1.0])
-            )
+            expected = FissionTemperatureRatio._consensus(
+                [either, other], "expected", [measured, ones(length(other))]
+            ).curve
             @test result.consensus_r_ν.ratio ≈ expected.ratio
             @test result.consensus_r_ν.σ[2:end] ≈ expected.σ[2:end]
         end

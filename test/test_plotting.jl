@@ -22,7 +22,7 @@
         curve = RatioCurve([130, 132], [1.20, 1.10], [0.02, 0.01], "example")
 
         CairoMakie.with_theme(publication_theme()) do
-            figure = plot_multiplicities([data]; A_0 = 252)
+            figure = plot_multiplicities([data])
             @test figure isa CairoMakie.Figure
 
             ratio = plot_ratio(

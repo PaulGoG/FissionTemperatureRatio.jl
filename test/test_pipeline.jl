@@ -58,7 +58,7 @@ function test_trend_covariance(directory, configuration, result, written)
         # uncertainty is larger at every mass number but the pinned one.
         independent = FissionTemperatureRatio._fit_trend(
             drifting.r_ν,
-            ones(length(drifting.r_ν)),
+            [ones(length(curve)) for curve in drifting.r_ν],
             (drifting.averaging, drifting.model, drifting.domain),
             drifting.configuration.segments,
             252;
@@ -72,7 +72,7 @@ function test_trend_covariance(directory, configuration, result, written)
         # The curve of a dataset is fitted to points measured one by one.
         @test all(
             !c.fit.correlated && c.fit.expected_wrss == c.fit.dof for
-            c in drifting.segmented_curves if c.kind == "dataset"
+            c in drifting.segmented_curves if c.label != SYSTEMATIC_TREND_LABEL
         )
 
         # Identical datasets do not deviate: nothing to estimate, and independent points.
@@ -245,7 +245,7 @@ function test_experiments_pooled_as_one(directory, configuration, result, writte
         @test together.correlation_groups == [["A. First 1979", "B. First 1979"]]
         # All three are pooled, and each still offers its own curve.
         @test pooled_datasets(together) == ["A. First 1979", "B. First 1979", "C. Other 2000"]
-        @test count(c -> c.kind == "dataset", together.segmented_curves) == 3
+        @test count(c -> c.label != SYSTEMATIC_TREND_LABEL, together.segmented_curves) == 3
         # Side by side: the combination of three. As one: the two of the experiment first,
         # then their combination with the third as two measurements.
         @test apart.consensus_r_ν.ratio ≈ consensus([first_, second, other]).ratio
@@ -327,7 +327,7 @@ function test_experiments_pooled_as_one(directory, configuration, result, writte
         @test pooled_datasets(republished) == ["B. First 1979", "C. Other 2000"]
         @test isempty(republished.correlation_groups)
         @test republished.consensus_r_ν.ratio ≈ consensus([second, other]).ratio
-        @test count(c -> c.kind == "dataset", republished.segmented_curves) == 3
+        @test count(c -> c.label != SYSTEMATIC_TREND_LABEL, republished.segmented_curves) == 3
         @test [only(entry.datasets) for entry in republished.leave_one_out] == ["B. First 1979", "C. Other 2000"]
         table = CSV.read(
             write_results(republished, joinpath(directory, "output", "republished"))["dataset_diagnostics"],
@@ -865,7 +865,8 @@ end
                 ),
             )
             one = run_pipeline(load_configuration(path; data_directory = directory))
-            dataset = only(filter(c -> c.kind == "dataset", one.segmented_curves)).fit
+            dataset =
+                only(filter(c -> c.label != SYSTEMATIC_TREND_LABEL, one.segmented_curves)).fit
             trend = systematic_trend(one).fit
             @test dataset.measured_points ≈ 15 * 20 / 29
             @test segments(trend) > 1

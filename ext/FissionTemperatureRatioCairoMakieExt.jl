@@ -126,7 +126,7 @@ function _mass_ticks(low::Real, high::Real)
 end
 
 function FissionTemperatureRatio.plot_multiplicities(
-    datasets::Vector{Multiplicity}; A_0::Integer, order::Vector{String} = String[]
+    datasets::Vector{Multiplicity}; order::Vector{String} = String[]
 )
     figure = Figure(; size = _figure_size(length(datasets)))
     axis = Axis(
@@ -409,9 +409,7 @@ function FissionTemperatureRatio.write_figures(
     with_theme(FissionTemperatureRatio.publication_theme()) do
         written["figure/nu_vs_A"] = FissionTemperatureRatio.save_figure(
             joinpath(directory, "nu_vs_A.pdf"),
-            FissionTemperatureRatio.plot_multiplicities(
-                result.datasets; A_0 = configuration.system.compound.A, order = order
-            ),
+            FissionTemperatureRatio.plot_multiplicities(result.datasets; order = order),
         )
         written["figure/r_nu_vs_A_H"] = FissionTemperatureRatio.save_figure(
             joinpath(directory, "r_nu_vs_A_H.pdf"),

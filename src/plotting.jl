@@ -21,14 +21,13 @@ Requires CairoMakie to be loaded.
 function publication_theme end
 
 """
-    plot_multiplicities(datasets; A_0, order) -> Figure
+    plot_multiplicities(datasets; order) -> Figure
 
 Prompt neutron multiplicity `ν(A)` of every dataset, the sawtooth that carries the signature of
 the excitation energy partition.
 
-`A_0` is the mass number of the fissioning nucleus. `order` lists the dataset labels as read: a
-dataset takes the colour and marker of its place there, so that it is drawn alike in every
-figure of a run.
+`order` lists the dataset labels as read: a dataset takes the colour and marker of its place
+there, so that it is drawn alike in every figure of a run.
 
 Requires CairoMakie to be loaded.
 """

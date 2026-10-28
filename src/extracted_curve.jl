@@ -21,26 +21,23 @@ that inverse.
 
 # Fields
 
-- `label`: the dataset the curve came from, or `SYSTEMATIC_TREND_LABEL`.
-- `kind`: `"dataset"` or `"systematic_trend"`, as the manifest declares it.
-- `fit`: the [`SegmentedFit`](@ref) of `r_ν`.
+- `label`: the dataset the curve came from, or `SYSTEMATIC_TREND_LABEL`, which makes it the
+  systematic trend; the manifest declares the kind of every curve so.
+- `fit`: the [`SegmentedFit`](@ref) of `r_ν`; `fit.points` is the number of points it was made
+  to, the dataset's complete fragment pairs or the mass numbers of the combined curve.
 - `r_ν`, `R_T`: the segmented multiplicity ratio and the temperature ratio from it, tabulated at
   every mass number of the fitted range where the relation is defined.
 - `R_T_covariance`: covariance of `R_T.ratio`. Its diagonal is the square of `R_T.σ`; the
   off-diagonal elements are what a yield-weighted average of the curve has to carry, since a
   curve with a handful of coefficients cannot have independent errors at every mass number.
-- `pairs`: the points the fit was made to: the dataset's complete fragment pairs, or the mass
-  numbers of the combined curve.
 - `coverage`: the fraction of the mass numbers of the fragmentation range those points reach.
 """
 struct ExtractedCurve
     label::String
-    kind::String
     fit::SegmentedFit
     r_ν::RatioCurve
     R_T::RatioCurve
     R_T_covariance::Matrix{Float64}
-    pairs::Int
     coverage::Float64
 
     function ExtractedCurve(
@@ -67,20 +64,17 @@ struct ExtractedCurve
             (A, R) in zip(R_T.A_H, R_T.ratio)
         ]
         range = domain.heavy_masses
-        kind = label == SYSTEMATIC_TREND_LABEL ? "systematic_trend" : "dataset"
         coverage = count(in(range), unique(fitted_to.A_H)) / length(range)
         return new(
-            String(label),
-            kind,
-            fit,
-            r_ν,
-            R_T,
-            Matrix(Symmetric(slope .* Σ .* slope')),
-            length(fitted_to),
-            coverage,
+            String(label), fit, r_ν, R_T, Matrix(Symmetric(slope .* Σ .* slope')), coverage
         )
     end
 end
+
+# The kind of a curve as the manifest declares it: `"systematic_trend"` for the trend, `"dataset"`
+# for any other.
+_is_trend(curve::ExtractedCurve) = curve.label == SYSTEMATIC_TREND_LABEL
+_kind(curve::ExtractedCurve) = _is_trend(curve) ? "systematic_trend" : "dataset"
 
 # The variance of a linear functional `wᵀ R_T` of the curve.
 function _functional_variance(curve::ExtractedCurve, w::AbstractVector{<:Real})
