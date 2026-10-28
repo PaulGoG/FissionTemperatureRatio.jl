@@ -15,6 +15,7 @@ updates:
       - "/bench"
       - "/docs"
       - "/formatter"
+      - "/scripts"
       - "/test"
     schedule:
       interval: "weekly"
@@ -23,8 +24,10 @@ updates:
     # repository once already; their entries carry the form "<0.0.1, 1" and nothing narrower.
     ignore:
       - dependency-name: "Dates"
+      - dependency-name: "InteractiveUtils"
       - dependency-name: "LinearAlgebra"
-      - dependency-name: "Pkg"
+      - dependency-name: "Printf"
+      - dependency-name: "SHA"
       - dependency-name: "Statistics"
       - dependency-name: "TOML"
       - dependency-name: "Test"

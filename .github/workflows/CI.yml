@@ -64,15 +64,11 @@ jobs:
         with:
           version: '1'
       - uses: julia-actions/cache@v3
-      - uses: julia-actions/julia-buildpkg@v1
+      # docs/make.jl activates and instantiates its own environment, which takes the package by
+      # path; makedocs runs the doctests.
       - uses: julia-actions/julia-docdeploy@v1
+        with:
+          install-package: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
-      - name: Run doctests
-        shell: julia --project=docs --color=yes {0}
-        run: |
-          using Documenter: DocMeta, doctest
-          using FissionTemperatureRatio
-          DocMeta.setdocmeta!(FissionTemperatureRatio, :DocTestSetup, :(using FissionTemperatureRatio); recursive=true)
-          doctest(FissionTemperatureRatio)

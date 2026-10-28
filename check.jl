@@ -5,7 +5,10 @@
 #
 # Mirrors the gate that CI applies, so a failure is reproducible locally.
 
-const DIRECTORIES = ("src", "test", "scripts", "bench", "docs", "ext")
+# Directories and root scripts the formatter covers; format.yml applies the same list.
+const TARGETS = (
+    "src", "test", "scripts", "bench", "docs", "ext", "formatter", "activate.jl", "check.jl"
+)
 
 let overwrite = !("--check" in ARGS)
     include(joinpath(@__DIR__, "formatter", "activate.jl"))
@@ -14,11 +17,12 @@ let overwrite = !("--check" in ARGS)
     # One pass of the formatter is not always its fixed point: a construct it rewrites can take a
     # second pass to settle, and CI checks against the fixed point. Format until nothing changes.
     formatted = true
+    settled = false
     for pass in 1:(overwrite ? 4 : 1)
         settled = true
-        for directory in DIRECTORIES
-            path = joinpath(@__DIR__, directory)
-            isdir(path) || continue
+        for target in TARGETS
+            path = joinpath(@__DIR__, target)
+            ispath(path) || continue
             settled &= format(path; overwrite = overwrite)
         end
         pass == 1 && (formatted = settled)
@@ -27,6 +31,7 @@ let overwrite = !("--check" in ARGS)
 
     if !formatted
         if overwrite
+            settled || error("formatting did not settle in four passes")
             @info "formatting applied"
         else
             @error "formatting differs from .JuliaFormatter.toml; run `julia check.jl`"
@@ -34,7 +39,6 @@ let overwrite = !("--check" in ARGS)
         end
     end
 
-    using Pkg
-    Pkg.activate(@__DIR__; io = devnull)
+    include(joinpath(@__DIR__, "activate.jl"))
     Pkg.test()
 end

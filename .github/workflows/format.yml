@@ -8,6 +8,8 @@ on:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
+permissions:
+  contents: read
 jobs:
   format:
     name: JuliaFormatter
@@ -25,8 +27,9 @@ jobs:
           Pkg.activate("formatter")
           Pkg.instantiate()
           using JuliaFormatter
-          formatted = all(format(directory; overwrite = false)
-                          for directory in ("src", "test", "scripts", "bench", "docs", "ext"))
+          targets = ("src", "test", "scripts", "bench", "docs", "ext", "formatter",
+                     "activate.jl", "check.jl")
+          formatted = all([format(target; overwrite = false) for target in targets])
           if !formatted
               @error "Formatting differs from .JuliaFormatter.toml. Run `julia check.jl` locally."
               exit(1)
