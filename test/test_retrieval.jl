@@ -61,36 +61,35 @@ end
     @testset "measured fraction, experiment and pair-sum scale" begin
         mktempdir() do directory
             path = joinpath(directory, "retrieval.toml")
-            write(path, single_entry_record("""
-                        mass_treatment = "interpolated"
-                        mass_values_non_integer = 52
-                        rows_written = 69
-                        correlated_with = ["20000002"]
-                        correlation_relation = "alternative_analysis"
-                        pair_sum_deviation = -0.1071
-                        pair_sum_deviation_uncertainty = 0.0133
-                        scale_consistent = false
-                        """))
-            record = only(values(retrieval_records(directory)))
-            @test record.measured_fraction ≈ 52 / 69
+            interpolated(rows) = "mass_treatment = \"interpolated\"\n$(rows)"
+            fraction(lines) = begin
+                write(path, single_entry_record(interpolated(lines)))
+                only(values(retrieval_records(directory))).measured_fraction
+            end
+            # Apalin 1965 for ²³⁹Pu: 52 masses on a 1.25 u grid, 13 of them integers, all
+            # measured, interpolated onto 71 rows.
+            @test fraction(
+                "mass_values_non_integer = 39\nrows_retrieved = 52\nrows_written = 71"
+            ) ≈ 52 / 71
+            # A limit left out of the table is no measurement.
+            @test fraction(
+                "rows_retrieved = 54\nrows_left_out = [\"A = 160: Max\", \"A = 161: Max\"]\n" *
+                "rows_written = 71",
+            ) ≈ 52 / 71
             # More raw masses than rows: a measurement behind every row, and no more weight.
-            write(path, single_entry_record("""
-                        mass_treatment = "interpolated"
-                        mass_values_non_integer = 12
-                        rows_written = 8
-                        """))
-            @test only(values(retrieval_records(directory))).measured_fraction == 1.0
-            write(path, single_entry_record("""
-                        mass_treatment = "interpolated"
-                        mass_values_non_integer = 52
-                        rows_written = 69
-                        correlated_with = ["20000002"]
-                        correlation_relation = "alternative_analysis"
-                        pair_sum_deviation = -0.1071
-                        pair_sum_deviation_uncertainty = 0.0133
-                        scale_consistent = false
-                        """))
+            @test fraction("rows_retrieved = 12\nrows_written = 8") == 1.0
+
+            write(
+                path,
+                single_entry_record(
+                    "correlated_with = [\"20000002\"]\n" *
+                    "correlation_relation = \"alternative_analysis\"\n" *
+                    "pair_sum_deviation = -0.1071\npair_sum_deviation_uncertainty = 0.0133\n" *
+                    "scale_consistent = false",
+                ),
+            )
             record = only(values(retrieval_records(directory)))
+            @test record.measured_fraction == 1.0
             @test record.correlated_with == ["20000002"]
             @test record.correlation_relation == "alternative_analysis"
             @test record.pair_sum ==
@@ -109,19 +108,20 @@ end
             for (keys, named) in (
                 # A count that is not an integer would pool the dataset at full weight.
                 (
-                    "mass_treatment = \"interpolated\"\nmass_values_non_integer = 52.5\n" *
+                    "mass_treatment = \"interpolated\"\nrows_retrieved = 52.5\n" *
                     "rows_written = 69",
-                    "mass_values_non_integer",
+                    "rows_retrieved",
                 ),
                 (
-                    "mass_treatment = \"interpolated\"\nmass_values_non_integer = true\n" *
+                    "mass_treatment = \"interpolated\"\nrows_retrieved = true\n" *
                     "rows_written = 69",
-                    "mass_values_non_integer",
+                    "rows_retrieved",
                 ),
+                ("mass_treatment = \"interpolated\"\nrows_retrieved = 52", "rows_written"),
                 (
-                    "mass_treatment = \"interpolated\"\nmass_values_non_integer = 0\n" *
-                    "rows_written = 69",
-                    "mass_values_non_integer",
+                    "mass_treatment = \"interpolated\"\nrows_retrieved = 1\n" *
+                    "rows_left_out = [\"A = 160: Max\"]\nrows_written = 69",
+                    "rows_left_out",
                 ),
                 # A string where an array stands would pool one experiment twice.
                 ("correlated_with = \"20000002\"", "correlated_with"),

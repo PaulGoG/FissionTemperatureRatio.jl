@@ -105,8 +105,10 @@ configuration reads). Of the keys that changed after v0.2.7, this package reads 
 `correlated_with`, `correlation_relation` and the qualifiers, which v0.2.7 introduced.
 
 Masses the archive gives as non-integer values, digitised or binned, are interpolated onto the
-integers by the retrieval, which records `mass_treatment = "interpolated"` and the count of raw
-values. Such a dataset is pooled at the weight of its measured points over its written rows.
+integers by the retrieval, which records `mass_treatment = "interpolated"`, the rows retrieved and
+the rows written. Such a dataset is pooled at the weight of its measured values, the rows
+retrieved less any limit left out, over its written rows, and at most one: a measurement at an
+integer mass of its grid counts as one.
 
 A DatasetID has eight digits, or nine where it points within a subentry; the dataset label drops
 the leading digits either way. Two files of one author and year keep their DatasetID in

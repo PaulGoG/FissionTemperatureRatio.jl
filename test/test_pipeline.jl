@@ -849,7 +849,7 @@ end
                 file = "$(file)"
                 identifier = "10000009"
                 mass_treatment = "interpolated"
-                mass_values_non_integer = 20
+                rows_retrieved = 20
                 rows_written = 29
                 qualifiers = []
 

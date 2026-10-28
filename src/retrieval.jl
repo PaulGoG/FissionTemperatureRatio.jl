@@ -48,13 +48,15 @@ produced, with the run of that retrieval, read by [`retrieval_records`](@ref).
   states none.
 - `qualifiers`: the reaction-code qualifiers recorded for the dataset, as tags (`"DERIV"`,
   `"MXW"`, …).
-- `measured_fraction`: the share of a measurement each row of the file amounts to: raw points
-  over rows written, `mass_values_non_integer / rows_written`, for a dataset whose retrieval
-  interpolated non-integer masses onto the integers (`mass_treatment = "interpolated"`), at most
-  one, and one otherwise. Neighbouring interpolated rows share their bracketing points, so a
-  dataset written at more masses than it measured carries no more information than its
-  measurements; one written at fewer, several raw masses falling between the same two integers,
-  has a measurement behind every row.
+- `measured_fraction`: the share of a measurement each row of the file amounts to, for a dataset
+  whose retrieval interpolated non-integer masses onto the integers
+  (`mass_treatment = "interpolated"`): the values measured, `rows_retrieved` less the limits
+  listed under `rows_left_out`, over `rows_written`, at most one; one for any other dataset.
+  Neighbouring interpolated rows share their bracketing points, so a dataset written at more
+  masses than it measured carries no more information than its measurements. A measurement at an
+  integer mass counts as one: a grid of 1.25 u holds one in five, which a count of the
+  non-integer masses alone would leave out. A dataset written at fewer masses than it measured,
+  several of them falling between the same two integers, has a measurement behind every row.
 - `correlated_with`: the EXFOR identifiers of the other datasets of the experiment the dataset
   belongs to, runs or analyses on one apparatus, whose values are not independent measurements.
 - `correlation_relation`: how it is related to them — `"republication"`, `"alternative_analysis"`,
@@ -119,14 +121,20 @@ function _record_entry(path::AbstractString, entry::AbstractDict, run::AbstractD
         defect("mass_treatment must be a string, got $(repr(treatment))")
     measured_fraction = 1.0
     if treatment == "interpolated"
-        points = get(entry, "mass_values_non_integer", nothing)
+        retrieved = get(entry, "rows_retrieved", nothing)
         rows = get(entry, "rows_written", nothing)
-        _is_count(points) && _is_count(rows) && points > 0 && rows > 0 || defect(
-            "an interpolated dataset states its raw points and rows written as positive \
-             integers, mass_values_non_integer and rows_written, got $(repr(points)) and \
-             $(repr(rows))"
+        left_out = get(entry, "rows_left_out", [])
+        _is_count(retrieved) && _is_count(rows) && rows > 0 || defect(
+            "an interpolated dataset states rows_retrieved and rows_written as integers, the \
+             second positive, got $(repr(retrieved)) and $(repr(rows))",
         )
-        measured_fraction = min(points / rows, 1.0)
+        left_out isa AbstractVector ||
+            defect("rows_left_out must be an array, got $(repr(left_out))")
+        measured = retrieved - length(left_out)
+        measured > 0 ||
+            defect("rows_retrieved = $(retrieved) leaves no measured value beside the \
+             $(length(left_out)) rows_left_out")
+        measured_fraction = min(measured / rows, 1.0)
     end
 
     partners = get(entry, "correlated_with", String[])

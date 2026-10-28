@@ -32,10 +32,9 @@ function correlation_lines(partners::AbstractString...; relation::AbstractString
     return join(lines, "\n")
 end
 
-# The record lines of a dataset whose 20 non-integer masses were interpolated onto `rows` rows.
+# The record lines of a dataset whose 20 measured masses were interpolated onto `rows` rows.
 function interpolated_lines(rows::Integer)
-    return "mass_treatment = \"interpolated\"\nmass_values_non_integer = 20\n" *
-           "rows_written = $(rows)"
+    return "mass_treatment = \"interpolated\"\nrows_retrieved = 20\n" * "rows_written = $(rows)"
 end
 
 const ALTERNATIVE_ANALYSES = (
