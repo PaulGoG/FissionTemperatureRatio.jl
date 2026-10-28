@@ -64,8 +64,11 @@ jobs:
         with:
           version: '1'
       - uses: julia-actions/cache@v3
-      # docs/make.jl activates and instantiates its own environment, which takes the package by
-      # path; makedocs runs the doctests.
+      # The documentation environment takes the package by path and is instantiated by its own
+      # activation script, in a process of its own: inside the deploy step the action's logger
+      # environment sits on the load path and precompilation resolves against it.
+      - name: Instantiate the documentation environment
+        run: julia --color=yes docs/activate.jl
       - uses: julia-actions/julia-docdeploy@v1
         with:
           install-package: false
