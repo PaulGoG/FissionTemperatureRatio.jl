@@ -22,7 +22,7 @@ DataFrames = "1"
 CairoMakie = "0.15"
 ExplicitImports = "1"
 FissionFragmentsDomain = "0.2.4"
-JET = "0.9, 0.10, 0.11, 0.12"
+JET = "0.9, 0.10, 0.11, 0.12, 0.13"
 StableRNGs = "1"
 # Standard libraries, in the form CompatHelper and Dependabot write: "<0.0.1" admits the unversioned
 # copy a Julia release ships beside the registered one, "1" the registered one. Never the version
