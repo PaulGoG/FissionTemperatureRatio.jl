@@ -157,6 +157,10 @@ function _record_entry(path::AbstractString, entry::AbstractDict, run::AbstractD
         ismissing(consistent) ||
             consistent isa Bool ||
             defect("scale_consistent must be true or false")
+        # A verdict on the scale rests on the uncertainty of the deviation.
+        ismissing(consistent) ||
+            !ismissing(uncertainty) ||
+            defect("scale_consistent is stated without pair_sum_deviation_uncertainty")
         PairSumScale(
             Float64(deviation),
             ismissing(uncertainty) ? missing : Float64(uncertainty),

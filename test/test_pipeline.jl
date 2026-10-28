@@ -93,15 +93,16 @@ function test_trend_covariance(directory, configuration, result, written)
         @test record["covariance_scale"] == max(1, record["chi_squared_over_expectation"])
         @test metadata["segmented_curves"][SYSTEMATIC_TREND_LABEL]["correlated_points"]
         @test !metadata["segmented_curves"]["up"]["correlated_points"]
-        @test run_metadata(drifting)["configuration"]["autocorrelation_lags"] == 4
+        @test run_metadata(drifting)["configuration"]["segments"]["autocorrelation_lags"] == 4
         # The number of lags enters the identifier through h, at its default as elsewhere.
-        @test run_metadata(drifting)["identifier"]["parameters"]["lags"] == 4
-        @test !haskey(run_metadata(drifting)["identifier"]["tokens"], "lags")
+        @test run_metadata(drifting)["identifier"]["parameters"]["segments"]["autocorrelation_lags"] ==
+            4
+        @test !occursin("lags", run_identifier(drifting.configuration))
         unestimated = run_metadata(result)["result"]["trend_uncertainty"]
-        # One type per key: a flag for whether a coefficient could be fitted, and the number
-        # the covariance was formed with.
+        # A flag for whether a coefficient could be fitted, and the coefficient only where one
+        # was: no placeholder stands in for a number that does not exist.
         @test !unestimated["autocorrelation_estimated"]
-        @test unestimated["deviation_autocorrelation"] == 0.0
+        @test !haskey(unestimated, "deviation_autocorrelation")
         @test all(isnan, unestimated["deviation_correlogram"])
 
         table = CSV.read(
@@ -130,7 +131,7 @@ function test_trend_covariance(directory, configuration, result, written)
         first_lag = run_pipeline(load_configuration(one_lag; data_directory = directory))
         @test deviation_autocorrelation(first_lag) ≈ first(deviation_correlogram(drifting)) atol =
             1e-6
-        @test run_parameters(first_lag.configuration)["lags"] == 1
+        @test run_parameters(first_lag.configuration)["segments"]["autocorrelation_lags"] == 1
         @test run_identifier(first_lag.configuration) != run_identifier(drifting.configuration)
         write(
             one_lag,
@@ -280,7 +281,7 @@ function test_experiments_pooled_as_one(directory, configuration, result, writte
         @test group["accessions"] == ["20000001", "20000002"]
         # Stated by one member alone, the relation is not acted on: the two are pooled as one
         # by the rule of a pool, which is also what a repeated run asks for.
-        @test group["relation"] == "unstated or differing"
+        @test !haskey(group, "relation")
         @test group["relations_stated"] == ["repeated_run", ""]
         @test metadata["leave_one_out"][1]["accessions"] == ["20000001", "20000002"]
         @test isempty(run_metadata(apart)["result"]["correlation_groups"])
@@ -463,7 +464,6 @@ end
             # The symmetric-split choice is written since FissionFragmentsDomain 0.2.4, and it
             # is the one the identifier's dZ0 token shows: Wahl's model imposes nothing there.
             @test manifest.domain.zero_polarization_at_symmetry === false
-            @test run_metadata(result)["domain"]["zero_polarization_at_symmetry"] === false
             @test occursin("_dZ0=false_", run_identifier(configuration))
             # One row of the curve table per manifest curve, keyed by its label.
             table = CSV.read(written["segmented_curves"], DataFrame)
@@ -484,7 +484,7 @@ end
 
         @testset "ΔZ = 0 imposed at the symmetric split is recorded as the identifier shows it" begin
             # A tabulated charge distribution admits the choice, which Wahl's model does not; the
-            # manifest, the run metadata and the dZ0 token agree on it.
+            # manifest and the dZ0 token agree on it.
             open(joinpath(directory, "charges.dat"), "w") do io
                 println(io, "A dZ sigma_Z")
                 for A_H in 126:140
@@ -507,7 +507,6 @@ end
             @test manifest.domain.zero_polarization_at_symmetry === true
             @test TOML.parsefile(written_["manifest"])["domain"]["zero_polarization_at_symmetry"] ===
                 true
-            @test run_metadata(run)["domain"]["zero_polarization_at_symmetry"] === true
             @test occursin("_dZ0=true_", run_identifier(imposed))
             # With ΔZ = 0 imposed, the charge set at the symmetric split is its own complement.
             @test run.symmetry.charge_set_invariant === true
@@ -695,8 +694,8 @@ end
             metadata = run_metadata(result)
             @test metadata["result"]["dataset_outcomes"]["sparse"] ==
                 result.dataset_outcomes["sparse"]
-            @test metadata["identifier"]["parameters"]["cov"] == 0.3
-            @test !haskey(metadata["identifier"]["parameters"], "Ycov")
+            @test metadata["identifier"]["parameters"]["segments"]["min_pair_coverage"] == 0.3
+            @test !haskey(metadata["identifier"]["parameters"], "yield")
             # The identifier is recomputed from the run's own record, as metadata.toml holds it,
             # and names the directory a run is written to.
             named = joinpath(directory, "output", run_identifier(configuration))
@@ -706,11 +705,13 @@ end
             end
             recorded = TOML.parsefile(joinpath(named, "metadata.toml"))["identifier"]
             @test run_identifier(recorded["parameters"]) == basename(named)
-            @test recorded["canonical"] == metadata["identifier"]["canonical"]
-            @test FissionTemperatureRatio._hash_token(recorded["canonical"]) ==
-                recorded["tokens"]["h"]
-            @test metadata["configuration"]["min_pair_coverage"] == 0.3
-            @test metadata["configuration"]["min_package_version"] == "0.2.7"
+            @test metadata["configuration"]["segments"]["min_pair_coverage"] == 0.3
+            @test metadata["configuration"]["retrieval"]["min_package_version"] == "0.2.7"
+            # An input not given, and a test with nothing to apply to, are absent, not written
+            # with a placeholder.
+            @test !haskey(metadata["inputs"], "yield_directory")
+            @test !haskey(metadata["configuration"], "yield")
+            @test !haskey(metadata["mean_kinetic_energy"], "file")
             # The version of the code that ran, as its project file states it now.
             @test metadata["source"]["package_version"] ==
                 string(pkgversion(FissionTemperatureRatio))
@@ -764,7 +765,7 @@ end
             partial = with_yields.total_average_R_T["partial"]["A. Both 2000"]
             @test partial.yield_fraction ≈ sum(peak, 131:140) / sum(peak, 126:140)
             metadata = run_metadata(with_yields)
-            @test metadata["identifier"]["parameters"]["Ycov"] == 0.3
+            @test metadata["identifier"]["parameters"]["yield"]["min_yield_coverage"] == 0.3
             @test collect(keys(metadata["result"]["mass_yields_not_averaged"])) ==
                 ["C. Tail 2000"]
             @test startswith(
@@ -810,7 +811,7 @@ end
             )
             @test run_metadata(excluding)["result"]["mass_yields_not_averaged"]["B. Light 2000"] ==
                 "excluded by configuration: not inclusive"
-            @test run_metadata(excluding)["identifier"]["parameters"]["Y"]["exclude"] ==
+            @test run_metadata(excluding)["identifier"]["parameters"]["yield"]["exclude"] ==
                 ["10000002"]
 
             # The two floors are separate keys: lowering one leaves the other gate where it was.

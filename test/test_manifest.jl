@@ -49,7 +49,6 @@ DATA_AVAILABLE && @testset "the handoff to a consuming code" begin
             @test manifest.domain.zero_polarization_at_symmetry === false
             @test TOML.parsefile(path)["domain"]["zero_polarization_at_symmetry"] === false
             @test occursin("_dZ0=false_", run_identifier(configuration))
-            @test run_metadata(result)["domain"]["zero_polarization_at_symmetry"] === false
         end
 
         @testset "the system is identified without parsing a label" begin
@@ -238,7 +237,7 @@ DATA_AVAILABLE && @testset "the handoff to a consuming code" begin
                 @test offset["offset_MeV"] ≈ offset["mean_MeV"] - 170.1
                 @test abs(offset["offset_MeV"]) < 15
             end
-            @test metadata["domain"]["excitation_weighted"]
+            @test metadata["mean_kinetic_energy"]["excitation_weighted"]
         end
     end
 end

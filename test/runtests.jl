@@ -30,8 +30,7 @@ using FissionTemperatureRatio:
     pooled_datasets,
     superseded_datasets,
     deviation_autocorrelation,
-    run_parameters,
-    RUN_IDENTIFIER_ABBREVIATIONS
+    run_parameters
 
 include("fixtures.jl")
 

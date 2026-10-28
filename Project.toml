@@ -6,7 +6,6 @@ authors = ["Paul-Adrian Gogîță"]
 [deps]
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
-DrWatson = "634d3b9d-ee7a-5ddf-bec9-22491ea816e1"
 FissionFragmentsDomain = "5f94ef1e-7421-42a3-adcf-a45cd611934b"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Measurements = "eff96d63-e80a-5855-80a2-b1b0885c5ab7"
@@ -27,7 +26,6 @@ FissionTemperatureRatioCairoMakieExt = ["CairoMakie", "LaTeXStrings", "MathTeXEn
 CSV = "1.1"
 CairoMakie = "0.15"
 DataFrames = "1"
-DrWatson = "2"
 FissionFragmentsDomain = "0.2.4"
 LaTeXStrings = "1"
 LinearAlgebra = "<0.0.1, 1"

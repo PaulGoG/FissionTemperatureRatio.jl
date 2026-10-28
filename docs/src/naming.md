@@ -71,7 +71,7 @@ leaves the reader to work out which quantity it belongs to. In Julia the symbol 
 | module, type, abstract type | `CamelCase` | [`ExtractedCurve`](@ref), [`SegmentedFit`](@ref) |
 | function, macro | `lowercase_snake_case` | [`run_pipeline`](@ref), [`read_mean_kinetic_energy`](@ref) |
 | variable, field, keyword | `lowercase_snake_case` | `charges_per_mass`, `significant_digits` |
-| constant | `SCREAMING_SNAKE_CASE` | [`RUN_IDENTIFIER_ABBREVIATIONS`](@ref) |
+| constant | `SCREAMING_SNAKE_CASE` | [`FLAGGED_QUALIFIERS`](@ref) |
 
 Unicode is used where an identifier *is* a symbol of the governing equations — `ΔZ`, `σ_Z`, `ν`,
 `Zₚ`, `A₀`, `R_T` — and only there, so that the implementation reads like the formulation. The
@@ -107,8 +107,8 @@ curves.
 
 Abbreviations are permitted only where the field itself uses them — `TKE`, `TXE`, `BSFG`, `GC`,
 `EXFOR`, `AME`, `RIPL`, `sf`, `BIC` — and never as `err`, `param`, `calc`, `val`, `idx`, `num`,
-`cfg`, `pts`. The one place short forms are unavoidable is a run identifier, and they are
-collected there in a single table; see below.
+`cfg`, `pts`. The one place short forms are unavoidable is the readable tokens of a run
+identifier, seven of them; see below.
 
 ## Configuration files
 
@@ -289,17 +289,13 @@ prefix, and the token keeps a staged copy attributable after it has left `data/s
 directory holds exactly one. [Consuming the output](consuming.md) describes the manifest. The
 systematic-trend curve is labelled `systematic_trend`, the same token as its kind.
 
-A run-identifier parameter is the configuration key it came from. Spelling every key out in
-full would put some two hundred characters into every directory name, so the keys are abbreviated —
-and abbreviated in one place, [`RUN_IDENTIFIER_ABBREVIATIONS`](@ref), rather than at the point of
-use. That table is keyed by the key's dotted path in the configuration file,
-`segments.min_segment_span => span`, so an entry names exactly one key.
-[`run_parameters`](@ref) refuses a key with no entry rather than inventing a short key, and the
-test suite asserts that every key it uses has one.
-
-Every key that changes the result is a parameter; the system is not, since it names the directory
-the identifier sits in, nor is `significant_digits`, which changes how a number is rendered and not
-the number. Only the parameters behind the `[domain]` table of the manifest are readable in the
+A run-identifier parameter is the configuration key it came from, by section and key as the file
+spells it, `segments.max_segments`. Every key that changes the result of the run is a parameter;
+the system is not, since it names the directory the identifier sits in, nor are `[retrieval]`, a
+guard on the inputs, and `[output]`, which changes how a number is rendered and not the number. A
+key that cannot change this run's result is none of its parameters either: the Gilbert-Cameron
+keys of a back-shifted Fermi gas run, `windows_apply_to_datasets` without windows, an input that
+is not given. Only the parameters behind the `[domain]` table of the manifest are readable in the
 identifier — `ldm`, `avg`, `nZ`, `chg`, `mass`, `dZ0`, and `def` in a Gilbert-Cameron run:
 
 ```
@@ -309,9 +305,8 @@ avg=charge_resolved_chg=wahl_dZ0=false_h=a72fb8dd_ldm=BSFG_mass=ame2020_nZ=5
 A path among them, a tabulated charge distribution or mass table, appears as the first eight
 hexadecimal digits of the SHA-1 of its spelling relative to the data directory. Every parameter,
 the readable ones included, enters `h`: the same eight digits of the SHA-1 of the canonical text of
-[`run_parameters`](@ref), one `key=value` line per parameter in the order of the keys. A path
-enters that text relative to the data directory, so the same inputs staged on another machine give
-the same identifier. `metadata.toml` records the parameters in full under
-`[identifier.parameters]` and the canonical text under `[identifier] canonical`, and
-[`run_identifier`](@ref) recomputes the identifier from the recorded parameters. The identifier is
+[`run_parameters`](@ref), one `section.key=value` line per parameter, sorted. A path enters that
+text relative to the data directory, so the same inputs staged on another machine give the same
+identifier. `metadata.toml` records the parameters under `[identifier.parameters]`, and
+[`run_identifier`](@ref) recomputes the identifier from them. The identifier is
 to be compared, never parsed: the parameters of a run are read from its `metadata.toml`.

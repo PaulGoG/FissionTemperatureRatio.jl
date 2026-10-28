@@ -130,6 +130,11 @@ end
                 ("qualifiers = \"MXW\"", "qualifiers"),
                 ("pair_sum_deviation = \"-0.1\"", "pair_sum_deviation"),
                 ("pair_sum_deviation = 0.1\nscale_consistent = 1", "scale_consistent"),
+                # A verdict on the scale without the uncertainty it rests on.
+                (
+                    "pair_sum_deviation = 0.1\nscale_consistent = false",
+                    "pair_sum_deviation_uncertainty",
+                ),
             )
                 write(path, single_entry_record(keys))
                 error = try

@@ -56,7 +56,6 @@ module FissionTemperatureRatio
 
 using CSV: CSV
 using DataFrames: DataFrame
-using DrWatson: savename
 using FissionFragmentsDomain:
     FissionFragmentsDomain,
     AME2020_MASS_EXCESS_FILE,
@@ -152,7 +151,6 @@ public fit_weights, evaluate, covariance, pivots, unresolved_minimum
 public CORRELOGRAM_LAGS, deviation_correlogram, autocorrelation_decay, pooled_correlation
 public SymmetryDiagnostics, manifest_domain, curve_accessions, pooled_datasets
 public superseded_datasets, deviation_autocorrelation, run_parameters
-public RUN_IDENTIFIER_ABBREVIATIONS
 
 function __init__()
     Base.Experimental.register_error_hint(MethodError) do io, exception, _, _

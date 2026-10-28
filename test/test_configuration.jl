@@ -498,7 +498,9 @@ end
             configuration = load_configuration(path; data_directory = directory)
             @test configuration.level_density.mean_kinetic_energy_file ==
                 joinpath(directory, "TKE_vs_A", "1_A.Author_2000.dat")
-            @test run_parameters(configuration)["TKE"] != "none"
+            @test haskey(
+                run_parameters(configuration)["level_density"], "mean_kinetic_energy_file"
+            )
             @test run_identifier(configuration) != run_identifier(
                 load_configuration(
                     joinpath(write_beside(path, MINIMAL_CONFIGURATION));
@@ -509,27 +511,42 @@ end
     end
 
     @testset "every result-changing key enters the run identifier" begin
-        # The parameters are keyed through one exported table. A key without an entry is an error
-        # rather than a silently invented short key, and every entry is used, so the table cannot
-        # carry a short key for a key the identifier leaves out.
         with_configuration(MINIMAL_CONFIGURATION) do path, directory
             configuration = load_configuration(path; data_directory = directory)
             parameters = run_parameters(configuration)
-            # The Gilbert-Cameron keys change a Gilbert-Cameron result only, the yield source
-            # is a directory or one file, and the yield coverage floor needs a yield.
-            gilbert_cameron = Set(["sc", "def"])
-            @test Set(keys(parameters)) == setdiff(
-                Set(values(RUN_IDENTIFIER_ABBREVIATIONS)), gilbert_cameron, Set(["Yf", "Ycov"])
+            # Keyed by section and key as the file spells them; a key that cannot change the
+            # result of this run is none of its parameters.
+            @test parameters == Dict(
+                "system" => Dict("incident_energy" => 0.0),
+                "fragmentation" => Dict(
+                    "charges_per_mass" => 5,
+                    "heavy_mass_min" => 126,
+                    "heavy_mass_max" => 140,
+                    "charge_distribution_file" => "wahl",
+                    "zero_polarization_at_symmetry" => false,
+                ),
+                "level_density" => Dict(
+                    "model" => "BSFG",
+                    "mass_excess_file" => "ame2020",
+                    "ratio_averaging" => "charge_resolved",
+                ),
+                "multiplicity" => Dict("subdirectory" => "datasets"),
+                "segments" => Dict(
+                    "max_segments" => 3,
+                    "min_points_per_segment" => 4,
+                    "pin_symmetric_split" => true,
+                    "min_pair_coverage" => 0.3,
+                    "autocorrelation_lags" => 4,
+                ),
             )
             other = write_beside(
                 path, replace(MINIMAL_CONFIGURATION, "model = \"BSFG\"" => "model = \"GC\"")
             )
             gc_configuration = load_configuration(other; data_directory = directory)
             gc_parameters = run_parameters(gc_configuration)
-            @test Set(keys(gc_parameters)) ==
-                setdiff(Set(values(RUN_IDENTIFIER_ABBREVIATIONS)), Set(["Yf", "Ycov"]))
-            @test gc_parameters["sc"] == "gilbert_cameron_1965"
-            @test allunique(values(RUN_IDENTIFIER_ABBREVIATIONS))
+            @test gc_parameters["level_density"]["shell_correction_file"] ==
+                "gilbert_cameron_1965"
+            @test gc_parameters["level_density"]["deformed_branch"] === true
 
             # Readable are the parameters behind the manifest's [domain] table and dZ0; every
             # other one enters through h alone.
@@ -546,16 +563,18 @@ end
             # The system names the directory the identifier sits in, and is not a token.
             @test !occursin("Cf252", identifier)
 
-            # The Gilbert-Cameron keys stay out of a back-shifted Fermi gas run's hash.
-            inert = write_beside(
-                path,
-                replace(
-                    MINIMAL_CONFIGURATION,
-                    "model = \"BSFG\"" => "model = \"BSFG\"\ndeformed_branch = false",
-                ),
+            # Keys that cannot change the result leave the identifier as it is: the
+            # Gilbert-Cameron branch of a back-shifted Fermi gas run, the application of windows
+            # there are none of, the rendering of the tables and the version floor.
+            for variant in (
+                "model = \"BSFG\"" => "model = \"BSFG\"\ndeformed_branch = false",
+                "max_segments = 3" => "max_segments = 3\nwindows_apply_to_datasets = true",
+                "significant_digits = 6" => "significant_digits = 4",
             )
-            @test run_identifier(load_configuration(inert; data_directory = directory)) ==
-                identifier
+                inert = write_beside(path, replace(MINIMAL_CONFIGURATION, variant))
+                @test run_identifier(load_configuration(inert; data_directory = directory)) ==
+                    identifier
+            end
 
             # The number of correlogram lags changes the uncertainty of the trend: it enters h
             # at its default as elsewhere, and is no token of its own.
@@ -567,19 +586,28 @@ end
                 ),
             )
             lagged = load_configuration(other; data_directory = directory)
-            @test lagged.segments.autocorrelation_lags == 2
-            @test parameters["lags"] == 4
-            @test run_parameters(lagged)["lags"] == 2
+            @test run_parameters(lagged)["segments"]["autocorrelation_lags"] == 2
             @test run_identifier(lagged) != identifier
             @test !occursin("lags", run_identifier(lagged))
 
             # A list enters in full, so two window sets are two runs.
-            other = joinpath(directory, "windows.toml")
-            write(
-                other,
+            other = write_beside(
+                path,
                 replace(
                     MINIMAL_CONFIGURATION,
                     "max_segments = 3" => "max_segments = 3\nrequired_windows = [[130, 134]]",
+                ),
+            )
+            @test run_identifier(load_configuration(other; data_directory = directory)) !=
+                identifier
+
+            # Two multiplicity directories of one system are two runs.
+            mkpath(joinpath(directory, "other_datasets"))
+            other = write_beside(
+                path,
+                replace(
+                    MINIMAL_CONFIGURATION,
+                    "subdirectory = \"datasets\"" => "subdirectory = \"other_datasets\"",
                 ),
             )
             @test run_identifier(load_configuration(other; data_directory = directory)) !=
@@ -601,18 +629,27 @@ end
             changed(x::Real) = x + 0.05
             changed(x::AbstractString) = x * "x"
             changed(x::AbstractVector) = isempty(x) ? Any["x"] : x[1:(end - 1)]
-            changed(x::AbstractDict) =
-                merge(x, Dict(first(keys(x)) => changed(x[first(keys(x))])))
             for reference in (parameters, gc_parameters)
-                for key in keys(reference)
-                    variant = merge(reference, Dict(key => changed(reference[key])))
+                for (section, entries) in reference, key in keys(entries)
+                    variant = deepcopy(reference)
+                    variant[section][key] = changed(entries[key])
                     @test run_identifier(variant) != run_identifier(reference)
                 end
             end
             # A readable parameter missing from the record is refused.
-            @test_throws "readable token" run_identifier(delete!(copy(parameters), "nZ"))
-            @test_throws "readable token" run_identifier(delete!(copy(gc_parameters), "def"))
-            @test run_identifier(delete!(copy(parameters), "lags")) != identifier
+            without(reference, section, key) = begin
+                variant = deepcopy(reference)
+                delete!(variant[section], key)
+                variant
+            end
+            @test_throws "readable token" run_identifier(
+                without(parameters, "fragmentation", "charges_per_mass")
+            )
+            @test_throws "readable token" run_identifier(
+                without(gc_parameters, "level_density", "deformed_branch")
+            )
+            @test run_identifier(without(parameters, "segments", "autocorrelation_lags")) !=
+                identifier
         end
     end
 
@@ -631,8 +668,9 @@ end
             @test configuration.yield_file ==
                 joinpath(directory, "Y_vs_A", "1_A.Author_2000.dat")
             @test configuration.yield_directory === nothing
-            tokens = run_parameters(configuration)
-            @test haskey(tokens, "Yf") && !haskey(tokens, "Y")
+            yields = run_parameters(configuration)["yield"]
+            @test yields["mass_yield_file"] == "Y_vs_A/1_A.Author_2000.dat"
+            @test !haskey(yields, "subdirectory") && !haskey(yields, "exclude")
             # An exclusion has nothing to act on where no directory is read, and is refused.
             excluding = write_beside(
                 path,
@@ -660,15 +698,16 @@ end
             both = load_configuration(both; data_directory = directory)
             @test both.yield_directory == joinpath(directory, "Y_vs_A")
             @test both.yield_file == configuration.yield_file
-            # One parameter for the directory, its reference and its exclusions.
-            @test haskey(run_parameters(both), "Y") && !haskey(run_parameters(both), "Yf")
+            # The directory, its reference and its exclusions are parameters, the reasons not.
+            @test run_parameters(both)["yield"]["subdirectory"] == "Y_vs_A"
+            @test run_parameters(both)["yield"]["exclude"] == ["B. Other 2001"]
             unexcluded = write_beside(
                 path,
                 MINIMAL_CONFIGURATION *
                 "\n[yield]\nsubdirectory = \"Y_vs_A\"\nmass_yield_file = \"Y_vs_A/1_A.Author_2000.dat\"\n",
             )
-            @test run_parameters(both)["Y"] !=
-                run_parameters(load_configuration(unexcluded; data_directory = directory))["Y"]
+            @test run_identifier(both) !=
+                run_identifier(load_configuration(unexcluded; data_directory = directory))
             # A directory without its reference has nothing to measure coverage against.
             directory_alone = write_beside(
                 path, MINIMAL_CONFIGURATION * "\n[yield]\nsubdirectory = \"Y_vs_A\"\n"
@@ -735,8 +774,8 @@ end
             configuration = load_configuration(file; data_directory = directory)
             @test configuration.min_yield_coverage == 0.6
             @test configuration.segments.min_pair_coverage == 0.3
-            @test run_parameters(configuration)["Ycov"] == 0.6
-            @test run_parameters(configuration)["cov"] == 0.3
+            @test run_parameters(configuration)["yield"]["min_yield_coverage"] == 0.6
+            @test run_parameters(configuration)["segments"]["min_pair_coverage"] == 0.3
             out_of_range = write_beside(
                 path, MINIMAL_CONFIGURATION * yield_section * "min_yield_coverage = 1.5\n"
             )

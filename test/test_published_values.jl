@@ -109,7 +109,7 @@ DATA_AVAILABLE && @testset "published total averages" begin
             else
                 @test startswith(run.dataset_outcomes[label], "no complete fragment pair")
             end
-            excluded = run_metadata(run)["configuration"]["excluded_datasets"]
+            excluded = run_metadata(run)["configuration"]["multiplicity"]["exclude"]
             @test occursin(accession, excluded[accession])
         end
 
