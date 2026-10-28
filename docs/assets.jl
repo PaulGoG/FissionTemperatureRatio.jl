@@ -50,7 +50,6 @@ function animate_selection(panels; path, max_segments = 6, hold = 8)
                     min_segments = k,
                     max_segments = k,
                     min_points_per_segment = panel.min_points_per_segment,
-                    min_segment_span = panel.min_segment_span,
                     pinned_value = panel.pinned_value,
                     bounds = (0.0, 1.0),
                     measured = fill(panel.measured, length(panel.curve.A_H)),
@@ -560,7 +559,6 @@ function main()
             curve,
             label = "$(system_notation(configuration.system)) · $(curve.label)",
             min_points_per_segment = settings.min_points_per_segment,
-            min_segment_span = settings.min_segment_span,
             pinned_value = pinned,
             measured,
         )

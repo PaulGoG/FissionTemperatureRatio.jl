@@ -74,7 +74,6 @@ end
             @test configuration.level_density.deformed_branch
             @test configuration.symmetrize_yields
             @test configuration.segments.pin_symmetric_split
-            @test configuration.segments.min_segment_span == 3
             @test configuration.segments.min_pair_coverage == 0.3
             @test configuration.min_yield_coverage == 0.3
             @test configuration.min_retrieval_version == v"0.2.7"
@@ -84,7 +83,11 @@ end
     end
 
     @testset "missing file" begin
-        @test_throws ArgumentError load_configuration(joinpath(@__DIR__, "absent.toml"))
+        @test_throws ArgumentError load_configuration(
+            joinpath(@__DIR__, "absent.toml"); data_directory = DATA_DIRECTORY
+        )
+        # The data directory is named by the caller, never taken from the active project.
+        @test_throws UndefKeywordError load_configuration(joinpath(@__DIR__, "absent.toml"))
     end
 
     @testset "each constraint is enforced" begin
@@ -291,12 +294,36 @@ end
                 "segments.required_windows",
             ),
             (
-                "segment span out of range",
+                "retired segment span",
                 replace(
                     MINIMAL_CONFIGURATION,
-                    "max_segments = 3" => "max_segments = 3\nmin_segment_span = 0",
+                    "max_segments = 3" => "max_segments = 3\nmin_segment_span = 3",
                 ),
-                "segments.min_segment_span",
+                "[segments]",
+            ),
+            # A truth value is not a number, though Julia counts Bool among the integers.
+            (
+                "Boolean for an integer",
+                replace(
+                    MINIMAL_CONFIGURATION, "charges_per_mass = 5" => "charges_per_mass = true"
+                ),
+                "fragmentation.charges_per_mass",
+            ),
+            (
+                "Boolean for a real",
+                replace(
+                    MINIMAL_CONFIGURATION,
+                    "max_segments = 3" => "max_segments = 3\nmin_pair_coverage = false",
+                ),
+                "segments.min_pair_coverage",
+            ),
+            (
+                "Boolean in a window",
+                replace(
+                    MINIMAL_CONFIGURATION,
+                    "max_segments = 3" => "max_segments = 3\nrequired_windows = [[true, 130]]",
+                ),
+                "segments.required_windows",
             ),
             (
                 "coverage floor out of range",
@@ -353,6 +380,57 @@ end
                     @test occursin(key, sprint(showerror, thrown))
                 end
             end
+        end
+    end
+
+    @testset "the constructor holds the rules that tie one setting to another" begin
+        with_configuration(MINIMAL_CONFIGURATION) do path, directory
+            loaded = load_configuration(path; data_directory = directory)
+            # The configuration with some of its fields replaced, built by hand.
+            function rebuilt(; changes...)
+                fields = Dict(
+                    name => getfield(loaded, name) for name in fieldnames(Configuration)
+                )
+                merge!(fields, Dict(changes))
+                return Configuration((fields[name] for name in fieldnames(Configuration))...)
+            end
+            @test rebuilt() isa Configuration
+            @test_throws "yield.subdirectory needs yield.mass_yield_file" rebuilt(
+                yield_directory = directory
+            )
+            @test_throws "yield.exclude needs yield.subdirectory" rebuilt(
+                excluded_mass_yields = Dict("41739004" => "reason")
+            )
+            settings = loaded.segments
+            windows = FissionTemperatureRatio.SegmentSettings(
+                settings.max_segments,
+                settings.min_points_per_segment,
+                settings.pin_symmetric_split,
+                [100:110],
+                settings.windows_apply_to_datasets,
+                settings.min_pair_coverage,
+                settings.autocorrelation_lags,
+            )
+            @test_throws "segments.required_windows[1]" rebuilt(segments = windows)
+            fragmentation = loaded.fragmentation
+            narrow = FissionTemperatureRatio.FragmentationSettings(
+                fragmentation.charges_per_mass,
+                fragmentation.heavy_mass_min,
+                fragmentation.heavy_mass_min,
+                fragmentation.charge_distribution,
+                fragmentation.zero_polarization_at_symmetry,
+            )
+            @test_throws "fragmentation.heavy_mass_max" rebuilt(fragmentation = narrow)
+            wahl_at_zero = FissionTemperatureRatio.FragmentationSettings(
+                fragmentation.charges_per_mass,
+                fragmentation.heavy_mass_min,
+                fragmentation.heavy_mass_max,
+                "wahl",
+                true,
+            )
+            @test_throws "fragmentation.zero_polarization_at_symmetry" rebuilt(
+                fragmentation = wahl_at_zero
+            )
         end
     end
 
@@ -750,7 +828,7 @@ end
         )
         body = replace(
             body,
-            "max_segments = 3" => "max_segments = 12\nrequired_windows = [[128, 132]]\nmin_pair_coverage = 0.35\nmin_points_per_segment = 10\nmin_segment_span = 10",
+            "max_segments = 3" => "max_segments = 12\nrequired_windows = [[128, 132]]\nmin_pair_coverage = 0.35\nmin_points_per_segment = 10",
         )
         with_configuration(body) do path, directory
             write(

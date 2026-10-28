@@ -45,7 +45,7 @@ for identifiers, configuration keys, files and column headers is set out in `doc
 # Entry point
 
 ```julia
-configuration = load_configuration("config/U233_nth.toml")
+configuration = load_configuration("config/U233_nth.toml"; data_directory = "data")
 result = run_pipeline(configuration)
 write_results(result, "data/sims/U233_nth/" * run_identifier(configuration))
 ```
@@ -56,7 +56,7 @@ module FissionTemperatureRatio
 
 using CSV: CSV
 using DataFrames: DataFrame
-using DrWatson: datadir, savename
+using DrWatson: savename
 using FissionFragmentsDomain:
     FissionFragmentsDomain,
     AME2020_MASS_EXCESS_FILE,

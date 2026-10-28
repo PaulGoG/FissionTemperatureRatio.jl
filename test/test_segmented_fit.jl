@@ -178,28 +178,4 @@ using LinearAlgebra: LinearAlgebra
             A_H, value, σ; min_segments = 5, max_segments = 4
         )
     end
-
-    @testset "a minimum span rejects segments shorter than it" begin
-        A_H = collect(120:159)
-        value = [a ≤ 130 ? 0.50 - 0.02 * (a - 120) : 0.30 + 0.008 * (a - 130) for a in A_H]
-        value .+= 0.004 .* sin.(A_H)
-        σ = fill(0.004, length(A_H))
-
-        # With two points per segment the point count alone admits a segment one mass unit
-        # long; the span guard is what keeps every segment at least six.
-        fit = fit_segments(
-            A_H, value, σ; max_segments = 6, min_points_per_segment = 2, min_segment_span = 6
-        )
-        pivot_abscissae = [first(A_H); fit.breakpoints; last(A_H)]
-        @test all(≥(6), diff(pivot_abscissae))
-        # At the shipped point count on consecutive mass numbers a span of three coincides with
-        # the point guard, so it changes nothing.
-        @test fit_segments(A_H, value, σ; max_segments = 4, min_segment_span = 3).breakpoints ==
-            fit_segments(A_H, value, σ; max_segments = 4).breakpoints
-        # A span the data cannot honour leaves no admissible model.
-        @test_throws InsufficientDataError fit_segments(
-            A_H, value, σ; min_segments = 2, max_segments = 2, min_segment_span = 30
-        )
-        @test_throws ArgumentError fit_segments(A_H, value, σ; min_segment_span = 0)
-    end
 end

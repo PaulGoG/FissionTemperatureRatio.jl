@@ -1,11 +1,13 @@
 # Configuration
 
 A run is driven by one TOML file, `config/<system>.toml`, read by [`load_configuration`](@ref)
-against a data directory. The loader enforces what this page lists: the sections and keys it
-knows, the type of every key, its bounds or its enumerated choices, and the existence of every
-file named. An unknown section or key, a value outside its bounds, a choice it does not offer or a
-path that does not exist is refused with a message naming the key, so a run cannot start from a
-configuration it cannot honour. A key that is absent takes its default; a section marked required
+against a data directory the caller names. The loader enforces what this page lists: the
+sections and keys it knows, the type of every key, its bounds or its enumerated choices, and the
+existence of every file named; the rules that tie one key to another, given in the constraint
+column, are enforced by the [`Configuration`](@ref) constructor, so a configuration built by hand
+is held to them as well. An unknown section or key, a value outside its bounds, a choice it does
+not offer, `true` or `false` where a number stands, or a path that does not exist is refused with
+a message naming the key, so a run cannot start from a configuration it cannot honour. A key that is absent takes its default; a section marked required
 must be present even where every key of it has one. The shipped configurations set every key they
 read, so that the file states what the run honoured.
 
@@ -96,7 +98,6 @@ The segmented description of ``r_\nu(A_H)``; every key has a default.
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | `max_segments` | integer | `6` | 1 to 12 | `nseg` | largest segment count examined |
 | `min_points_per_segment` | integer | `4` | 2 to 50 | `npts` | data points a segment must contain |
-| `min_segment_span` | integer | `3` | 1 to 50 | `span` | smallest extent of a segment in mass units, from its first pivot to its last; binds only where it exceeds `min_points_per_segment − 1` |
 | `pin_symmetric_split` | boolean | `true` | needs an even ``A_0`` and `heavy_mass_min` at the symmetric split | `pin` | fix ``r_\nu = 1/2`` at the symmetric split |
 | `required_windows` | array of `[first, last]` | none | ordered integer pairs inside `heavy_mass_min:heavy_mass_max` | `win` | windows the trend curve must break in; `[[128, 132]]` in the shipped configurations |
 | `windows_apply_to_datasets` | boolean | `false` | — | `wdat` | apply the windows to every dataset curve as well |

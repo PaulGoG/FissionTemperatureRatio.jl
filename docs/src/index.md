@@ -29,7 +29,7 @@ julia -i activate.jl
 ```julia
 using FissionTemperatureRatio
 
-configuration = load_configuration("config/U233_nth.toml")
+configuration = load_configuration("config/U233_nth.toml"; data_directory = "data")
 result = run_pipeline(configuration)
 write_results(result, joinpath("data", "sims", "U233_nth", run_identifier(configuration)))
 ```

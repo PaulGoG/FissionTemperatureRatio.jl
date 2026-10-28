@@ -180,11 +180,8 @@ residuals exceed what the quoted uncertainties predict, and never shrunk below t
 Where no point quotes an uncertainty the weights are uniform and carry no scale, so the fit is
 ordinary least squares and the covariance is scaled by ``\chi^2/\mathrm{dof}`` alone.
 
-Each segment must hold `min_points_per_segment` data points and extend over at least
-`min_segment_span` mass units from its first pivot to its last. On consecutive mass numbers a
-segment of `min_points_per_segment` points already spans `min_points_per_segment − 1` units, so
-with the shipped values of 4 and 3 the span guard never binds; it acts only where it is set above
-that.
+Each segment must hold `min_points_per_segment` data points, four in the shipped
+configurations, and so extends over at least three mass units.
 
 A dataset is offered as a segmented curve of its own only if it provides a complete fragment pair
 at a fraction `min_pair_coverage` of the mass numbers of the fragmentation range. Below that

@@ -259,12 +259,11 @@ function _bic(wrss::Float64, n::Real, parameters::Int)
 end
 
 # Enumerate ascending interior breakpoint sets drawn from `candidates`, subject to a minimum
-# number of data points per segment, a minimum extent per segment in units of the abscissa, and,
-# optionally, windows that must each contain a breakpoint.
+# number of data points per segment and, optionally, windows that must each contain a breakpoint.
 #
 # The first segment runs from the first abscissa to the first breakpoint and the last from the
-# last breakpoint to the last abscissa, so every segment has an extent to test, not only the
-# interior ones. A model without breakpoints places none in a window, so it is admissible only
+# last breakpoint to the last abscissa, so every segment, not only the interior ones, has its
+# points counted. A model without breakpoints places none in a window, so it is admissible only
 # where no window is required.
 function _each_breakpoint_set(
     f::Function,
@@ -272,11 +271,10 @@ function _each_breakpoint_set(
     candidates::Vector{Int},
     count::Int,
     min_points::Int,
-    min_span::Int,
     windows::Vector{UnitRange{Int}},
 )
     if count == 0
-        isempty(windows) && last(x) - first(x) ≥ min_span && f(Int[])
+        isempty(windows) && f(Int[])
         return nothing
     end
     chosen = Vector{Int}(undef, count)
@@ -286,11 +284,9 @@ function _each_breakpoint_set(
             ψ = candidates[index]
             lower = depth == 1 ? first(x) - 1 : chosen[depth - 1]
             Base.count(xi -> lower < xi ≤ ψ, x) ≥ min_points || continue
-            ψ - (depth == 1 ? first(x) : chosen[depth - 1]) ≥ min_span || continue
             chosen[depth] = ψ
             if depth == count
                 Base.count(xi -> xi > ψ, x) ≥ min_points || continue
-                last(x) - ψ ≥ min_span || continue
                 all(window -> any(in(window), chosen), windows) || continue
                 f(copy(chosen))
             else
@@ -341,7 +337,6 @@ function _best_for_order(
     candidates::Vector{Int},
     count::Int,
     min_points::Int,
-    min_span::Int,
     windows::Vector{UnitRange{Int}},
     pinned::Bool,
     pinned_value::Union{Real,Nothing},
@@ -352,7 +347,7 @@ function _best_for_order(
     dof = n_measured - parameters
     dof > 0 || return nothing
     best = _BestModel(false, NaN, Int[], Float64[], Matrix{Float64}(undef, 0, 0), NaN)
-    _each_breakpoint_set(xs, candidates, count, min_points, min_span, windows) do ψ
+    _each_breakpoint_set(xs, candidates, count, min_points, windows) do ψ
         X = _design_matrix(xs, first(xs), ψ, pinned)
         solved = _solve(X, yw, root_w)
         solved === nothing && return nothing
@@ -379,8 +374,8 @@ function _best_for_order(
 end
 
 """
-    fit_segments(x, y, σ; max_segments, min_segments, min_points_per_segment, min_segment_span,
-                 pinned_value, required_windows, bounds, measured, correlation) -> SegmentedFit
+    fit_segments(x, y, σ; max_segments, min_segments, min_points_per_segment, pinned_value,
+                 required_windows, bounds, measured, correlation) -> SegmentedFit
 
 Fit `y(x)` by a continuous piecewise-linear function, selecting both the number of segments and
 the breakpoint positions from the data.
@@ -409,11 +404,8 @@ for correlated ones, `P` being the residual projector of the weighted fit.
   fits exactly that many segments rather than selecting, which is how a given order is inspected
   on its own; the criterion is still reported for every order examined.
 - `min_points_per_segment`: smallest number of data points a segment may contain; the
-  identifiability guard on the search.
-- `min_segment_span`: smallest extent of a segment in units of the abscissa, from its first
-  pivot to its last, `1` by default. On distinct consecutive abscissae a segment of
-  `min_points_per_segment` points already spans `min_points_per_segment − 1` units, so the span
-  guard binds only where it exceeds that or where abscissae repeat.
+  identifiability guard on the search. On distinct integer abscissae a segment of `m` points
+  spans at least `m − 1` units.
 - `pinned_value`: when given, the fit is constrained to pass through `(first(x), pinned_value)`.
   For the multiplicity ratio of a fissioning nucleus of even mass number this is exact at the
   symmetric split, where the two fragments are identical and the ratio is one half.
@@ -486,7 +478,6 @@ function fit_segments(
     max_segments::Integer = 6,
     min_segments::Integer = 1,
     min_points_per_segment::Integer = 4,
-    min_segment_span::Integer = 1,
     pinned_value::Union{Real,Nothing} = nothing,
     required_windows::Vector{UnitRange{Int}} = UnitRange{Int}[],
     bounds::Union{Tuple{Real,Real},Nothing} = nothing,
@@ -507,8 +498,6 @@ function fit_segments(
             "min_points_per_segment must be at least 2, got $(min_points_per_segment)"
         ),
     )
-    min_segment_span ≥ 1 ||
-        throw(ArgumentError("min_segment_span must be at least 1, got $(min_segment_span)"))
     issorted(x) || throw(ArgumentError("x must be sorted in ascending order"))
     R = correlation === nothing ? nothing : _correlation_matrix(correlation, length(x))
 
@@ -561,7 +550,6 @@ function fit_segments(
             candidates,
             Int(count),
             min_points_per_segment,
-            Int(min_segment_span),
             required_windows,
             pinned,
             pinned_value,
@@ -582,7 +570,6 @@ function fit_segments(
              $(length(distinct)) distinct abscissae, \
              max_segments = $(max_segments), \
              min_points_per_segment = $(min_points_per_segment), \
-             min_segment_span = $(min_segment_span), \
              required_windows = $(required_windows), \
              pinned_value = $(pinned_value), bounds = $(bounds)"
         ),

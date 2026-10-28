@@ -606,8 +606,8 @@ end
             @test !any(contains("segmented curve"), [string(r.message) for r in logger.logs])
 
             # A configuration built by hand with an exclusion and no directory to apply it to
-            # would write to the run record an exclusion that was never made.
-            inapplicable = Configuration(
+            # would write to the run record an exclusion that was never made; it is not built.
+            @test_throws "yield.exclude needs yield.subdirectory" Configuration(
                 (
                     if name === :excluded_mass_yields
                         Dict("10000001" => "x")
@@ -618,7 +618,6 @@ end
                     end for name in fieldnames(Configuration)
                 )...
             )
-            @test_throws "without yield.subdirectory" run_pipeline(inapplicable)
             # And one whose directory is not there is refused as an argument, not by the file
             # system.
             misplaced = Configuration(

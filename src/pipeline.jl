@@ -545,18 +545,7 @@ function run_pipeline(configuration::Configuration; leave_one_out::Bool = true)
     # Before anything is fitted: an exclusion that names no dataset is a configuration the run
     # cannot honour. `load_configuration` has checked it; a configuration built by hand has not.
     _excluded_labels(configuration.excluded_datasets, datasets)
-    if configuration.yield_directory === nothing
-        # No directory, so the primary distribution alone is averaged over; an exclusion would be
-        # written to the run record without having been applied.
-        isempty(configuration.excluded_mass_yields) || throw(
-            ArgumentError(
-                "yield.exclude names \
-                 $(join(sort!(collect(keys(configuration.excluded_mass_yields))), ", ")) \
-                 without yield.subdirectory: the primary distribution alone is averaged over, \
-                 and an exclusion has nothing to act on",
-            ),
-        )
-    else
+    if configuration.yield_directory !== nothing
         held = _directory_keys(configuration.yield_directory)
         for key in sort!(collect(keys(configuration.excluded_mass_yields)))
             haskey(held, key) || throw(
@@ -1014,7 +1003,6 @@ function _segment(
             min_segments = order === nothing ? 1 : order,
             measured = measured,
             min_points_per_segment = settings.min_points_per_segment,
-            min_segment_span = settings.min_segment_span,
             pinned_value = pinned ? 0.5 : nothing,
             required_windows = windows,
             bounds = (0.0, 1.0),

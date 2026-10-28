@@ -110,10 +110,10 @@ end
 """
     SegmentSettings
 
-Controls of the segmented description: the largest number of segments examined, the
-smallest number of data points and the smallest extent in mass units a segment may have, whether
-the ratio is pinned to one half at the symmetric split, mass-number windows that must each
-contain a breakpoint, and the pair coverage a dataset needs to be offered as a curve at all.
+Controls of the segmented description: the largest number of segments examined, the smallest
+number of data points a segment may hold, whether the ratio is pinned to one half at the
+symmetric split, mass-number windows that must each contain a breakpoint, and the pair coverage a
+dataset needs to be offered as a curve at all.
 
 `required_windows` places a breakpoint where physics says there is one — the minimum at the heavy
 magic fragment, `A_H` near 130, where the `Z = 50`, `N = 82` shell closure fixes the sharing. It
@@ -133,7 +133,6 @@ the systematic trend is fitted to, [`autocorrelation_decay`](@ref).
 struct SegmentSettings
     max_segments::Int
     min_points_per_segment::Int
-    min_segment_span::Int
     pin_symmetric_split::Bool
     required_windows::Vector{UnitRange{Int}}
     windows_apply_to_datasets::Bool
@@ -157,8 +156,14 @@ end
 """
     Configuration
 
-A complete, validated pipeline configuration. Construct with [`load_configuration`](@ref) rather
-than directly, so that the constraints documented in the TOML file are enforced.
+A complete, validated pipeline configuration, as [`load_configuration`](@ref) reads it from a TOML
+file. The constructor enforces the rules that tie one setting to another — the heavy-mass range
+to the fissioning nucleus, the pin to the symmetric split, the required windows to the range, the
+zero polarization to a charge model that takes it, the excitation weights to the charge-resolved
+inversion, a yield directory to its primary distribution and an exclusion of yields to a
+directory — so that a configuration assembled by hand cannot hold a combination the pipeline
+cannot honour either. What is checked against a single key, its type, bounds and choices, is the
+loader's.
 
 `data_directory` is the root every input path was resolved against; the run identifier and the
 metadata spell input paths relative to it, so that a run made on another machine names the same
@@ -199,6 +204,131 @@ struct Configuration
     min_retrieval_version::VersionNumber
     source::String
     data_directory::String
+
+    function Configuration(
+        system::FissioningSystem,
+        fragmentation::FragmentationSettings,
+        level_density::LevelDensitySettings,
+        multiplicity_directory::AbstractString,
+        excluded_datasets::AbstractDict{String,String},
+        yield_directory::Union{AbstractString,Nothing},
+        yield_file::Union{AbstractString,Nothing},
+        excluded_mass_yields::AbstractDict{String,String},
+        symmetrize_yields::Bool,
+        min_yield_coverage::Real,
+        segments::SegmentSettings,
+        output::OutputSettings,
+        min_retrieval_version::VersionNumber,
+        source::AbstractString,
+        data_directory::AbstractString,
+    )
+        _check_rules(
+            system,
+            fragmentation,
+            level_density,
+            yield_directory,
+            yield_file,
+            excluded_mass_yields,
+            segments,
+        )
+        return new(
+            system,
+            fragmentation,
+            level_density,
+            multiplicity_directory,
+            excluded_datasets,
+            yield_directory,
+            yield_file,
+            excluded_mass_yields,
+            symmetrize_yields,
+            min_yield_coverage,
+            segments,
+            output,
+            min_retrieval_version,
+            source,
+            data_directory,
+        )
+    end
+end
+
+# The rules that tie one setting to another, each named by the configuration keys it binds.
+function _check_rules(
+    system::FissioningSystem,
+    fragmentation::FragmentationSettings,
+    level_density::LevelDensitySettings,
+    yield_directory::Union{AbstractString,Nothing},
+    yield_file::Union{AbstractString,Nothing},
+    excluded_mass_yields::AbstractDict,
+    segments::SegmentSettings,
+)
+    A₀ = system.compound.A
+    # The symmetric split is the smallest heavy-fragment mass there is: below it the heavy
+    # fragment would be the lighter of the pair.
+    symmetric_split = cld(A₀, 2)
+    lower, upper = fragmentation.heavy_mass_min, fragmentation.heavy_mass_max
+    _in_interval(lower, (symmetric_split, A₀ - 1), "fragmentation.heavy_mass_min")
+    _in_interval(upper, (lower + 1, A₀ - 1), "fragmentation.heavy_mass_max")
+    # Wahl's model fixes ΔZ at the symmetric split itself; the key would claim a setting the run
+    # does not apply.
+    fragmentation.zero_polarization_at_symmetry &&
+        fragmentation.charge_distribution == "wahl" &&
+        throw(
+            ArgumentError(
+                "fragmentation.zero_polarization_at_symmetry applies to a tabulated or a mean \
+                 charge distribution; Wahl's model sets the polarization at A0/2 itself"
+            ),
+        )
+    level_density.mean_kinetic_energy_file === nothing ||
+        level_density.ratio_averaging == "charge_resolved" ||
+        throw(
+            ArgumentError(
+                "level_density.mean_kinetic_energy_file weights the charge-resolved inversion \
+                 only; level_density.ratio_averaging is $(repr(level_density.ratio_averaging))"
+            ),
+        )
+    if segments.pin_symmetric_split
+        isodd(A₀) && throw(
+            ArgumentError(
+                "segments.pin_symmetric_split requires an even fissioning mass number, since the \
+                 ratio equals one half only where the two fragments are identical; got \
+                 A0 = $(A₀)",
+            ),
+        )
+        # The fit is pinned at the first abscissa of the range, so that abscissa has to be the
+        # symmetric split; pinning a range that starts above it would fix the ratio to one half
+        # where nothing says it is.
+        lower == symmetric_split || throw(
+            ArgumentError(
+                "segments.pin_symmetric_split requires fragmentation.heavy_mass_min to be the \
+                 symmetric split $(symmetric_split), got $(lower)",
+            ),
+        )
+    end
+    for (index, window) in enumerate(segments.required_windows)
+        issubset(window, lower:upper) || throw(
+            ArgumentError("segments.required_windows[$(index)] = $(window) lies outside the \
+                           fragmentation range $(lower):$(upper)"),
+        )
+    end
+    # A directory of distributions is measured against the primary one, and an exclusion of
+    # distributions has a directory to act on or nothing.
+    yield_directory === nothing ||
+        yield_file !== nothing ||
+        throw(
+            ArgumentError(
+                "yield.subdirectory needs yield.mass_yield_file, the primary Y(A) every \
+                 distribution's coverage is measured against"
+            ),
+        )
+    isempty(excluded_mass_yields) ||
+        yield_directory !== nothing ||
+        throw(
+            ArgumentError(
+                "yield.exclude needs yield.subdirectory: without a directory the primary \
+                 distribution alone is averaged over, and an exclusion has nothing to act on"
+            ),
+        )
+    return nothing
 end
 
 """
@@ -247,14 +377,79 @@ const CHANNELS = ("sf", "nth", "nres", "nfast")
 const MODELS = ("BSFG", "GC")
 const CHARGE_MODELS = ("wahl", "mean")
 
-function _section(document::AbstractDict, name::String, source::String)
-    haskey(document, name) ||
-        throw(ArgumentError("configuration $(source) is missing the [$(name)] section"))
-    section = document[name]
-    section isa AbstractDict ||
-        throw(ArgumentError("configuration $(source): [$(name)] must be a table"))
-    return section
+# The lowest ExforFissionData version whose retrieval records a run accepts where the
+# configuration does not say: the first whose records name the datasets of one experiment
+# (`correlated_with`, `correlation_relation`). The pooling of an experiment as one rests on them;
+# inputs retrieved before would pool its datasets side by side, under the same run identifier.
+const DEFAULT_MIN_RETRIEVAL_VERSION = "0.2.7"
+
+struct Required end
+const REQUIRED = Required()
+
+# One configuration key: the type its value must have; its default, `REQUIRED` where it has none
+# and `nothing` where the key is optional; and the closed interval or the choices it is held to,
+# or `nothing`.
+struct Key
+    type::Type
+    default::Any
+    allowed::Union{Nothing,Tuple{Real,Real},Tuple{Vararg{String}}}
 end
+
+# Every key of every section. The loader checks each value against its entry here and nothing
+# else; what depends on another key is checked where the settings are built, and by the
+# `Configuration` constructor.
+const CONFIGURATION_KEYS = (
+    system = (
+        target_A = Key(Integer, REQUIRED, (2, 400)),
+        target_Z = Key(Integer, REQUIRED, (1, 118)),
+        channel = Key(String, REQUIRED, CHANNELS),
+        incident_energy = Key(Real, 0.0, (0, Inf)),
+    ),
+    fragmentation = (
+        charges_per_mass = Key(Integer, REQUIRED, (1, 15)),
+        # The symmetric split where absent; its bounds follow from the fissioning nucleus.
+        heavy_mass_min = Key(Integer, nothing, nothing),
+        heavy_mass_max = Key(Integer, REQUIRED, nothing),
+        charge_distribution_file = Key(String, "wahl", nothing),
+        zero_polarization_at_symmetry = Key(Bool, false, nothing),
+    ),
+    level_density = (
+        model = Key(String, REQUIRED, MODELS),
+        mass_excess_file = Key(String, SHIPPED_MASS_TABLE, nothing),
+        shell_correction_file = Key(String, SHIPPED_SHELL_CORRECTIONS, nothing),
+        deformed_branch = Key(Bool, true, nothing),
+        ratio_averaging = Key(String, "charge_resolved", RATIO_AVERAGINGS),
+        mean_kinetic_energy_file = Key(String, nothing, nothing),
+    ),
+    multiplicity = (
+        subdirectory = Key(String, REQUIRED, nothing),
+        exclude = Key(AbstractVector, nothing, nothing),
+    ),
+    yield = (
+        subdirectory = Key(String, nothing, nothing),
+        mass_yield_file = Key(String, REQUIRED, nothing),
+        exclude = Key(AbstractVector, nothing, nothing),
+        symmetrize = Key(Bool, true, nothing),
+        min_yield_coverage = Key(Real, 0.3, (0, 1)),
+    ),
+    segments = (
+        max_segments = Key(Integer, 6, (1, 12)),
+        min_points_per_segment = Key(Integer, 4, (2, 50)),
+        pin_symmetric_split = Key(Bool, true, nothing),
+        required_windows = Key(AbstractVector, nothing, nothing),
+        windows_apply_to_datasets = Key(Bool, false, nothing),
+        min_pair_coverage = Key(Real, 0.3, (0, 1)),
+        autocorrelation_lags = Key(
+            Integer, DEFAULT_AUTOCORRELATION_LAGS, (1, CORRELOGRAM_LAGS)
+        ),
+    ),
+    retrieval = (min_package_version = Key(String, DEFAULT_MIN_RETRIEVAL_VERSION, nothing),),
+    output = (significant_digits = Key(Integer, 6, (1, 15)),),
+)
+
+# Sections a configuration may leave out: without [yield] no total average is taken, and without
+# [retrieval] the default version floor holds.
+const OPTIONAL_SECTIONS = (:yield, :retrieval)
 
 # A key the loader does not read is refused rather than ignored: a misspelt or retired key would
 # otherwise leave a run silently on the default, and the file would claim a setting the run did
@@ -266,98 +461,70 @@ function _refuse_unknown(table::AbstractDict, allowed, path::String)
     return nothing
 end
 
-const SECTIONS = (
-    "system",
-    "fragmentation",
-    "level_density",
-    "multiplicity",
-    "yield",
-    "segments",
-    "retrieval",
-    "output",
-)
-const SYSTEM_KEYS = ("target_A", "target_Z", "channel", "incident_energy")
-const FRAGMENTATION_KEYS = (
-    "charges_per_mass",
-    "heavy_mass_min",
-    "heavy_mass_max",
-    "charge_distribution_file",
-    "zero_polarization_at_symmetry",
-)
-const LEVEL_DENSITY_KEYS = (
-    "model",
-    "mass_excess_file",
-    "shell_correction_file",
-    "deformed_branch",
-    "ratio_averaging",
-    "mean_kinetic_energy_file",
-)
-const MULTIPLICITY_KEYS = ("subdirectory", "exclude")
-const YIELD_KEYS = (
-    "subdirectory", "mass_yield_file", "exclude", "symmetrize", "min_yield_coverage"
-)
-const SEGMENT_KEYS = (
-    "max_segments",
-    "min_points_per_segment",
-    "min_segment_span",
-    "pin_symmetric_split",
-    "required_windows",
-    "windows_apply_to_datasets",
-    "min_pair_coverage",
-    "autocorrelation_lags",
-)
-const RETRIEVAL_KEYS = ("min_package_version",)
+# TOML reads `true` as a Bool, which Julia counts among the integers and the reals; a numeric key
+# takes a number, not a truth value.
+_conforms(value, ::Type{T}) where {T} = value isa T && (T === Bool || !(value isa Bool))
 
-# The lowest ExforFissionData version whose retrieval records a run accepts where the
-# configuration does not say: the first whose records name the datasets of one experiment
-# (`correlated_with`, `correlation_relation`). The pooling of an experiment as one rests on them;
-# inputs retrieved before would pool its datasets side by side, under the same run identifier.
-const DEFAULT_MIN_RETRIEVAL_VERSION = "0.2.7"
-const OUTPUT_KEYS = ("significant_digits",)
+function _in_interval(value::Real, (lower, upper)::Tuple{Real,Real}, path::AbstractString)
+    lower ≤ value ≤ upper ||
+        throw(ArgumentError("$(path) must lie in [$(lower), $(upper)], got $(value)"))
+    return value
+end
 
-function _value(section::AbstractDict, key::String, ::Type{T}, path::String) where {T}
-    haskey(section, key) ||
-        throw(ArgumentError("configuration is missing the required key $(path)"))
-    value = section[key]
-    value isa T || throw(
-        ArgumentError("$(path) must be of type $(T), got $(typeof(value)) ($(repr(value)))")
+_check_allowed(value, ::Nothing, ::AbstractString) = value
+function _check_allowed(value::Real, interval::Tuple{Real,Real}, path::AbstractString)
+    return _in_interval(value, interval, path)
+end
+function _check_allowed(
+    value::AbstractString, choices::Tuple{Vararg{String}}, path::AbstractString
+)
+    value in choices || throw(
+        ArgumentError("$(path) must be one of $(join(choices, " | ")), got $(repr(value))")
     )
     return value
 end
 
-function _value(
-    section::AbstractDict, key::String, ::Type{T}, path::String, default::T
-) where {T}
-    haskey(section, key) || return default
-    return _value(section, key, T, path)
+function _key_value(section::AbstractDict, key::Symbol, specification::Key, path::String)
+    name = String(key)
+    if !haskey(section, name)
+        specification.default === REQUIRED &&
+            throw(ArgumentError("configuration is missing the required key $(path)"))
+        return specification.default
+    end
+    value = section[name]
+    _conforms(value, specification.type) || throw(
+        ArgumentError("$(path) must be of type $(specification.type), got $(typeof(value)) \
+             ($(repr(value)))"),
+    )
+    return _check_allowed(value, specification.allowed, path)
 end
 
-function _in_bounds(value::Real, path::String; min = -Inf, max = Inf, exclusive_min = false)
-    lower_ok = exclusive_min ? value > min : value ≥ min
-    lower_ok && value ≤ max || throw(
-        ArgumentError("$(path) must lie in $(exclusive_min ? "(" : "[")$(min), $(max)], \
-                       got $(value)")
+# The values of one section, every key at its value or its default, as a named tuple; `nothing`
+# for an optional section the document does not hold.
+function _section(document::AbstractDict, name::Symbol, source::String)
+    if !haskey(document, String(name))
+        name in OPTIONAL_SECTIONS && return nothing
+        throw(ArgumentError("configuration $(source) is missing the [$(name)] section"))
+    end
+    section = document[String(name)]
+    section isa AbstractDict ||
+        throw(ArgumentError("configuration $(source): [$(name)] must be a table"))
+    specification = CONFIGURATION_KEYS[name]
+    _refuse_unknown(section, String.(keys(specification)), "[$(name)]")
+    return NamedTuple{keys(specification)}(
+        Tuple(
+            _key_value(section, key, specification[key], "$(name).$(key)") for
+            key in keys(specification)
+        ),
     )
-    return value
-end
-
-function _one_of(value::String, options, path::String)
-    value in options || throw(
-        ArgumentError("$(path) must be one of $(join(options, " | ")), got $(repr(value))")
-    )
-    return value
 end
 
 # Datasets kept out of the pooling, each with its reason; a reason is required. An exclusion names
 # its dataset by accession, which does not change when a second dataset of the same author and
 # year is retrieved; the label form is for a dataset that carries no accession.
-function _exclusions(section::AbstractDict, path::String)
+function _exclusions(raw::Union{AbstractVector,Nothing}, path::String)
     entries = @NamedTuple{by::Symbol, name::String, reason::String}[]
-    haskey(section, "exclude") || return entries
-    raw = section["exclude"]
-    raw isa AbstractVector || throw(
-        ArgumentError("$(path) must be an array of tables, each with `accession` and `reason`"),
-    )
+    raw === nothing && return entries
     for (index, entry) in enumerate(raw)
         well_formed =
             entry isa AbstractDict &&
@@ -381,7 +548,7 @@ function _exclusions(section::AbstractDict, path::String)
             throw(
                 ArgumentError(
                     "$(path)[$(index)].accession must be an EXFOR dataset identifier, 8 or 9 \
-                 characters from 0-9 and A-Z, got $(repr(name))"
+                     characters from 0-9 and A-Z, got $(repr(name))"
                 ),
             )
         push!(entries, (by = by, name = name, reason = entry["reason"]))
@@ -435,16 +602,15 @@ function _resolve_exclusions(entries, directory::AbstractString, path::String)
     return exclusions
 end
 
-function _windows(section::AbstractDict, path::String)
-    haskey(section, "required_windows") || return UnitRange{Int}[]
-    raw = section["required_windows"]
-    raw isa AbstractVector ||
-        throw(ArgumentError("$(path) must be an array of two-element arrays [first, last]"))
+function _windows(raw::Union{AbstractVector,Nothing}, path::String)
     windows = UnitRange{Int}[]
+    raw === nothing && return windows
     for (index, entry) in enumerate(raw)
-        entry isa AbstractVector && length(entry) == 2 && all(e -> e isa Integer, entry) ||
+        entry isa AbstractVector &&
+        length(entry) == 2 &&
+        all(e -> _conforms(e, Integer), entry) ||
             throw(ArgumentError("$(path)[$(index)] must be a two-element array of integers \
-                           [first, last], got $(repr(entry))"))
+                                 [first, last], got $(repr(entry))"))
         first(entry) ≤ last(entry) ||
             throw(ArgumentError("$(path)[$(index)] must be ordered, got $(repr(entry))"))
         push!(windows, Int(first(entry)):Int(last(entry)))
@@ -452,58 +618,58 @@ function _windows(section::AbstractDict, path::String)
     return windows
 end
 
-# A path under the data root. `subdirectory` names a folder under a root; `directory` names a root.
-function _subdirectory(
-    section::AbstractDict, path::String, root::AbstractString; required::Bool = true
-)
-    if !required && !haskey(section, "subdirectory")
-        return nothing
-    end
-    resolved = joinpath(root, _value(section, "subdirectory", String, path))
-    isdir(resolved) || throw(ArgumentError("$(path) does not exist: $(resolved)"))
-    return resolved
-end
-
-function _input_file(
-    section::AbstractDict,
-    key::String,
-    path::String,
-    root::AbstractString;
-    required::Bool = true,
-)
-    relative =
-        required ? _value(section, key, String, path) : _value(section, key, String, path, "")
-    if isempty(relative)
-        required && throw(ArgumentError("$(path) must not be empty"))
-        return nothing
-    end
+# A file or a directory under the data directory, by the spelling the configuration gives.
+function _input_file(root::AbstractString, relative::AbstractString, path::String)
+    isempty(relative) && throw(ArgumentError("$(path) must name a file; omit it for none"))
     resolved = joinpath(root, relative)
     isfile(resolved) || throw(ArgumentError("$(path) does not exist: $(resolved)"))
     return resolved
 end
 
+function _input_directory(root::AbstractString, relative::AbstractString, path::String)
+    resolved = joinpath(root, relative)
+    isdir(resolved) || throw(ArgumentError("$(path) does not exist: $(resolved)"))
+    return resolved
+end
+
+# A named source, or a file under the data directory.
+function _source(root::AbstractString, value::AbstractString, named, path::String)
+    value in named && return String(value)
+    resolved = joinpath(root, value)
+    isfile(resolved) || throw(
+        ArgumentError(
+            "$(path) must be one of $(join(named, " | ")) or a table under the data \
+             directory; $(resolved) does not exist"
+        ),
+    )
+    return resolved
+end
+
 """
-    load_configuration(path; data_directory = datadir()) -> Configuration
+    load_configuration(path; data_directory) -> Configuration
 
 Read and validate a pipeline configuration.
 
 Every key is checked for presence, type, enumerated choice and numerical range, every input
 file named by the configuration is checked for existence, and a section or key the loader does
-not know is refused, before the pipeline is allowed to start. Failures throw an `ArgumentError`
-naming the offending key, so that a configuration the pipeline cannot honour never begins a run.
-Every retrieval record beside the inputs must state a parser version at or above
+not know is refused, before the pipeline is allowed to start; the rules that tie one key to
+another are the [`Configuration`](@ref) constructor's. Failures throw an `ArgumentError` naming
+the offending key, so that a configuration the pipeline cannot honour never begins a run. A
+`true` or `false` where a number stands is refused, not read as one or zero. Every retrieval
+record beside the inputs must state a parser version at or above
 `retrieval.min_package_version`.
 
-`data_directory` is the root the `subdirectory` and file keys are resolved against; it exists so
-that tests can point at a fixture directory.
+`data_directory` is the root the `subdirectory` and file keys are resolved against: `data/` of
+the repository for the shipped configurations, a fixture directory in the tests. It is required,
+so that what a configuration reads never depends on which project happens to be active.
 
 # Example
 
 ```julia
-configuration = load_configuration(joinpath(projectdir(), "config", "U233_nth.toml"))
+configuration = load_configuration("config/U233_nth.toml"; data_directory = "data")
 ```
 """
-function load_configuration(path::AbstractString; data_directory::AbstractString = datadir())
+function load_configuration(path::AbstractString; data_directory::AbstractString)
     isfile(path) || throw(ArgumentError("configuration file not found: $(path)"))
     document = try
         TOML.parsefile(path)
@@ -511,464 +677,177 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
         throw(ArgumentError("configuration $(path) is not valid TOML: $(exception)"))
     end
     source = String(path)
-    _refuse_unknown(document, SECTIONS, "configuration $(source)")
+    _refuse_unknown(document, String.(keys(CONFIGURATION_KEYS)), "configuration $(source)")
+    sections = map(name -> _section(document, name, source), keys(CONFIGURATION_KEYS))
+    sections = NamedTuple{keys(CONFIGURATION_KEYS)}(sections)
+    root = data_directory
 
-    system_section = _section(document, "system", source)
-    _refuse_unknown(system_section, SYSTEM_KEYS, "[system]")
-    target_A = Int(
-        _in_bounds(
-            _value(system_section, "target_A", Integer, "system.target_A"),
-            "system.target_A";
-            min = 2,
-            max = 400,
-        ),
-    )
-    target_Z = Int(
-        _in_bounds(
-            _value(system_section, "target_Z", Integer, "system.target_Z"),
-            "system.target_Z";
-            min = 1,
-            max = 118,
-        ),
-    )
-    target_Z < target_A ||
+    entry = sections.system
+    entry.target_Z < entry.target_A ||
         throw(ArgumentError("system.target_Z must be smaller than system.target_A, \
-             got target_Z = $(target_Z), target_A = $(target_A)"))
-    channel = _one_of(
-        _value(system_section, "channel", String, "system.channel"), CHANNELS, "system.channel"
-    )
-    incident_energy = Float64(
-        _in_bounds(
-            _value(system_section, "incident_energy", Real, "system.incident_energy", 0.0),
-            "system.incident_energy";
-            min = 0,
-        ),
-    )
+             got target_Z = $(entry.target_Z), target_A = $(entry.target_A)"))
     # Spontaneous fission has no incident particle, so an energy for it is a contradiction rather
     # than a harmless extra.
-    channel == "sf" &&
-        incident_energy != 0 &&
+    entry.channel == "sf" &&
+        entry.incident_energy != 0 &&
         throw(ArgumentError("system.incident_energy must be zero for spontaneous fission, \
-             got $(incident_energy) MeV with channel \"sf\""))
-    target = Nuclide(target_Z, target_A)
-    system = if channel == "sf"
+             got $(entry.incident_energy) MeV with channel \"sf\""))
+    target = Nuclide(Int(entry.target_Z), Int(entry.target_A))
+    system = if entry.channel == "sf"
         spontaneous_fission(target)
     else
-        neutron_induced_fission(target, incident_energy, channel)
-    end
-    A₀ = system.compound.A
-    symmetric_split = cld(A₀, 2)
-
-    fragmentation_section = _section(document, "fragmentation", source)
-    _refuse_unknown(fragmentation_section, FRAGMENTATION_KEYS, "[fragmentation]")
-    charges_per_mass = Int(
-        _in_bounds(
-            _value(
-                fragmentation_section,
-                "charges_per_mass",
-                Integer,
-                "fragmentation.charges_per_mass",
-            ),
-            "fragmentation.charges_per_mass";
-            min = 1,
-            max = 15,
-        ),
-    )
-    isodd(charges_per_mass) || throw(
-        ArgumentError("fragmentation.charges_per_mass must be odd, got $(charges_per_mass)")
-    )
-    # The symmetric split is the smallest heavy-fragment mass there is, and the default: below it
-    # the heavy fragment would be the lighter of the pair.
-    heavy_mass_min = Int(
-        _in_bounds(
-            _value(
-                fragmentation_section,
-                "heavy_mass_min",
-                Integer,
-                "fragmentation.heavy_mass_min",
-                symmetric_split,
-            ),
-            "fragmentation.heavy_mass_min";
-            min = symmetric_split,
-            max = A₀ - 1,
-        ),
-    )
-    heavy_mass_max = Int(
-        _in_bounds(
-            _value(
-                fragmentation_section, "heavy_mass_max", Integer, "fragmentation.heavy_mass_max"
-            ),
-            "fragmentation.heavy_mass_max";
-            min = heavy_mass_min + 1,
-            max = A₀ - 1,
-        ),
-    )
-    charge_distribution = _value(
-        fragmentation_section,
-        "charge_distribution_file",
-        String,
-        "fragmentation.charge_distribution_file",
-        "wahl",
-    )
-    if !(charge_distribution in CHARGE_MODELS)
-        resolved = joinpath(data_directory, charge_distribution)
-        isfile(resolved) || throw(
-            ArgumentError(
-                "fragmentation.charge_distribution_file must be one of \
-                 $(join(CHARGE_MODELS, " | ")) or a table under the data directory; \
-                 $(resolved) does not exist"
-            ),
-        )
-        charge_distribution = resolved
-    end
-    zero_polarization = _value(
-        fragmentation_section,
-        "zero_polarization_at_symmetry",
-        Bool,
-        "fragmentation.zero_polarization_at_symmetry",
-        false,
-    )
-    # Wahl's model fixes ΔZ at the symmetric split itself; the key would claim a setting the run
-    # does not apply.
-    zero_polarization &&
-        charge_distribution == "wahl" &&
-        throw(
-            ArgumentError(
-                "fragmentation.zero_polarization_at_symmetry applies to a tabulated or a mean \
-                 charge distribution; Wahl's model sets the polarization at A0/2 itself"
-            ),
-        )
-
-    level_density_section = _section(document, "level_density", source)
-    _refuse_unknown(level_density_section, LEVEL_DENSITY_KEYS, "[level_density]")
-    model = _one_of(
-        _value(level_density_section, "model", String, "level_density.model"),
-        MODELS,
-        "level_density.model",
-    )
-    mass_excess_file = _value(
-        level_density_section,
-        "mass_excess_file",
-        String,
-        "level_density.mass_excess_file",
-        SHIPPED_MASS_TABLE,
-    )
-    if mass_excess_file != SHIPPED_MASS_TABLE
-        mass_excess_file = _input_file(
-            level_density_section,
-            "mass_excess_file",
-            "level_density.mass_excess_file",
-            data_directory,
-        )
-    end
-    shell_correction_file = _value(
-        level_density_section,
-        "shell_correction_file",
-        String,
-        "level_density.shell_correction_file",
-        SHIPPED_SHELL_CORRECTIONS,
-    )
-    if shell_correction_file != SHIPPED_SHELL_CORRECTIONS
-        shell_correction_file = _input_file(
-            level_density_section,
-            "shell_correction_file",
-            "level_density.shell_correction_file",
-            data_directory,
-        )
-    end
-    deformed_branch = _value(
-        level_density_section, "deformed_branch", Bool, "level_density.deformed_branch", true
-    )
-    averaging = _one_of(
-        _value(
-            level_density_section,
-            "ratio_averaging",
-            String,
-            "level_density.ratio_averaging",
-            "charge_resolved",
-        ),
-        RATIO_AVERAGINGS,
-        "level_density.ratio_averaging",
-    )
-    mean_kinetic_energy_file = _input_file(
-        level_density_section,
-        "mean_kinetic_energy_file",
-        "level_density.mean_kinetic_energy_file",
-        data_directory;
-        required = false,
-    )
-    if mean_kinetic_energy_file !== nothing
-        averaging == "charge_resolved" || throw(
-            ArgumentError(
-                "level_density.mean_kinetic_energy_file weights the charge-resolved inversion \
-                 only; level_density.ratio_averaging is $(repr(averaging))",
-            ),
-        )
-        # The dataset must be one a retrieval produced, so that its provenance and its
-        # qualifiers are on record, and it must reach the heavy-mass range.
-        retrieval_record(mean_kinetic_energy_file) === nothing && throw(
-            ArgumentError(
-                "level_density.mean_kinetic_energy_file: no retrieval record beside \
-                 $(mean_kinetic_energy_file) lists it"
-            ),
-        )
-        read_mean_kinetic_energy(
-            mean_kinetic_energy_file, system, heavy_mass_min:heavy_mass_max
-        )
+        neutron_induced_fission(target, Float64(entry.incident_energy), entry.channel)
     end
 
-    multiplicity_section = _section(document, "multiplicity", source)
-    _refuse_unknown(multiplicity_section, MULTIPLICITY_KEYS, "[multiplicity]")
-    multiplicity_directory = _subdirectory(
-        multiplicity_section, "multiplicity.subdirectory", data_directory
+    entry = sections.fragmentation
+    isodd(entry.charges_per_mass) || throw(
+        ArgumentError(
+            "fragmentation.charges_per_mass must be odd, got $(entry.charges_per_mass)"
+        ),
+    )
+    fragmentation = FragmentationSettings(
+        entry.charges_per_mass,
+        something(entry.heavy_mass_min, cld(system.compound.A, 2)),
+        entry.heavy_mass_max,
+        _source(
+            root,
+            entry.charge_distribution_file,
+            CHARGE_MODELS,
+            "fragmentation.charge_distribution_file",
+        ),
+        entry.zero_polarization_at_symmetry,
+    )
+
+    entry = sections.level_density
+    level_density = LevelDensitySettings(
+        entry.model,
+        if entry.mass_excess_file == SHIPPED_MASS_TABLE
+            SHIPPED_MASS_TABLE
+        else
+            _input_file(root, entry.mass_excess_file, "level_density.mass_excess_file")
+        end,
+        if entry.shell_correction_file == SHIPPED_SHELL_CORRECTIONS
+            SHIPPED_SHELL_CORRECTIONS
+        else
+            _input_file(
+                root, entry.shell_correction_file, "level_density.shell_correction_file"
+            )
+        end,
+        entry.deformed_branch,
+        entry.ratio_averaging,
+        if entry.mean_kinetic_energy_file === nothing
+            nothing
+        else
+            _input_file(
+                root, entry.mean_kinetic_energy_file, "level_density.mean_kinetic_energy_file"
+            )
+        end,
+    )
+
+    entry = sections.multiplicity
+    multiplicity_directory = _input_directory(
+        root, entry.subdirectory, "multiplicity.subdirectory"
     )
     excluded_datasets = _resolve_exclusions(
-        _exclusions(multiplicity_section, "multiplicity.exclude"),
+        _exclusions(entry.exclude, "multiplicity.exclude"),
         multiplicity_directory,
         "multiplicity.exclude",
     )
 
     # Optional. Without it the run reports the mean over the fragment mass range only; with it,
     # the total average over each yield distribution, which is the quantity the literature quotes.
+    # The primary distribution is always named: averaged over alone, or the reference the
+    # coverage of every distribution of a directory is measured against.
+    yields = something(sections.yield, _defaults(:yield))
+    entry = yields
+    yield_file = if sections.yield === nothing
+        nothing
+    else
+        _input_file(root, entry.mass_yield_file, "yield.mass_yield_file")
+    end
+    yield_exclusions = _exclusions(entry.exclude, "yield.exclude")
     yield_directory = nothing
-    yield_file = nothing
     excluded_mass_yields = Dict{String,String}()
-    if haskey(document, "yield")
-        yield_section = _section(document, "yield", source)
-        _refuse_unknown(yield_section, YIELD_KEYS, "[yield]")
-        # The primary distribution is always named: averaged over alone, or the reference the
-        # coverage of every distribution of a directory is measured against.
-        haskey(yield_section, "mass_yield_file") || throw(
+    if entry.subdirectory !== nothing
+        yield_directory = _input_directory(root, entry.subdirectory, "yield.subdirectory")
+        excluded_mass_yields = _resolve_exclusions(
+            yield_exclusions, yield_directory, "yield.exclude"
+        )
+    elseif !isempty(yield_exclusions)
+        # Read for its form first, so that a malformed entry reports its own error.
+        throw(
             ArgumentError(
-                "[yield] needs yield.mass_yield_file, the primary Y(A) of the system: it is \
-                 averaged over alone, or with yield.subdirectory is the reference every \
-                 distribution's coverage is measured against",
+                "yield.exclude needs yield.subdirectory: without a directory the primary \
+                 distribution alone is averaged over, and an exclusion has nothing to act on"
             ),
-        )
-        yield_file = _input_file(
-            yield_section, "mass_yield_file", "yield.mass_yield_file", data_directory
-        )
-        if haskey(yield_section, "subdirectory")
-            yield_directory = _subdirectory(yield_section, "yield.subdirectory", data_directory)
-            excluded_mass_yields = _resolve_exclusions(
-                _exclusions(yield_section, "yield.exclude"), yield_directory, "yield.exclude"
-            )
-        else
-            # Without a directory the primary distribution alone is averaged over, and an
-            # exclusion has nothing to act on. It is read for its form first, so that a malformed
-            # entry reports its own error, and then refused.
-            isempty(_exclusions(yield_section, "yield.exclude")) || throw(
-                ArgumentError(
-                    "yield.exclude needs yield.subdirectory: without a directory the primary \
-                     distribution alone is averaged over, and an exclusion has nothing to act on",
-                ),
-            )
-        end
-    end
-    symmetrize_yields = if haskey(document, "yield")
-        _value(document["yield"], "symmetrize", Bool, "yield.symmetrize", true)
-    else
-        true
-    end
-    min_yield_coverage = if haskey(document, "yield")
-        Float64(
-            _in_bounds(
-                _value(
-                    document["yield"],
-                    "min_yield_coverage",
-                    Real,
-                    "yield.min_yield_coverage",
-                    0.3,
-                ),
-                "yield.min_yield_coverage";
-                min = 0,
-                max = 1,
-            ),
-        )
-    else
-        0.3
-    end
-
-    segments_section = _section(document, "segments", source)
-    _refuse_unknown(segments_section, SEGMENT_KEYS, "[segments]")
-    max_segments = Int(
-        _in_bounds(
-            _value(segments_section, "max_segments", Integer, "segments.max_segments", 6),
-            "segments.max_segments";
-            min = 1,
-            max = 12,
-        ),
-    )
-    min_points = Int(
-        _in_bounds(
-            _value(
-                segments_section,
-                "min_points_per_segment",
-                Integer,
-                "segments.min_points_per_segment",
-                4,
-            ),
-            "segments.min_points_per_segment";
-            min = 2,
-            max = 50,
-        ),
-    )
-    min_span = Int(
-        _in_bounds(
-            _value(
-                segments_section, "min_segment_span", Integer, "segments.min_segment_span", 3
-            ),
-            "segments.min_segment_span";
-            min = 1,
-            max = 50,
-        ),
-    )
-    pin = _value(
-        segments_section, "pin_symmetric_split", Bool, "segments.pin_symmetric_split", true
-    )
-    if pin
-        isodd(A₀) && throw(
-            ArgumentError(
-                "segments.pin_symmetric_split requires an even fissioning mass number, since the \
-                 ratio equals one half only where the two fragments are identical; got \
-                 A0 = $(A₀)",
-            ),
-        )
-        # The fit is pinned at the first abscissa of the range, so that abscissa has to be the
-        # symmetric split; pinning a range that starts above it would fix the ratio to one half
-        # where nothing says it is.
-        heavy_mass_min == symmetric_split || throw(
-            ArgumentError(
-                "segments.pin_symmetric_split requires fragmentation.heavy_mass_min to be the \
-                 symmetric split $(symmetric_split), got $(heavy_mass_min)",
-            ),
-        )
-    end
-    windows = _windows(segments_section, "segments.required_windows")
-    windows_apply = _value(
-        segments_section,
-        "windows_apply_to_datasets",
-        Bool,
-        "segments.windows_apply_to_datasets",
-        false,
-    )
-    min_pair_coverage = Float64(
-        _in_bounds(
-            _value(
-                segments_section, "min_pair_coverage", Real, "segments.min_pair_coverage", 0.3
-            ),
-            "segments.min_pair_coverage";
-            min = 0,
-            max = 1,
-        ),
-    )
-    autocorrelation_lags = Int(
-        _in_bounds(
-            _value(
-                segments_section,
-                "autocorrelation_lags",
-                Integer,
-                "segments.autocorrelation_lags",
-                DEFAULT_AUTOCORRELATION_LAGS,
-            ),
-            "segments.autocorrelation_lags";
-            min = 1,
-            max = CORRELOGRAM_LAGS,
-        ),
-    )
-    for (index, window) in enumerate(windows)
-        issubset(window, heavy_mass_min:heavy_mass_max) || throw(
-            ArgumentError("segments.required_windows[$(index)] = $(window) lies outside the \
-                           fragmentation range $(heavy_mass_min):$(heavy_mass_max)"),
         )
     end
 
-    output_section = _section(document, "output", source)
-    _refuse_unknown(output_section, OUTPUT_KEYS, "[output]")
-    significant_digits = Int(
-        _in_bounds(
-            _value(
-                output_section, "significant_digits", Integer, "output.significant_digits", 6
-            ),
-            "output.significant_digits";
-            min = 1,
-            max = 15,
-        ),
+    entry = sections.segments
+    segments = SegmentSettings(
+        entry.max_segments,
+        entry.min_points_per_segment,
+        entry.pin_symmetric_split,
+        _windows(entry.required_windows, "segments.required_windows"),
+        entry.windows_apply_to_datasets,
+        Float64(entry.min_pair_coverage),
+        entry.autocorrelation_lags,
     )
 
-    min_package_version = if haskey(document, "retrieval")
-        retrieval_section = _section(document, "retrieval", source)
-        _refuse_unknown(retrieval_section, RETRIEVAL_KEYS, "[retrieval]")
-        _value(
-            retrieval_section,
-            "min_package_version",
-            String,
-            "retrieval.min_package_version",
-            DEFAULT_MIN_RETRIEVAL_VERSION,
-        )
-    else
-        DEFAULT_MIN_RETRIEVAL_VERSION
-    end
-    min_retrieval_version = tryparse(VersionNumber, min_package_version)
+    floor = something(sections.retrieval, _defaults(:retrieval)).min_package_version
+    min_retrieval_version = tryparse(VersionNumber, floor)
     min_retrieval_version === nothing && throw(
         ArgumentError(
             "retrieval.min_package_version must be a version number such as \"0.2.7\", got \
-             $(repr(min_package_version))"
+             $(repr(floor))"
         ),
     )
+
+    configuration = Configuration(
+        system,
+        fragmentation,
+        level_density,
+        multiplicity_directory,
+        excluded_datasets,
+        yield_directory,
+        yield_file,
+        excluded_mass_yields,
+        yields.symmetrize,
+        Float64(yields.min_yield_coverage),
+        segments,
+        OutputSettings(sections.output.significant_digits),
+        min_retrieval_version,
+        source,
+        String(root),
+    )
+
+    # What rests on the files themselves. The ⟨TKE⟩(A) dataset must be one a retrieval produced,
+    # so that its provenance and its qualifiers are on record, and it must reach the heavy-mass
+    # range.
+    energies = level_density.mean_kinetic_energy_file
+    if energies !== nothing
+        record = retrieval_record(energies)
+        record === nothing && throw(
+            ArgumentError(
+                "level_density.mean_kinetic_energy_file: no retrieval record beside \
+                 $(energies) lists it"
+            ),
+        )
+        read_mean_kinetic_energy(energies, system, A_H_range(configuration); record = record)
+    end
     check_retrieval_versions(
         String[
             directory for directory in (
                 multiplicity_directory,
                 yield_directory,
                 yield_file === nothing ? nothing : dirname(yield_file),
-                if mean_kinetic_energy_file === nothing
-                    nothing
-                else
-                    dirname(mean_kinetic_energy_file)
-                end,
+                energies === nothing ? nothing : dirname(energies),
             ) if directory !== nothing
         ],
         min_retrieval_version,
     )
-
-    return Configuration(
-        system,
-        FragmentationSettings(
-            charges_per_mass,
-            heavy_mass_min,
-            heavy_mass_max,
-            charge_distribution,
-            zero_polarization,
-        ),
-        LevelDensitySettings(
-            model,
-            mass_excess_file,
-            shell_correction_file,
-            deformed_branch,
-            averaging,
-            mean_kinetic_energy_file,
-        ),
-        multiplicity_directory,
-        excluded_datasets,
-        yield_directory,
-        yield_file,
-        excluded_mass_yields,
-        symmetrize_yields,
-        min_yield_coverage,
-        SegmentSettings(
-            max_segments,
-            min_points,
-            min_span,
-            pin,
-            windows,
-            windows_apply,
-            min_pair_coverage,
-            autocorrelation_lags,
-        ),
-        OutputSettings(significant_digits),
-        min_retrieval_version,
-        source,
-        String(data_directory),
-    )
+    return configuration
 end
+
+# The values an optional section takes where the document leaves it out.
+_defaults(name::Symbol) = map(key -> key.default, CONFIGURATION_KEYS[name])
