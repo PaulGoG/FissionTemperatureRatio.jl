@@ -296,16 +296,27 @@ with inverse-variance weights carrying an additional between-dataset variance ``
 estimated from their dispersion [DerSimonian1986](@cite),
 
 ```math
-w = \frac{f}{\sigma^2 + \tau^2}, \qquad
+v = \frac{\sigma^2}{f}, \qquad
+w = \frac{1}{v + \tau^2}, \qquad
 \bar{r} = \frac{\sum w\, r}{\sum w}, \qquad
 \sigma_{\bar{r}} = \left(\sum w\right)^{-1/2}.
 ```
 
 ``f`` is one for a dataset measured at integer masses. A dataset measured at non-integer masses is
 interpolated onto the integers by the retrieval, and its neighbouring rows then share their
-bracketing points; it enters with ``f`` = measured points / rows written, as recorded in its
-retrieval record, so that it counts by what was measured. An uncertainty written as zero is read as
-not quoted.
+bracketing points; it enters with ``f`` = values measured / rows written, as recorded in its
+retrieval record (the rows retrieved less any limit left out, a measurement at an integer mass of
+its grid counting as one), at most one, so that it counts by what was measured. An uncertainty
+written as zero is read as not quoted.
+
+A value that amounts to the share ``f`` of a measurement carries the variance ``\sigma^2/f``: a
+dataset of ``n`` rows and ``m`` measurements then holds ``\sum f/\sigma^2 \approx m/\sigma^2``
+of information about a common level, that of its measurements. The approximation replaces the
+banded correlation of neighbouring interpolated rows by a uniform inflation of their variance; at
+one mass number a dataset holds one row, so the combination sees no correlation between its
+values, and the inflation stands for the redundancy the fit of the combined curve would otherwise
+count ``n/m`` times. ``\tau^2`` is the variance of the offset by which a dataset's curve departs
+from the others as a whole, and interpolation does not dilute it.
 
 Datasets of one experiment enter as one. A retrieval record names, under `correlated_with`, the
 other datasets of the experiment a dataset belongs to, and under `correlation_relation` how they
@@ -351,40 +362,28 @@ at 126, 130, 137, 148 and 154 in place of 126, 130, 137, 149 and 154, `χ²/dof`
 as well, takes 4 segments, breakpoints at 128, 137 and 143, `χ²/dof` = 0.73 and `⟨R_T⟩` = 1.0388,
 and 1.0296 with the experiment left out.
 
-With such factors the fixed-effect weights are ``a = f/\sigma^2`` while a value keeps the variance
-``\sigma^2``, and the statistic ``Q = \sum a\,(r - \bar{r}_a)^2`` the variance is estimated from
-has, where the datasets do not differ, the expectation
+The fixed-effect weights ``a = 1/v = f/\sigma^2`` are then the inverse variances of the values, so
+the statistic ``Q = \sum a\,(r - \bar{r}_a)^2`` the variance is estimated from has the
+expectation ``k - 1`` for ``k`` datasets where they do not differ, and ``\tau^2`` is DerSimonian
+and Laird's moment estimate,
 
 ```math
-\mathrm{E}[Q] = \sum f - \frac{\sum a f}{\sum a},
+\tau^2 = \max\!\left(0,\; \frac{Q - (k - 1)}{\sum a - \sum a^2 / \sum a}\right),
 ```
 
-which is ``k - 1`` for ``k`` datasets only where every ``f`` is one. The estimate is the method of
-moments for general weights [DerSimonian2007](@cite),
+and ``(\sum w)^{-1/2}`` the standard error of the mean exactly. A value alone at its mass number
+passes through with ``\sigma/\sqrt{f}``. Where ``\tau^2`` dominates, an interpolated dataset
+weighs about as much as a measured one: each brings one draw of the offset between datasets,
+whatever its own precision.
 
-```math
-\tau^2 = \max\!\left(0,\; \frac{Q - \mathrm{E}[Q]}{\sum a - \sum a^2 / \sum a}\right),
-```
-
-which reduces to DerSimonian and Laird's for datasets measured at integer masses. Taking ``k - 1``
-throughout would underestimate ``\tau^2`` by about ``\sigma^2 (1 - f)/f``, which matters where the
-datasets agree within their uncertainties and ``Q`` lies near its expectation: the estimate is
-then truncated to zero where it should not be.
-
-Two readings of ``f`` are in use, and they are not the same. The estimate of ``\tau^2`` reads it
-as a weight on a value whose variance is ``\sigma^2 + \tau^2``, and takes the tabulated
-``\sigma^2`` as the variance of an interpolated value. The standard error written for the combined
-curve reads it as the share of a measurement a value amounts to: ``\sigma/\sqrt{f}`` for a value
-alone at its mass number and ``(\sum f/(\sigma^2 + \tau^2))^{-1/2}`` otherwise. For the mean
-under the first reading the written standard error is conservative, by ``1/\sqrt{f}`` where the
-fractions are equal.
-
-Where no value at a mass number quotes an uncertainty, the values are averaged with the weights
-``f`` and their dispersion about that mean,
-``s^2 = \sum f (r - \bar{r})^2 / (\sum f - \sum f^2/\sum f)``, stands for the variance of one of
-them: the same estimate as ``\tau^2`` above for values of no quoted variance, and the sample
-variance where the fractions are equal. The mean has the standard error ``s/\sqrt{\sum f}``;
-values that coincide leave nothing to estimate it from, and the combined point then quotes none.
+Where no value at a mass number quotes an uncertainty, each is taken to have the variance
+``s^2/f`` of its share of a measurement of variance ``s^2``; the values are averaged with the
+weights ``f``, and ``\mathrm{E}[\sum f (r - \bar{r})^2] = s^2 (k - 1)`` gives
+``s^2 = \sum f (r - \bar{r})^2 / (k - 1)``. The mean has the standard error
+``s/\sqrt{\sum f}``, which is the standard error of the mean where the fractions are equal: they
+cancel, nothing distinguishing the values. Values that coincide leave nothing to estimate it
+from, and the combined point then quotes none. A value quoting no uncertainty beside values that
+do takes the median of the quoted uncertainties at its mass number, as a point of a fit does.
 
 The datasets of one system disagree by ten to twenty times their quoted uncertainties.
 ``\tau^2`` therefore dominates ``\sigma^2``, the weights become nearly equal, and the combination

@@ -40,8 +40,8 @@ A continuous piecewise-linear fit with breakpoints selected from the data.
   in absolute scale.
 - `selection`: `(segments, bic)` for every order examined, in ascending order of segment count,
   so that the chosen order can be audited.
-- `weights_imputed`: number of points that carried no uncertainty and were given the median
-  weight.
+- `weights_imputed`: number of points that carried no uncertainty and were given the median of
+  the quoted uncertainties.
 - `correlated`: whether the covariance was formed with a correlation matrix of the points'
   errors, or with the points taken as independent.
 - `expected_wrss`: the expectation of `wrss` the covariance scale refers to. `dof` for
@@ -107,8 +107,9 @@ end
 Inverse-variance weights, together with the number of points whose uncertainty was not quoted.
 
 An uncertainty is `missing` where the source quotes none. Such points carry no information about
-their own weight and are given the median of the quoted weights rather than being discarded, so
-that datasets quoting no uncertainties — of which there are several — still enter the fit. This
+their own weight and are given the weight of the median quoted uncertainty rather than being
+discarded, so that datasets quoting no uncertainties — of which there are several — still enter
+the fit; [`consensus`](@ref) imputes the same median uncertainty. This
 borrows the scale of the uncertainties from the sets that do quote them, which is an assumption,
 and the number of points it was applied to is recorded with the fit. Where no point has a quoted
 uncertainty the weights are uniform and the fit reduces to ordinary least squares.
@@ -123,13 +124,14 @@ order is chosen.
 
 # Examples
 
-The third point quotes no uncertainty and takes the median of the other two weights:
+The third point quotes no uncertainty and takes the median of the other two uncertainties,
+`0.15`:
 
 ```jldoctest
 julia> w, imputed = fit_weights([0.1, 0.2, missing]);
 
 julia> (round.(w; digits = 1), imputed)
-([100.0, 25.0, 62.5], 1)
+([100.0, 25.0, 44.4], 1)
 ```
 
 ```jldoctest
@@ -155,7 +157,7 @@ function fit_weights(σ::AbstractVector{<:Union{Missing,Real}})
         )
         w[index] = 1 / σ[index]^2
     end
-    w[.!quoted] .= median(view(w, quoted))
+    w[.!quoted] .= 1 / median(Float64[σ[i] for i in eachindex(σ) if quoted[i]])^2
     return (w, imputed)
 end
 

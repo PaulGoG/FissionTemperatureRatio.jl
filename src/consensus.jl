@@ -29,7 +29,8 @@ structural: coverage, and departures from identities the ratio satisfies by cons
 - `complement_sum`, `complement_spread`: mean and standard deviation of `ν(A) + ν(A₀-A)` over the
   pairs. A per-fragment dataset sums to about the total multiplicity with small spread; a large
   spread indicates a normalization or a quantity problem.
-- `without_uncertainties`: points quoting no uncertainty, which are given the median weight.
+- `without_uncertainties`: points quoting no uncertainty, which are given the median of the
+  quoted uncertainties.
 """
 struct DatasetDiagnostics
     label::String
@@ -96,7 +97,7 @@ additional between-dataset variance `τ²`, estimated from their dispersion afte
 Laird, Control. Clin. Trials **7**, 177 (1986), doi:10.1016/0197-2456(86)90046-2:
 
 ```
-w = 1 / (σ² + τ²),    r̄ = Σ w r / Σ w,    σ_r̄ = (Σ w)^(-1/2).
+v = σ²/f,    w = 1/(v + τ²),    r̄ = Σ w r / Σ w,    σ_r̄ = (Σ w)^(-1/2).
 ```
 
 Concatenating the datasets and weighting by the quoted uncertainties alone would let the dataset
@@ -105,36 +106,28 @@ number of points. Because the datasets disagree by ten to twenty times their quo
 uncertainties, `τ²` dominates, the weights become nearly equal, and the uncertainty of the
 combination reflects the disagreement.
 
-Where a mass number has one measurement only, that value and its uncertainty pass through: there
-is no dispersion to estimate. Where none of the values at a mass number carries a quoted
-uncertainty, the mean is taken and the standard error of the values supplies the uncertainty,
-`s/√k` with `s` their standard deviation about it; identical values leave nothing to estimate it
-from, and the combined point then quotes no uncertainty. Points quoting no uncertainty alongside
-points that do take the median of the quoted uncertainties at that mass number;
-[`fit_weights`](@ref) imputes the median weight instead, which differs from the median
-uncertainty where the quoted count is even.
+`weights` gives each curve its measured fraction `f`, the share of a measurement each of its
+values amounts to, one by default. A dataset whose masses were interpolated onto the integers
+has rows that share their bracketing points and so are not independent; its
+[`RetrievalRecord`](@ref) gives it its measured values over its rows. Such a value carries the
+variance of one measurement inflated by the share it amounts to, `v = σ²/f`, while `τ²`, by which
+a dataset's curve departs from the others as a whole, is not diluted by the interpolation. The
+fixed-effect weights `1/v` are then inverse variances, the statistic
+`Q = Σ (r − r̄)²/v` has the expectation `k − 1` where the datasets do not differ, and `τ²` is
+DerSimonian and Laird's moment estimate, truncated at zero.
 
-`weights`, one factor per curve, scales the weight of every value of that curve, in the
-fixed-effect stage and in the combination alike: `w = f/(σ² + τ²)`. A dataset whose masses were
-interpolated onto the integers has rows that share their bracketing points and so are not
-independent; its [`RetrievalRecord`](@ref) gives it the factor raw points over rows. A curve alone at a
-mass number passes through with its uncertainty divided by `√f`, and values quoting no
-uncertainty are averaged with the weights `f` to the standard error `s/√(Σf)`, `s²` being
-`Σ f (r − r̄)²/(Σf − Σf²/Σf)`.
+Where a mass number has one measurement only, that value passes through with the uncertainty
+`σ/√f`: there is no dispersion to estimate. Where none of the values at a mass number carries a
+quoted uncertainty, each is taken to have the variance `s²/f` of its share of a measurement of
+variance `s²`, the mean is weighted by `f`, and `s² = Σ f (r − r̄)²/(k − 1)` supplies the
+uncertainty `s/√(Σf)`, the standard error of the mean where the fractions are equal; identical
+values leave nothing to estimate it from, and the combined point then quotes no uncertainty.
+Values quoting no uncertainty beside values that do take the median of the quoted uncertainties
+at that mass number, as [`fit_weights`](@ref) does.
 
-The standard error written here reads `f` as the share of a measurement a value amounts to. The
-estimate of `τ²` reads it as a weight on a value of variance `σ² + τ²`; for the mean under that
-reading the written standard error is conservative, by `1/√f` where the fractions are equal.
-
-With such factors the fixed-effect weights are `f/σ²` while a value keeps the variance `σ²`, and
-the statistic `Q = Σ (f/σ²)(r − r̄)²` has the expectation `Σf − Σ(f²/σ²)/Σ(f/σ²)` where the
-datasets do not differ, not `k − 1`. `τ²` is estimated against that expectation, the method of
-moments for general weights of DerSimonian and Kacker, Contemp. Clin. Trials **28**, 105 (2007),
-doi:10.1016/j.cct.2006.04.004; it reduces to DerSimonian and Laird's where every factor is one.
-
-The uncertainty of the curve returned is the standard error of each combined value, factor
-included. A fit to it must not weight a point by its measured fraction a second time; the
-systematic trend is fitted to the same values at the uncertainty of one measurement, with the
+The uncertainty of the curve returned is the standard error of each combined value, measured
+fraction included. A fit to it must not weight a point by its measured fraction a second time;
+the systematic trend is fitted to the same values at the uncertainty of one measurement, with the
 fraction as [`fit_segments`](@ref)'s `measured`, which applies it once.
 """
 function consensus(
@@ -225,21 +218,22 @@ function _combine(
     factors::Vector{Float64} = ones(length(values)),
 )
     k = length(values)
-    # One value: its own uncertainty is that of one measurement, exactly.
+    # One value: its own uncertainty is that of one measurement, exactly, and its variance that
+    # of the share of a measurement it amounts to.
     k == 1 && return (
         values[1], uncertainties[1] / sqrt(factors[1]), factors[1], uncertainties[1], [1.0]
     )
 
     quoted = .!ismissing.(uncertainties)
     if !any(quoted)
-        # No value quotes an uncertainty: the weighted mean, with the dispersion s of the values
-        # about it standing for the uncertainty of one of them.
+        # No value quotes an uncertainty: each has the variance s²/f of its share of one
+        # measurement, the mean is weighted by f, and E[Σ f (r − r̄)²] = s² (k − 1) gives s².
         total = sum(factors)
         μ = sum(factors .* values) / total
         fraction = sum(factors .^ 2) / total
-        dispersion = sqrt(sum(factors .* (values .- μ) .^ 2) / (total - fraction))
-        # Identical values leave no dispersion to estimate from.
         share = factors ./ total
+        dispersion = sqrt(sum(factors .* (values .- μ) .^ 2) / (k - 1))
+        # Identical values leave no dispersion to estimate from.
         dispersion > UNRESOLVED_DISPERSION * maximum(abs, values) ||
             return (μ, missing, fraction, missing, share)
         spread = dispersion / sqrt(total)
@@ -248,21 +242,18 @@ function _combine(
 
     σ = Float64[coalesce(u, NaN) for u in uncertainties]
     σ[.!quoted] .= median(view(σ, quoted))
-
-    # Fixed-effect combination first, since the between-dataset variance is estimated from its
-    # residuals.
-    w₀ = factors ./ σ .^ 2
-    total = sum(w₀)
-    fixed = sum(w₀ .* values) / total
-    Q = sum(w₀ .* (values .- fixed) .^ 2)
-    # E[Q] with no between-dataset variance, for the weights f/σ²: Σf − Σ w₀f/Σ w₀ (DerSimonian
-    # and Kacker); k − 1 only where every f is one.
-    expected = sum(factors) - sum(w₀ .* factors) / total
+    # The variance of each value as the share f of a measurement of variance σ²; the fixed-effect
+    # weights are its inverse, so Q has the expectation k − 1 without a between-dataset variance.
+    v = σ .^ 2 ./ factors
+    a = 1 ./ v
+    total = sum(a)
+    fixed = sum(a .* values) / total
+    Q = sum(a .* (values .- fixed) .^ 2)
     # The estimator is truncated at zero: a Q below its expectation means the datasets agree
     # better than their uncertainties suggest, not that the variance between them is negative.
-    τ² = max(0.0, (Q - expected) / (total - sum(w₀ .^ 2) / total))
+    τ² = max(0.0, (Q - (k - 1)) / (total - sum(a .^ 2) / total))
 
-    w = factors ./ (σ .^ 2 .+ τ²)
+    w = 1 ./ (v .+ τ²)
     spread = 1 / sqrt(sum(w))
     fraction = sum(w .* factors) / sum(w)
     return (sum(w .* values) / sum(w), spread, fraction, spread * sqrt(fraction), w ./ sum(w))

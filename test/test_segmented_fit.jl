@@ -71,7 +71,10 @@ using LinearAlgebra: LinearAlgebra
         w, imputed = fit_weights([0.1, missing, 0.2])
         @test imputed == 1
         @test w[1] ≈ 100
-        @test w[2] ≈ median([100.0, 25.0])
+        # The weight of the median quoted uncertainty, as the consensus imputes it, not the
+        # median quoted weight, which differs where the number of quoted values is even.
+        @test w[2] ≈ 1 / median([0.1, 0.2])^2
+        @test !(w[2] ≈ median([100.0, 25.0]))
         uniform, all_absent = fit_weights([missing, missing])
         @test all_absent == 2
         @test all(==(1.0), uniform)

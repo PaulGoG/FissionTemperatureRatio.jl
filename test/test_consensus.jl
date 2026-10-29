@@ -103,44 +103,50 @@ end
         end
         full = trend([1.0, 1.0])
         half = trend([0.5, 0.5])
-        # The standard error is s/√(Σf): it carries the fraction, as σ/√f does for one value,
-        # and the uncertainty of one measurement is the same quantity with the fraction out.
+        # Each value has the variance s²/f, and s² is estimated from their dispersion: with
+        # equal fractions the fraction cancels from the standard error, which is that of the
+        # mean, and the uncertainty of one measurement carries it, s/√(Σf) · √f.
         @test all(==(0.5), half.measured)
         @test half.pooled.ratio == full.pooled.ratio
-        @test half.pooled.σ ≈ full.pooled.σ ./ sqrt(0.5)
-        @test half.σ_measurement ≈ full.pooled.σ
-        # So χ² scales with the fraction, once, and the degrees of freedom count measurements.
+        @test half.pooled.σ ≈ full.pooled.σ
+        @test half.σ_measurement ≈ full.pooled.σ .* sqrt(0.5)
+        # So the weight of every point, that of its standard error, and χ² are those of the
+        # full pool; the degrees of freedom count measurements.
         @test half.fit.coefficients ≈ full.fit.coefficients
-        @test half.fit.wrss ≈ 0.5 * full.fit.wrss
+        @test half.fit.wrss ≈ full.fit.wrss
         @test half.fit.dof ≈ 0.5 * n - (length(half.fit.coefficients) + 1)
         @test half.fit.dof < full.fit.dof
 
-        # Unequal fractions: the weight of every combined point is that of its standard error.
+        # Unequal fractions, a full and a half measurement differing by d: the mean is weighted
+        # 2 : 1, Σ f (r − r̄)² = d²/9 + (1/2)(4d²/9) = d²/3 = s² (k − 1), and the standard error
+        # is √(s²/Σf) = √(2d²/9), against √(d²/4) for two full measurements. The same spread
+        # attributed in part to a noisier value leaves a smaller variance of one measurement.
         mixed = trend([1.0, 0.5])
         @test all(≈((1.0 + 0.25) / 1.5), mixed.measured)
-        @test mixed.pooled.σ ≈ full.pooled.σ .* sqrt(2 / 1.5)
+        @test mixed.pooled.σ ≈ full.pooled.σ .* sqrt(8 / 9)
+        # The weight of every combined point is that of its standard error.
         @test mixed.measured ./ mixed.σ_measurement .^ 2 ≈ 1 ./ mixed.pooled.σ .^ 2
     end
 
     @testset "the dispersion of an unquoted pool is taken with the weights of its mean" begin
-        # Values 0, 1, 3 with f = 1, 1/2, 1/2: the mean is (0 + 0.5 + 1.5)/2 = 1,
-        # Σ f (r − r̄)² = 1 + 0 + 2 = 3, its expectation in units of s² is Σf − Σf²/Σf = 1.25,
-        # so s² = 2.4 and the standard error is √(s²/Σf) = √1.2. The unweighted sample variance
+        # Values 0, 1, 3 with f = 1, 1/2, 1/2, each of variance s²/f: the mean is
+        # (0 + 0.5 + 1.5)/2 = 1, Σ f (r − r̄)² = 1 + 0 + 2 = 3 has the expectation s² (k − 1), so
+        # s² = 1.5 and the standard error is √(s²/Σf) = √0.75. The unweighted sample variance
         # about the unweighted mean, 7/3, would give another figure.
         curves = [RatioCurve([130], [r], [missing], "set $(r)") for r in (0.0, 1.0, 3.0)]
         combined = consensus(curves; weights = [1.0, 0.5, 0.5])
         @test only(combined.ratio) ≈ 1.0
-        @test only(combined.σ) ≈ sqrt(1.2)
-        # Equal fractions: the sample variance, and s/√(Σf).
+        @test only(combined.σ) ≈ sqrt(0.75)
+        # Equal fractions: the standard error of the mean, the fraction cancelling.
         equal = consensus(curves; weights = [0.5, 0.5, 0.5])
-        @test only(equal.σ) ≈ sqrt((7 / 3) / 1.5)
+        @test only(equal.σ) ≈ sqrt((7 / 3) / 3)
     end
 
     @testset "the estimate of the between-dataset variance is unbiased under pooling factors" begin
-        # Six values of variance σ² + τ² about one mean, combined with the factors f: the
-        # estimate of τ² averages to τ² over many draws. Against k − 1 in place of the
-        # expectation of Q it would average about σ²(1 − f)/f lower, 0.84 here. With equal σ
-        # the estimate is recovered from the standard error, Σ f/(σ² + τ²) = 1/σ_r̄².
+        # Six values of variance σ²/f + τ² about one mean, each the share f of a measurement of
+        # variance σ²: the estimate of τ² averages to τ² over many draws. It is recovered from
+        # the share w/Σw of the first value and the standard error (Σw)^(-1/2), since
+        # w = 1/(σ²/f + τ²).
         rng = StableRNG(20261002)
         quoted, τ² = 1.0, 4.0
         factors = [1.0, 0.5, 0.5, 0.4, 0.6, 0.5]
@@ -148,9 +154,11 @@ end
         estimates = Vector{Float64}(undef, draws)
         uncertainties = Union{Missing,Float64}[quoted for _ in factors]
         for draw in 1:draws
-            values = sqrt(quoted^2 + τ²) .* randn(rng, length(factors))
-            _, spread, _, _ = FissionTemperatureRatio._combine(values, uncertainties, factors)
-            estimates[draw] = spread^2 * sum(factors) - quoted^2
+            values = sqrt.(quoted^2 ./ factors .+ τ²) .* randn(rng, length(factors))
+            _, spread, _, _, shares = FissionTemperatureRatio._combine(
+                values, uncertainties, factors
+            )
+            estimates[draw] = spread^2 / first(shares) - quoted^2 / first(factors)
         end
         # The truncation at zero adds about 0.02 at these values; the Monte Carlo standard error
         # of the mean is about 0.02.
@@ -199,19 +207,19 @@ end
         @test fit.weights_imputed == 1
     end
 
-    @testset "the between-dataset variance is estimated against the expectation of Q" begin
-        # Two values ±d about their mean, σ = 1, each counting for f of a measurement: the
-        # weights are f, Q = 2 f d² and its expectation without a variance between the datasets
-        # is Σf − Σf²/Σf = f, not k − 1 = 1. With d² = 0.75 and f = 1/2, Q = 0.75 exceeds 0.5,
-        # τ² = (0.75 − 0.5)/(1 − 0.5) = 0.5, and the standard error is (Σ f/(1 + τ²))^(-1/2).
+    @testset "the between-dataset variance is estimated against the variance of a share" begin
+        # Two values ±d about their mean, σ = 1, each counting for f of a measurement and so of
+        # variance 1/f. With d² = 0.75 and f = 1/2, Q = Σ f d² = 0.75 falls below its
+        # expectation k − 1 = 1: two half measurements explain the spread, τ² = 0, and the
+        # standard error is (Σ f)^(-1/2) = 1.
         d = sqrt(0.75)
         low = RatioCurve([130], [0.3 - d], [1.0], "low")
         high = RatioCurve([130], [0.3 + d], [1.0], "high")
         interpolated = consensus([low, high]; weights = [0.5, 0.5])
         @test only(interpolated.ratio) ≈ 0.3
-        @test only(interpolated.σ) ≈ sqrt(1.5)
-        # Measured at integer masses, Q = 1.5 against k − 1 = 1: DerSimonian and Laird's
-        # estimate, τ² = 0.5, unchanged.
+        @test only(interpolated.σ) ≈ 1.0
+        # Measured at integer masses, Q = 1.5 exceeds k − 1 = 1: τ² = 0.5, and the standard
+        # error is (2/(1 + τ²))^(-1/2), DerSimonian and Laird's.
         measured = consensus([low, high])
         @test only(measured.σ) ≈ sqrt(1.5 / 2)
     end
