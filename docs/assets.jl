@@ -509,7 +509,7 @@ function figure_level_density_models(bsfg, gc)
         0.03,
         0.05;
         text = "$(system_notation(bsfg.configuration.system))\n\
-                systematic trend under each level density model",
+                Systematic trend under each level density model",
         space = :relative,
         align = (:left, :bottom),
         fontsize = 21,

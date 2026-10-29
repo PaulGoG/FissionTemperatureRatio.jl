@@ -155,7 +155,7 @@ const PUBLISHED_TOTAL_AVERAGES = [
 ]
 
 # Widened for the shipped settings only, by the rule above. Apalin moves by +0.36 % on Wahl's
-# charge model to +2.07 %. Budtz-Jørgensen, whose 105 non-integer masses the retrieval
+# charge model to +2.06 %. Budtz-Jørgensen, whose 105 non-integer masses the retrieval
 # interpolates (−0.17 % under the published settings), moves by −0.04 % on Göök's ⟨TKE⟩ weight and
 # −0.26 % on the symmetrization of Göök's distribution, to −0.79 %. Nishio over Straede moves by
 # −0.12 % on Al-Adili's ⟨TKE⟩ weight and −0.22 % on the symmetrization, to −1.34 %.

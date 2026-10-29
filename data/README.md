@@ -52,7 +52,7 @@ shipped configurations and by default. That is the first version whose records n
 of one experiment. A run refuses a record that states no `[run] package_version`. A lower floor
 can still be set explicitly, and a run whose input directories were written by different versions
 says so in the log. Below 0.2.7 the datasets of an experiment would be pooled side by side rather
-than as one, giving for ²⁵²Cf `⟨R_T⟩` = 1.0878 in place of 1.0821. Inputs retrieved before 0.2.3
+than as one, giving for ²⁵²Cf `⟨R_T⟩` = 1.0908 in place of 1.0861. Inputs retrieved before 0.2.3
 can moreover carry the ²³⁹Pu multiplicities of Tsuchiya 2000 (22650004) off the scale of their
 subentry, and the ²⁵²Cf yields 41425015 and 41425016, which that release refuses. A directory
 holding no retrieval record, such as a tabulation of one's own, is not judged. A `⟨TKE⟩(A)`
@@ -90,7 +90,7 @@ julia scripts/retrieve.jl config/U233_nth_TKE_vs_A.toml /path/to/FissionTemperat
 Check that package out at a named commit before retrieving. The `[run]` table of every
 `retrieval.toml` records the revision and version that wrote it, and a run of this package copies
 that table, for every input directory it reads, into its `metadata.toml`. The results quoted in the
-README rest on the twelve committed configurations of its v0.5.0, `<system>_<observable>.toml`
+README rest on the twelve committed configurations of its v0.7.0, `<system>_<observable>.toml`
 for the four systems and `nu_vs_A`, `Y_vs_A`, `TKE_vs_A`.
 
 Every table that retrieval writes is byte-identical to that of every release from v0.2.4 on; the
@@ -101,8 +101,10 @@ and restate the curation of Tsuchiya 2000 (22650004). Those of v0.4.0 give every
 isomer keys to every entry and reword the conventions `abscissa_resolution` and
 `duplicate_abscissa`. Those of v0.5.0 list, per directory, the datasets with lines left out as
 compilation defects under `archive_defect_warning` (14101003 in `Cf252_sf/TKE_vs_A`, which no
-configuration reads). Of the keys that changed after v0.2.7, this package reads none; it reads
-`correlated_with`, `correlation_relation` and the qualifiers, which v0.2.7 introduced.
+configuration reads). Those of v0.7.0 write `incident_energies_mev` to fifteen digits and restate
+`yield_sum`. Of the keys that changed after v0.2.7, this package reads none; it reads
+`correlated_with`, `correlation_relation`, the qualifiers, and the row counts that give an
+interpolated dataset its measured fraction.
 
 Masses the archive gives as non-integer values, digitised or binned, are interpolated onto the
 integers by the retrieval, which records `mass_treatment = "interpolated"`, the rows retrieved and
@@ -219,8 +221,8 @@ IRMM. The software corrects the fragment kinetic energies for neutron emission. 
 the fragment velocities that carry the neutron spectrum into the fragment frame, and a deficit
 that grows with fragment velocity is what an error there produces. Nothing shows it to be the
 better measurement, and the measurement published from IRMM in 2011 (23118006) is pooled. With it
-in the pool the ²⁵²Cf trend takes 4 segments, with `χ²/dof` = 2.16 and `⟨R_T⟩` = 1.0756; without
-it, 4 segments, 2.02 and 1.0821.
+in the pool the ²⁵²Cf trend takes 4 segments, with `χ²/dof` = 2.40 and `⟨R_T⟩` = 1.0772; without
+it, 6 segments, 1.79 and 1.0861.
 
 **Zeynalov 2019 (41738002) is kept out of the ²³⁵U pool.** It is the ²³⁵U result of the same
 paper and analysis. Here the total is right and its division between the wings is not. Weighted
@@ -231,7 +233,7 @@ to 2.31 in Nishio, Al-Adili and Vorobyev, and `ν(124)` = 1.24 against 0.36 and 
 two. Over that range its `r_ν` lies 0.05 to 0.16 above the consensus of the other seven sets,
 whose spread is 0.04, and above every one of them at 19 of the 21 masses. The subentry gives
 pre-neutron masses and statistical uncertainties only. With it in the pool the ²³⁵U trend takes 6
-segments, with `χ²/dof` = 0.19 and `⟨R_T⟩` = 1.0743; without it, 5 segments, 0.44 and 1.1230.
+segments, with `χ²/dof` = 0.20 and `⟨R_T⟩` = 1.0738; without it, 6 segments, 0.39 and 1.1210.
 
 **Nishio 1995 (23012008) is kept out of the ²³⁹Pu pool.** Its `ν(m*)` is not a neutron
 measurement. The paper, *J. Nucl. Sci. Technol.* **32**, 404 (1995),
@@ -250,7 +252,7 @@ by mass its `ν_H` lies within the range of the other four at `A_H` = 126 to 135
 at every mass from 136 to 154. An excess on one wing does not cancel in `r_ν`. The rows of the
 published table that rest on it, as a `ν(A)` dataset and through its yield distribution, are
 unaffected. With it in the pool the ²³⁹Pu trend takes 6 segments, with `χ²/dof` = 0.54 and
-`⟨R_T⟩` = 1.0113; without it, 4 segments, 0.73 and 1.0388.
+`⟨R_T⟩` = 1.0106; without it, 5 segments, 0.70 and 1.0340.
 
 **Two ²³⁹Pu multiplicity datasets are off the scale of ν̄.** Tsuchiya 2000 (22650004) and
 Batenkov 2004 (41502006) are read per fragment, with pair sums 3.9 ± 0.6 % above and 10.7 ± 1.3 %
