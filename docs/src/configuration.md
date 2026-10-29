@@ -3,9 +3,10 @@
 A run is driven by one TOML file, `config/<system>.toml`, read by [`load_configuration`](@ref)
 against a data directory the caller names. The loader enforces what this page lists: the
 sections and keys it knows, the type of every key, its bounds or its enumerated choices, and the
-existence of every file named; the rules that tie one key to another, given in the constraint
+existence of every file named. The rules that tie one key to another, given in the constraint
 column, are enforced by the [`Configuration`](@ref) constructor, so a configuration built by hand
-is held to them as well. An unknown section or key, a value outside its bounds, a choice it does
+is held to them as well, those on the `[system]` keys aside, which the loader applies in building
+the fissioning system. An unknown section or key, a value outside its bounds, a choice it does
 not offer, `true` or `false` where a number stands, or a path that does not exist is refused with
 a message naming the key, so a run cannot start from a configuration it cannot honour. A key that is absent takes its default; a section marked required
 must be present even where every key of it has one. The shipped configurations set every key they
@@ -90,7 +91,7 @@ Without the section the run reports the mean over the fragment mass range alone.
 | `subdirectory` | string | none | a directory under the data directory | `h` | every distribution of the directory to average over in place of the primary alone |
 | `exclude` | array of tables | none | as `[multiplicity] exclude`; refused without `subdirectory` | `h`, the accessions alone | distributions kept out of every average; each is still read and reported |
 | `symmetrize` | boolean | `true` | — | `h` | ``Y(A)`` and ``Y(A_0 - A)`` averaged where both are measured, the pre-neutron identity |
-| `min_yield_coverage` | real | `0.3` | 0 to 1 | `h` | the share of the primary distribution's heavy-fragment yield a distribution must cover to be averaged over |
+| `min_yield_coverage` | real | `0.3` | 0 to 1 | `h`, with `subdirectory` | the share of the primary distribution's heavy-fragment yield a distribution must cover to be averaged over |
 
 ## `[segments]`, required
 

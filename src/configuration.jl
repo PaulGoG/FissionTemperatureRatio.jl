@@ -466,8 +466,9 @@ end
 _conforms(value, ::Type{T}) where {T} = value isa T && (T === Bool || !(value isa Bool))
 
 function _in_interval(value::Real, (lower, upper)::Tuple{Real,Real}, path::AbstractString)
-    lower ≤ value ≤ upper ||
-        throw(ArgumentError("$(path) must lie in [$(lower), $(upper)], got $(value)"))
+    isfinite(value) && lower ≤ value ≤ upper || throw(
+        ArgumentError("$(path) must be a finite number in [$(lower), $(upper)], got $(value)"),
+    )
     return value
 end
 
@@ -744,32 +745,56 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
         end,
     )
 
-    entry = sections.multiplicity
     multiplicity_directory = _input_directory(
-        root, entry.subdirectory, "multiplicity.subdirectory"
+        root, sections.multiplicity.subdirectory, "multiplicity.subdirectory"
     )
-    excluded_datasets = _resolve_exclusions(
-        _exclusions(entry.exclude, "multiplicity.exclude"),
-        multiplicity_directory,
-        "multiplicity.exclude",
-    )
-
     # Optional. Without it the run reports the mean over the fragment mass range only; with it,
     # the total average over each yield distribution, which is the quantity the literature quotes.
     # The primary distribution is always named: averaged over alone, or the reference the
     # coverage of every distribution of a directory is measured against.
     yields = something(sections.yield, _defaults(:yield))
-    entry = yields
     yield_file = if sections.yield === nothing
         nothing
     else
-        _input_file(root, entry.mass_yield_file, "yield.mass_yield_file")
+        _input_file(root, yields.mass_yield_file, "yield.mass_yield_file")
     end
-    yield_exclusions = _exclusions(entry.exclude, "yield.exclude")
-    yield_directory = nothing
+    yield_directory = if yields.subdirectory === nothing
+        nothing
+    else
+        _input_directory(root, yields.subdirectory, "yield.subdirectory")
+    end
+
+    floor = something(sections.retrieval, _defaults(:retrieval)).min_package_version
+    min_retrieval_version = tryparse(VersionNumber, floor)
+    min_retrieval_version === nothing && throw(
+        ArgumentError(
+            "retrieval.min_package_version must be a version number such as \"0.2.7\", got \
+             $(repr(floor))"
+        ),
+    )
+    # Before any entry of a record is read: a directory written by a release below the floor is
+    # refused for that, and not for an entry an older release wrote in another form.
+    energies = level_density.mean_kinetic_energy_file
+    check_retrieval_versions(
+        String[
+            directory for directory in (
+                multiplicity_directory,
+                yield_directory,
+                yield_file === nothing ? nothing : dirname(yield_file),
+                energies === nothing ? nothing : dirname(energies),
+            ) if directory !== nothing
+        ],
+        min_retrieval_version,
+    )
+
+    excluded_datasets = _resolve_exclusions(
+        _exclusions(sections.multiplicity.exclude, "multiplicity.exclude"),
+        multiplicity_directory,
+        "multiplicity.exclude",
+    )
+    yield_exclusions = _exclusions(yields.exclude, "yield.exclude")
     excluded_mass_yields = Dict{String,String}()
-    if entry.subdirectory !== nothing
-        yield_directory = _input_directory(root, entry.subdirectory, "yield.subdirectory")
+    if yield_directory !== nothing
         excluded_mass_yields = _resolve_exclusions(
             yield_exclusions, yield_directory, "yield.exclude"
         )
@@ -794,15 +819,6 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
         entry.autocorrelation_lags,
     )
 
-    floor = something(sections.retrieval, _defaults(:retrieval)).min_package_version
-    min_retrieval_version = tryparse(VersionNumber, floor)
-    min_retrieval_version === nothing && throw(
-        ArgumentError(
-            "retrieval.min_package_version must be a version number such as \"0.2.7\", got \
-             $(repr(floor))"
-        ),
-    )
-
     configuration = Configuration(
         system,
         fragmentation,
@@ -821,10 +837,8 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
         String(root),
     )
 
-    # What rests on the files themselves. The ⟨TKE⟩(A) dataset must be one a retrieval produced,
-    # so that its provenance and its qualifiers are on record, and it must reach the heavy-mass
-    # range.
-    energies = level_density.mean_kinetic_energy_file
+    # What rests on the file itself. The ⟨TKE⟩(A) dataset must be one a retrieval produced, so that
+    # its provenance and its qualifiers are on record, and it must reach the heavy-mass range.
     if energies !== nothing
         record = retrieval_record(energies)
         record === nothing && throw(
@@ -835,17 +849,6 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
         )
         read_mean_kinetic_energy(energies, system, A_H_range(configuration); record = record)
     end
-    check_retrieval_versions(
-        String[
-            directory for directory in (
-                multiplicity_directory,
-                yield_directory,
-                yield_file === nothing ? nothing : dirname(yield_file),
-                energies === nothing ? nothing : dirname(energies),
-            ) if directory !== nothing
-        ],
-        min_retrieval_version,
-    )
     return configuration
 end
 

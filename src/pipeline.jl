@@ -599,6 +599,14 @@ function _inversion(configuration::Configuration)
     else
         read_mean_kinetic_energy(settings.mean_kinetic_energy_file, configuration.system, range)
     end
+    # As `load_configuration` requires, for a configuration built by hand: the dataset's
+    # provenance and qualifiers are on record, or it weights nothing.
+    mean_kinetic_energy === nothing ||
+        mean_kinetic_energy.record !== nothing ||
+        throw(
+            ArgumentError("level_density.mean_kinetic_energy_file: no retrieval record beside \
+                 $(settings.mean_kinetic_energy_file) lists it")
+        )
     averaging = _averaging(settings.ratio_averaging, masses, domain, mean_kinetic_energy)
     return (; masses, model, charge, domain, mean_kinetic_energy, averaging)
 end

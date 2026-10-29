@@ -130,6 +130,11 @@ end
                 ("qualifiers = \"MXW\"", "qualifiers"),
                 ("pair_sum_deviation = \"-0.1\"", "pair_sum_deviation"),
                 ("pair_sum_deviation = 0.1\nscale_consistent = 1", "scale_consistent"),
+                ("pair_sum_deviation = nan", "pair_sum_deviation"),
+                (
+                    "pair_sum_deviation = 0.1\npair_sum_deviation_uncertainty = -0.01",
+                    "pair_sum_deviation_uncertainty",
+                ),
                 # A verdict on the scale without the uncertainty it rests on.
                 (
                     "pair_sum_deviation = 0.1\nscale_consistent = false",

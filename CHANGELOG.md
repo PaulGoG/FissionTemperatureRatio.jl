@@ -50,14 +50,20 @@ those of v0.5.0.
 - The run identifier covers `multiplicity.subdirectory`, so that two ν(A) directories of one
   system no longer write under one name.
 - A `Configuration` built by hand is held to the rules that tie one setting to another; one with
-  a yield directory and no primary distribution reached a MethodError in the pipeline.
+  a yield directory and no primary distribution reached a MethodError in the pipeline. A run of
+  one refuses a `⟨TKE⟩(A)` dataset no retrieval record lists, as the loader does.
+- The loader holds the retrieval records to `min_package_version` before it reads their entries,
+  so that a directory written by an older release is refused for its version. A non-finite
+  number where a bounded real stands, `incident_energy = inf` among them, is refused, and so is a
+  non-finite pair-sum deviation or a non-positive uncertainty of one.
 
 ### Changed
 
 - **Breaking:** `run_parameters` keys the parameters by section and key as the configuration
   spells them, `["segments"]["max_segments"]`, and leaves out a key that cannot change the run's
   result: the Gilbert-Cameron keys of a back-shifted Fermi gas run, `windows_apply_to_datasets`
-  without windows, an input not given, an empty exclusion list. `h` is taken over one
+  without windows, the yield coverage floor where the primary distribution, which covers itself
+  entirely, is the only one, an input not given, an empty exclusion list. `h` is taken over one
   `section.key=value` line per parameter. The readable tokens are those of 0.4.0;
   `RUN_IDENTIFIER_ABBREVIATIONS` is removed.
 - **Breaking:** `metadata.toml` holds `[identifier.parameters]` alone, keyed as above, and
@@ -66,9 +72,9 @@ those of v0.5.0.
   `canonical` and `hash_reason` are removed, the count of fragmentations moving to `[result]`. A
   key that does not apply is absent rather than written as `"none"`, `"not applicable"`, a zero
   or another placeholder.
-- **Breaking:** the export list is what a run is driven by, reads and returns; the builders, the
-  accessors of a result, the stages of the method and their constants are `public` and reached
-  qualified, `FissionTemperatureRatio.evaluate`. `segments` is renamed `segment_count`.
+- **Breaking:** the export list is what a run is driven by, reads and returns; the settings types
+  a configuration is built from, the builders, the accessors of a result, the stages of the method
+  and their constants are `public` and reached qualified, `FissionTemperatureRatio.evaluate`. `segments` is renamed `segment_count`.
 - **Breaking:** `load_configuration` requires `data_directory`; its default, DrWatson's
   `datadir()`, depended on the active project. DrWatson is no longer a dependency of the package.
 - **Breaking:** `segments.min_segment_span` is removed from the configuration and from

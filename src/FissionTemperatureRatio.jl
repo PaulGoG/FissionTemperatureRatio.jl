@@ -142,6 +142,7 @@ export publication_theme, plot_multiplicities, plot_ratio, save_figure, write_fi
 # composing its own run needs, the stages of the method, and the constants they are defined by.
 # Generic names such as `evaluate` and `covariance` are not exported, so that `using` does not
 # bring them into a namespace where another package defines its own.
+public FragmentationSettings, LevelDensitySettings, SegmentSettings, OutputSettings
 public build_mass_table, build_level_density_model, build_charge_model
 public A_H_range, has_symmetric_split, SHIPPED_MASS_TABLE, SHIPPED_SHELL_CORRECTIONS
 public multiplicity, read_mass_yield_directory, mass_yield_coverage, yield_fraction

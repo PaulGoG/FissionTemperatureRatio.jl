@@ -150,10 +150,11 @@ function _record_entry(path::AbstractString, entry::AbstractDict, run::AbstractD
         deviation = entry["pair_sum_deviation"]
         uncertainty = get(entry, "pair_sum_deviation_uncertainty", missing)
         consistent = get(entry, "scale_consistent", missing)
-        _is_number(deviation) || defect("pair_sum_deviation must be a number")
+        _is_number(deviation) && isfinite(deviation) ||
+            defect("pair_sum_deviation must be a finite number")
         ismissing(uncertainty) ||
-            _is_number(uncertainty) ||
-            defect("pair_sum_deviation_uncertainty must be a number")
+            _is_number(uncertainty) && isfinite(uncertainty) && uncertainty > 0 ||
+            defect("pair_sum_deviation_uncertainty must be a positive finite number")
         ismissing(consistent) ||
             consistent isa Bool ||
             defect("scale_consistent must be true or false")

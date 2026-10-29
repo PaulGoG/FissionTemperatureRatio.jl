@@ -136,6 +136,14 @@ end
                 "system.channel",
             ),
             (
+                "infinite energy",
+                replace(
+                    MINIMAL_CONFIGURATION,
+                    "channel = \"sf\"" => "channel = \"nth\"\nincident_energy = inf",
+                ),
+                "system.incident_energy",
+            ),
+            (
                 "energy given for spontaneous fission",
                 replace(
                     MINIMAL_CONFIGURATION,
@@ -774,8 +782,19 @@ end
             configuration = load_configuration(file; data_directory = directory)
             @test configuration.min_yield_coverage == 0.6
             @test configuration.segments.min_pair_coverage == 0.3
-            @test run_parameters(configuration)["yield"]["min_yield_coverage"] == 0.6
+            # The primary alone covers itself entirely: the floor cannot change the run, and is no
+            # parameter of it; beside a directory it is one.
+            @test !haskey(run_parameters(configuration)["yield"], "min_yield_coverage")
             @test run_parameters(configuration)["segments"]["min_pair_coverage"] == 0.3
+            directory_floor = write_beside(
+                path,
+                MINIMAL_CONFIGURATION *
+                yield_section *
+                "subdirectory = \"yields\"\nmin_yield_coverage = 0.6\n",
+            )
+            @test run_parameters(
+                load_configuration(directory_floor; data_directory = directory)
+            )["yield"]["min_yield_coverage"] == 0.6
             out_of_range = write_beside(
                 path, MINIMAL_CONFIGURATION * yield_section * "min_yield_coverage = 1.5\n"
             )
@@ -814,6 +833,14 @@ end
             @test_throws "below retrieval.min_package_version" load_configuration(
                 path; data_directory = directory
             )
+            # The floor is held before any entry is read: an older record whose entry this
+            # release would refuse as malformed is refused for its version.
+            malformed = replace(accepted, "qualifiers = []" => "qualifiers = \"MXW\"")
+            write(record, malformed * "\n[run]\npackage_version = \"0.2.2\"\n")
+            @test_throws "below retrieval.min_package_version" load_configuration(
+                path; data_directory = directory
+            )
+            write(record, accepted * "\n[run]\npackage_version = \"0.2.2\"\n")
             # A lower floor, set explicitly, admits it.
             lowered = write_beside(
                 path, body * "\n[retrieval]\nmin_package_version = \"0.2.0\"\n"

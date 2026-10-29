@@ -93,7 +93,9 @@ A value enters as the configuration holds it once read, defaults included, and a
 to the data directory, so the same inputs staged on another machine give the same parameters. A
 key whose value cannot change this run's result is no parameter of it: the Gilbert-Cameron
 branch and shell corrections of a back-shifted Fermi gas run, `windows_apply_to_datasets`
-without windows, an optional input that is not given, the [yield] keys of a run without yields.
+without windows, the yield coverage floor where the primary distribution, which covers itself
+entirely, is the only one, an optional input that is not given, the [yield] keys of a run
+without yields.
 An exclusion list enters as its sorted accessions, the reasons changing nothing, and an empty
 one not at all; the required windows as `[first, last]` pairs. The system is not a parameter: it
 names the directory the identifier sits in. Neither are `[retrieval]`, a guard on the inputs,
@@ -115,6 +117,11 @@ function run_parameters(configuration::Configuration)
         delete!(level_density, "shell_correction_file")
         delete!(level_density, "deformed_branch")
     end
+    # The primary distribution alone covers its own yield entirely, so no coverage floor in [0, 1]
+    # can keep it from the average.
+    haskey(parameters, "yield") &&
+        configuration.yield_directory === nothing &&
+        delete!(parameters["yield"], "min_yield_coverage")
     segments = parameters["segments"]
     if isempty(configuration.segments.required_windows)
         delete!(segments, "required_windows")
@@ -232,7 +239,7 @@ _token(x::Bool) = string(x)
 _token(x::Integer) = string(x)
 _token(x::AbstractString) = String(x)
 # Trailing zeros carry no information and would make two spellings of one value.
-_token(x::Real) = isinteger(x) ? string(Int(round(x))) : string(x)
+_token(x::Real) = isinteger(x) && abs(x) <= maxintfloat(Float64) ? string(Int(x)) : string(x)
 
 # The yield distributions a run read but took no total average over, each with the reason.
 function _not_averaged(result::ExtractionResult)

@@ -299,7 +299,7 @@ is not given. Only the parameters behind the `[domain]` table of the manifest ar
 identifier — `ldm`, `avg`, `nZ`, `chg`, `mass`, `dZ0`, and `def` in a Gilbert-Cameron run:
 
 ```
-avg=charge_resolved_chg=wahl_dZ0=false_h=d2b13d5b_ldm=BSFG_mass=ame2020_nZ=5
+avg=charge_resolved_chg=wahl_dZ0=false_h=aab3f24b_ldm=BSFG_mass=ame2020_nZ=5
 ```
 
 A path among them, a tabulated charge distribution or mass table, appears as the first eight
