@@ -7,13 +7,90 @@ the minor version and a patch release carries none.
 
 ## [Unreleased]
 
-No result changes: the four shipped configurations give the tables, the curves and the manifests
-of 0.4.1. Only the text of the exclusion reasons in `dataset_diagnostics.csv` and in the
-`[configuration]` table of `metadata.toml` differs, and the mean of a `⟨TKE⟩(A)` dataset in
-`[mean_kinetic_energy]` may differ in its last bits.
+## [0.5.0] - 2026-10-29
+
+The results change. The measured fraction of an interpolated dataset counts its measurements at
+integer masses, and the combination reads that fraction one way throughout, as the share of a
+measurement a value amounts to. The systematic trends, `⟨R_T⟩` over the primary yield with the
+propagated and the jackknife uncertainty: ²⁵²Cf 1.0861 ± 0.0150 (jackknife 0.0103, 6 segments),
+²³⁵U 1.1210 ± 0.0152 (0.0223, 6), ²³⁹Pu 1.0340 ± 0.0253 (0.0274, 5), ²³³U 1.0657 ± 0.0917 (0.1408,
+3), against 1.0821 ± 0.0159, 1.1230 ± 0.0153, 1.0388 ± 0.0269 and 1.0724 ± 0.0936 in 0.4.1. The
+curves of single datasets keep their values to the fourth digit. Every run identifier changes.
+Inputs: ExforFissionData.jl v0.7.0, whose 240 tables and stored subentries are byte-identical to
+those of v0.5.0.
+
+### Fixed
+
+- **Breaking:** the measured fraction of a dataset the retrieval interpolated onto the integers
+  is its values measured, `rows_retrieved` less the limits listed under `rows_left_out`, over its
+  rows written, at most one. It was the count of non-integer masses over the rows written, which
+  left out the measurements a grid holds at integer masses: Apalin 1965 for ²³⁹Pu, 52 masses at
+  1.25 u of which 13 are integers, counted as 0.55 of a measurement per row in place of 0.73.
+  Six pooled datasets move.
+- **Breaking:** the combination of datasets at a mass number reads the measured fraction `f` one
+  way. A value has the variance `σ²/f` of its share of a measurement, and the between-dataset
+  variance `τ²` is added undiluted: the weights are `1/(σ²/f + τ²)`, the fixed-effect weights
+  `f/σ²` are inverse variances, `τ²` is DerSimonian and Laird's moment estimate against
+  `E[Q] = k − 1`, and `(Σw)^(-1/2)` is the standard error of the mean. The estimate of `τ²` used
+  to take `f` as a weight on a value of variance `σ² + τ²`, against the expectation of DerSimonian
+  and Kacker, while the standard error took it as the share of a measurement. Where no value
+  quotes an uncertainty, `s² = Σ f (r − r̄)²/(k − 1)`. Where `τ²` dominates, an interpolated dataset
+  weighs about as much as a measured one.
+- **Breaking:** a point quoting no uncertainty takes the median of the quoted uncertainties in
+  `fit_weights`, as in the combination, where it took the median of the quoted weights; the two
+  differ for an even number of quoted points.
+- `true` or `false` where an integer or a real stands in a configuration is refused; Julia counts
+  Bool among the integers, and `charges_per_mass = true` loaded as one.
+- `read_multiplicity` refuses a mass number that is not an integer, which it rounded, and an
+  infinite uncertainty, which it read as unquoted.
+- A retrieval record is read once and checked for every key this package takes; a count that is
+  not an integer, a `correlated_with` that is not an array of identifiers, or a `scale_consistent`
+  without the uncertainty it rests on is refused, naming the record and the file. Such keys were
+  read as absent.
+- The run identifier covers `multiplicity.subdirectory`, so that two ν(A) directories of one
+  system no longer write under one name.
+- A `Configuration` built by hand is held to the rules that tie one setting to another; one with
+  a yield directory and no primary distribution reached a MethodError in the pipeline.
 
 ### Changed
 
+- **Breaking:** `run_parameters` keys the parameters by section and key as the configuration
+  spells them, `["segments"]["max_segments"]`, and leaves out a key that cannot change the run's
+  result: the Gilbert-Cameron keys of a back-shifted Fermi gas run, `windows_apply_to_datasets`
+  without windows, an input not given, an empty exclusion list. `h` is taken over one
+  `section.key=value` line per parameter. The readable tokens are those of 0.4.0;
+  `RUN_IDENTIFIER_ABBREVIATIONS` is removed.
+- **Breaking:** `metadata.toml` holds `[identifier.parameters]` alone, keyed as above, and
+  `[configuration]` every value by section and key; `[domain]` (the manifest's own table),
+  `[source.dependencies]` (the Manifest.toml beside the record), `[identifier] tokens`,
+  `canonical` and `hash_reason` are removed, the count of fragmentations moving to `[result]`. A
+  key that does not apply is absent rather than written as `"none"`, `"not applicable"`, a zero
+  or another placeholder.
+- **Breaking:** the export list is what a run is driven by, reads and returns; the builders, the
+  accessors of a result, the stages of the method and their constants are `public` and reached
+  qualified, `FissionTemperatureRatio.evaluate`. `segments` is renamed `segment_count`.
+- **Breaking:** `load_configuration` requires `data_directory`; its default, DrWatson's
+  `datadir()`, depended on the active project. DrWatson is no longer a dependency of the package.
+- **Breaking:** `segments.min_segment_span` is removed from the configuration and from
+  `fit_segments`; at four points per segment on distinct integer masses it never bound. A
+  configuration that sets it is refused as naming an unknown key.
+- **Breaking:** `RetrievalRecord` holds the parsed record (`accession`, `qualifiers`,
+  `measured_fraction`, `correlated_with`, `correlation_relation`, `pair_sum` as a `PairSumScale`,
+  and the entry and `[run]` table as written), read by `retrieval_records(directory)`;
+  `Multiplicity` and `MeanKineticEnergy` carry theirs. `pooling_weight`, `correlated_datasets`,
+  `correlation_relation`, `pair_sum_scale` and `retrieval_qualifiers` are removed.
+- **Breaking:** `ExtractionResult` records `leave_one_out_requested` and the retrieval records of
+  the yield distributions; `qualifiers` is removed, the qualifiers being on each dataset's
+  record. `ExtractedCurve` loses `pairs`, which is `fit.points`, and `kind`, which follows from
+  the label. `multiplicity` returns `nothing` for an absent mass number.
+- **Breaking:** `dataset_diagnostics.csv` loses `symmetry_departure`, zero by construction;
+  `outside_physical_range` counts the complete pairs whose ratio falls outside `(0, 1)`, where it
+  counted points of a ratio that omits them, and was always zero.
+- **Breaking:** `plot_multiplicities` takes no `A_0`, which it did not use. `pool` is removed.
+- `run_pipeline` and `write_results` are sequences of stages, the combination returns a typed
+  `Combination`, a curve that cannot be fitted is a `NoFit` with its reason, and the configuration
+  loader checks every key against one table, `CONFIGURATION_KEYS`.
+- The retrieval records are in retrieval.jl; kinetic_energy.jl holds the ⟨TKE⟩(A) dataset alone.
 - The breakpoint search of `fit_segments` is type-stable and does less repeated work: the running
   best of an order lives in a mutable record instead of a reassigned closure variable, the
   weighted ordinate is formed once per fit, and the condition number once per candidate. The
@@ -36,8 +113,7 @@ of 0.4.1. Only the text of the exclusion reasons in `dataset_diagnostics.csv` an
   current when the package was created.
 - `docs/assets.jl` takes the palette of the package's own figures from the extension, edits a
   configuration by parsing it rather than by text replacement, and fits the animated selection
-  with the segment span and the measured fraction the pipeline uses. The shipped figures are not
-  regenerated.
+  with the measured fraction the pipeline uses.
 - The benchmarks measure the pinned, bounded fit a run applies, with one correlated case, and no
   longer time FissionFragmentsDomain.jl's domain construction.
 - The test suite: the consensus tests have their own file; tests that restated the implementation
@@ -55,8 +131,7 @@ of 0.4.1. Only the text of the exclusion reasons in `dataset_diagnostics.csv` an
   is rewritten in shorter sentences, with the same content. `data/README.md` states that the
   package reads `correlated_with` and the qualifiers, which v0.2.7 of the retrieval introduced,
   and that reproducibility rests on the stored subentries and the recorded parser revision. The
-  method page states that the span guard never binds at the shipped settings. The von Egidy
-  erratum, the AME2020 papers and Pearson's mass formula are cited.
+  von Egidy erratum, the AME2020 papers and Pearson's mass formula are cited.
 
 ### Removed
 
@@ -1015,7 +1090,8 @@ branch:
   check so a partially present tree failed, and results were overwritten in place with no run
   identifier, commit or hardware record.
 
-[unreleased]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.4.1...HEAD
+[unreleased]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.3.0...v0.3.1
