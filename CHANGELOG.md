@@ -7,7 +7,7 @@ the minor version and a patch release carries none.
 
 ## [Unreleased]
 
-## [0.5.0] - 2026-10-29
+## [0.5.0] - 2026-10-31
 
 The results change. The measured fraction of an interpolated dataset counts its measurements at
 integer masses, and the combination reads that fraction one way throughout, as the share of a
