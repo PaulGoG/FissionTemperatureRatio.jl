@@ -3,7 +3,6 @@
 [![CI](https://github.com/PaulGoG/FissionTemperatureRatio.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/PaulGoG/FissionTemperatureRatio.jl/actions/workflows/CI.yml)
 [![Coverage](https://codecov.io/gh/PaulGoG/FissionTemperatureRatio.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/PaulGoG/FissionTemperatureRatio.jl)
 [![Documentation](https://img.shields.io/badge/docs-stable-blue.svg)](https://PaulGoG.github.io/FissionTemperatureRatio.jl/stable/)
-[![Documentation](https://img.shields.io/badge/docs-dev-blue.svg)](https://PaulGoG.github.io/FissionTemperatureRatio.jl/dev/)
 [![Julia](https://img.shields.io/badge/Julia-1.11%2B-9558B2?logo=julia&logoColor=white)](https://julialang.org)
 [![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
 [![JET](https://img.shields.io/badge/%F0%9F%9B%A9%EF%B8%8F_tested_with-JET.jl-233f9a)](https://github.com/aviatesk/JET.jl)
