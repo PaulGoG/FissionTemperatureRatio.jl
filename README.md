@@ -282,7 +282,7 @@ in machine-readable form, with the paper as the preferred citation. As BibTeX:
 @software{FissionTemperatureRatio,
   author  = {Gogîță, Paul-Adrian},
   title   = {FissionTemperatureRatio.jl},
-  version = {0.5.0},
+  version = {0.5.1},
   year    = {2026},
   url     = {https://github.com/PaulGoG/FissionTemperatureRatio.jl}
 }

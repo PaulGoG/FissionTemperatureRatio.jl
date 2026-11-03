@@ -7,6 +7,8 @@ the minor version and a patch release carries none.
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-11-03
+
 Inputs: ExforFissionData.jl v0.8.0, whose 240 tables and stored subentries are byte-identical to
 those of v0.7.0; its records change in `[run]` and in the wording of five rejection reasons, which
 no run reads. The four shipped configurations reproduce every table and manifest of 0.5.0;
@@ -1101,7 +1103,8 @@ branch:
   check so a partially present tree failed, and results were overwritten in place with no run
   identifier, commit or hardware record.
 
-[unreleased]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.5.0...HEAD
+[unreleased]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.3.1...v0.4.0
