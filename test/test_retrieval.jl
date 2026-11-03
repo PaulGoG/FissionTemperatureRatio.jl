@@ -29,7 +29,7 @@ function single_entry_record(keys::AbstractString)
         $(keys)
 
         [run]
-        package_version = "0.7.0"
+        package_version = "0.8.0"
         """
 end
 

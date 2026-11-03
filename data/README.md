@@ -90,7 +90,7 @@ julia scripts/retrieve.jl config/U233_nth_TKE_vs_A.toml /path/to/FissionTemperat
 Check that package out at a named commit before retrieving. The `[run]` table of every
 `retrieval.toml` records the revision and version that wrote it, and a run of this package copies
 that table, for every input directory it reads, into its `metadata.toml`. The results quoted in the
-README rest on the twelve committed configurations of its v0.7.0, `<system>_<observable>.toml`
+README rest on the twelve committed configurations of its v0.8.0, `<system>_<observable>.toml`
 for the four systems and `nu_vs_A`, `Y_vs_A`, `TKE_vs_A`.
 
 Every table that retrieval writes is byte-identical to that of every release from v0.2.4 on; the
@@ -102,7 +102,9 @@ isomer keys to every entry and reword the conventions `abscissa_resolution` and
 `duplicate_abscissa`. Those of v0.5.0 list, per directory, the datasets with lines left out as
 compilation defects under `archive_defect_warning` (14101003 in `Cf252_sf/TKE_vs_A`, which no
 configuration reads). Those of v0.7.0 write `incident_energies_mev` to fifteen digits and restate
-`yield_sum`. Of the keys that changed after v0.2.7, this package reads none; it reads
+`yield_sum`. Those of v0.8.0 reword the reasons of five rejected datasets, 23175011, 416930052,
+33089002, 210580051 and the empty 40115002, under observables that are not theirs; no run reads a
+reason. Of the keys that changed after v0.2.7, this package reads none; it reads
 `correlated_with`, `correlation_relation`, the qualifiers, and the row counts that give an
 interpolated dataset its measured fraction.
 

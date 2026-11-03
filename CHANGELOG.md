@@ -7,6 +7,11 @@ the minor version and a patch release carries none.
 
 ## [Unreleased]
 
+Inputs: ExforFissionData.jl v0.8.0, whose 240 tables and stored subentries are byte-identical to
+those of v0.7.0; its records change in `[run]` and in the wording of five rejection reasons, which
+no run reads. The four shipped configurations reproduce every table and manifest of 0.5.0;
+`metadata.toml` differs only where it copies the retrieval records.
+
 ## [0.5.0] - 2026-10-31
 
 The results change. The measured fraction of an interpolated dataset counts its measurements at
