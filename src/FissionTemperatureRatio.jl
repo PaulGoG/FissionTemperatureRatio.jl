@@ -11,9 +11,9 @@ number. Obtaining it by fitting `ν(A)` with such a code makes the result depend
 model of that code. The method implemented here uses the same experimental `ν(A)` but no emission
 calculation, so the ratio it produces is independent of any particular prompt emission treatment.
 
-Two premises carry the extraction. The multiplicity ratio of complementary fragments follows their
-excitation energy ratio, and the fragments are excited highly enough for their level densities to
-be of Fermi-gas form, `E* = a T²`. Together these give
+The extraction rests on two premises: the multiplicity ratio of complementary fragments follows
+their excitation energy ratio, and the fragments are excited highly enough for their level
+densities to be of Fermi-gas form, `E* = a T²`. Together these give
 
 ```
 E*_L / E*_H = a_L T_L² / (a_H T_H²) ≈ ν_L / ν_H

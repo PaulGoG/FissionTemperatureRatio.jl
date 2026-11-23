@@ -1,18 +1,19 @@
 # FissionTemperatureRatio.jl
 
-[![CI](https://github.com/PaulGoG/FissionTemperatureRatio.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/PaulGoG/FissionTemperatureRatio.jl/actions/workflows/CI.yml)
+[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://PaulGoG.github.io/FissionTemperatureRatio.jl/stable/)
+[![CI](https://github.com/PaulGoG/FissionTemperatureRatio.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/PaulGoG/FissionTemperatureRatio.jl/actions/workflows/CI.yml?query=branch%3Amain)
 [![Coverage](https://codecov.io/gh/PaulGoG/FissionTemperatureRatio.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/PaulGoG/FissionTemperatureRatio.jl)
-[![Documentation](https://img.shields.io/badge/docs-stable-blue.svg)](https://PaulGoG.github.io/FissionTemperatureRatio.jl/stable/)
-[![Julia](https://img.shields.io/badge/Julia-1.11%2B-9558B2?logo=julia&logoColor=white)](https://julialang.org)
-[![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
-[![JET](https://img.shields.io/badge/%F0%9F%9B%A9%EF%B8%8F_tested_with-JET.jl-233f9a)](https://github.com/aviatesk/JET.jl)
-[![Code style: JuliaFormatter](https://img.shields.io/badge/code%20style-JuliaFormatter-informational)](https://github.com/domluna/JuliaFormatter.jl)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Aqua QA](https://juliatesting.github.io/Aqua.jl/dev/assets/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
+[![JET](https://img.shields.io/badge/tested%20with-JET.jl-233f9a)](https://github.com/aviatesk/JET.jl)
+[![Code Style: Blue](https://img.shields.io/badge/code%20style-blue-4495d1.svg)](https://github.com/JuliaDiff/BlueStyle)
+[![Format](https://github.com/PaulGoG/FissionTemperatureRatio.jl/actions/workflows/Format.yml/badge.svg?branch=main)](https://github.com/PaulGoG/FissionTemperatureRatio.jl/actions/workflows/Format.yml?query=branch%3Amain)
+[![Julia](https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2FPaulGoG%2FFissionTemperatureRatio.jl%2Fmain%2FProject.toml&query=%24.compat.julia&label=julia&color=9558b2)](https://julialang.org/downloads/)
+[![DOI](https://img.shields.io/badge/DOI-10.1140%2Fepja%2Fs10050--024--01375--7-blue)](https://doi.org/10.1140/epja/s10050-024-01375-7)
 
-Extraction of the temperature ratio `R_T = T_L/T_H` of complementary fully accelerated fission
-fragments from experimental prompt neutron multiplicity data, described by joined straight
-segments. The fragmentation domain, the level density parameters and the relation between `R_T`
-and the excitation-energy partition are taken from
+FissionTemperatureRatio.jl extracts the temperature ratio `R_T = T_L/T_H` of complementary, fully
+accelerated fission fragments from measured prompt neutron multiplicities `ν(A)` and describes it
+by joined straight segments. The fragmentation domain, the level density parameters and the
+relation between `R_T` and the excitation-energy partition come from
 [FissionFragmentsDomain.jl](https://github.com/PaulGoG/FissionFragmentsDomain.jl), which the
 prompt emission codes that read `R_T(A_H)` also use.
 
@@ -168,16 +169,16 @@ Table 1 of the paper to within 1.0 % for ²³³U(nth,f), ²⁵²Cf(sf), ²³⁵U
 the exception is Apalin's ²³³U measurement, at 1.9 %. With the shipped settings, which invert
 charge by charge on Wahl's charge model, the agreement is within 1.4 %, and 2.1 % for Apalin. The
 table's caption names no yield distribution for ²³⁹Pu, so the one used there is inferred by
-agreement. The paper did not use this package: its joined segments were drawn by hand through the
-multiplicity ratio of each dataset. Here the number of segments and their breakpoints are
-selected by a criterion, and the trend combining several datasets is this package's own
-construction; the agreement is therefore at the per-cent level.
+agreement. The paper did not use this package: there the joined segments were drawn by hand
+through the multiplicity ratio of each dataset. Here their number and their breakpoints are
+selected by a criterion, and the trend that combines several datasets is my own construction, so
+the agreement is at the per-cent level.
 [Validation](docs/src/validation.md) lists what has and has not been checked.
 
 ![Temperature ratio](docs/src/assets/temperature_ratio.png)
 
-The temperature ratio of ²⁵²Cf(sf), with every measurement held in grey and the systematic trend
-through the fourteen pooled measurements with its uncertainty. Above the symmetric split the light
+The temperature ratio of ²⁵²Cf(sf): every measurement in grey, and the systematic trend through
+the fourteen pooled measurements with its uncertainty band. Above the symmetric split the light
 fragment is the hotter of the pair, and the ratio crosses unity near the most probable
 fragmentation.
 
@@ -232,9 +233,9 @@ julia scripts/retrieve.jl config/U233_nth_nu_vs_A.toml /path/to/FissionTemperatu
 ```
 
 Without the data the pipeline cannot run, and the tests that need measurements are reported as
-skipped in the test summary. The rest of the suite — the inversion on the shipped fragmentation
-domains, the configuration, a synthetic run and its run record — runs regardless, on the mass
-table and shell corrections FissionFragmentsDomain.jl ships.
+skipped in the test summary. The rest of the suite (the inversion on the shipped fragmentation
+domains, the configuration, a synthetic run and its run record) runs regardless, on the mass
+table and shell corrections that FissionFragmentsDomain.jl ships.
 
 ## Configuration
 
@@ -263,16 +264,13 @@ the shipped configurations exclude and why.
 
 ## Consuming the output
 
-The manifest is the entry point for a code that takes these curves as input, and it is meant to
-be read rather than parsed out of file names.
-
-[Consuming the output](docs/src/consuming.md) gives an abridged manifest and the contract in
-full; `test/test_manifest.jl` is a consumer that checks it.
+A code that takes these curves as input starts from the manifest of the run, which names the files
+of each curve. [Consuming the output](docs/src/consuming.md) gives an abridged manifest and the
+full contract; `test/test_manifest.jl` is a consumer that checks it.
 
 ## How to cite
 
-FissionTemperatureRatio.jl is written by Paul-Adrian Gogîță. For the method, cite
-*Eur. Phys. J. A* **60**, 190 (2024),
+For the method, cite *Eur. Phys. J. A* **60**, 190 (2024),
 [https://doi.org/10.1140/epja/s10050-024-01375-7](https://doi.org/10.1140/epja/s10050-024-01375-7);
 for the implementation, cite this repository by its URL,
 <https://github.com/PaulGoG/FissionTemperatureRatio.jl>. `CITATION.cff` at the root carries both
@@ -308,7 +306,7 @@ derived from a measurement should cite that measurement.
 FissionTemperatureRatio/
 ├── .github/                        continuous integration and dependency updates
 │   ├── dependabot.yml
-│   └── workflows/                  CI.yml (tests, coverage, docs) and format.yml (formatting gate)
+│   └── workflows/                  CI.yml (tests, coverage, docs) and Format.yml (formatting gate)
 ├── .JuliaFormatter.toml            formatting rules, enforced by check.jl and CI
 ├── .gitignore                      ignores run output, resolved manifests and the docs build
 ├── activate.jl                     activate and instantiate the root environment

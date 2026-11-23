@@ -7,6 +7,39 @@ the minor version and a patch release carries none.
 
 ## [Unreleased]
 
+### Added
+
+- `metadata.toml` records every input file a run read under `[inputs.files]`, keyed by its path
+  relative to the data directory, with its size in bytes and its SHA-256: the datasets, the yield
+  distributions, the `⟨TKE⟩(A)` dataset, a tabulated charge distribution, mass table or shell
+  correction table, and the retrieval records beside them.
+- The test suite asserts Table 2 of the paper, ²³³U over Surin's `Y(A)` with one charge per mass
+  number and with Gilbert-Cameron eq. (20) throughout, to 1 %, and to 2.5 % for Apalin's
+  measurement. The Gilbert-Cameron path had no literature value held against it.
+
+### Fixed
+
+- A data file whose EXFOR accession leads with a letter is recognised: its label drops the
+  accession and its tables are named by it. File names were matched on digits alone.
+- `dataset_diagnostics.csv` rounds `complement_sum` and `complement_spread` to
+  `significant_digits`, as it does its other columns.
+- Figures: the reference line (`Equal sharing`, `Equal temperatures`) is dash-dotted, so that its
+  legend entry differs from that of the dashed systematic trend; a figure of one series carries
+  no legend; the annotation `No quoted uncertainties` opens with a capital.
+- `formatter/activate.jl` moves an environment resolved under an earlier formatter pin to the
+  current one, where it stopped with a resolver error.
+
+### Changed
+
+- Documentation: the validation page has the sections Verified, Published total averages and Not
+  verified; the consuming page's sections are second-level; isotopes are written with Unicode
+  superscripts throughout; the naming page no longer describes an `A_0` argument of
+  `plot_multiplicities`, which has none; the configuration page states the cost of the exhaustive
+  breakpoint search. Sentences across the README, the pages and `data/README.md` are restated in
+  full where they were compressed, with no number or claim changed.
+- JuliaFormatter is pinned at 2.14.8, which reformats nothing; Dependabot no longer proposes to
+  widen the pin. CI names the Julia floor by the `min` alias, read from `[compat]`.
+
 ## [0.5.1] - 2026-11-03
 
 Inputs: ExforFissionData.jl v0.8.0, whose 240 tables and stored subentries are byte-identical to

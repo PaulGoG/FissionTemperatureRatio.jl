@@ -1,8 +1,8 @@
 # FissionTemperatureRatio.jl
 
-Extraction of the temperature ratio ``R_T = T_L/T_H`` of complementary fully accelerated fission
-fragments from experimental prompt neutron multiplicity data, described by joined straight
-segments.
+FissionTemperatureRatio.jl extracts the temperature ratio ``R_T = T_L/T_H`` of complementary,
+fully accelerated fission fragments from measured prompt neutron multiplicities ``\nu(A)`` and
+describes it by joined straight segments.
 
 Prompt emission model codes that share the total excitation energy at full acceleration take
 ``R_T`` as input. Obtaining it by fitting ``\nu(A)`` with such a code makes the result dependent
@@ -41,17 +41,21 @@ julia scripts/run.jl config/U233_nth.toml
 ```
 
 [`run_pipeline`](@ref) returns an [`ExtractionResult`](@ref) and writes nothing.
-[`write_results`](@ref) writes the tables and the manifest into the directory it is given and
-refuses one that already holds files. The script names that directory
-`data/sims/<system>/<run identifier>/`, moves an existing run of the same identifier aside as
-`<run identifier>#1`, `#2`, …, and adds the provenance record `metadata.toml` beside copies of the
-configuration, as `configuration.toml`, and of the resolved manifest of its environment, as
-`Manifest.toml`. The figures go to `plots/<system>/<run identifier>/`. The run identifier covers
-every configuration key that changes the result, so the directory name alone identifies the run.
-Inside it, `manifest_<run identifier>.toml`, `segmented_curves_<run identifier>.csv`,
-`total_average_R_T_<run identifier>.csv` and `leave_one_out_<run identifier>.csv` carry the
-identifier again. A consuming code stages the whole directory and selects the manifest by its
-prefix. The manifest records the domain the curves were extracted on, and a consuming code
-refuses a curve extracted on another. [Naming](naming.md) describes the file layout, and
-[Configuration](configuration.md) lists every key of the configuration with its type, bounds,
-default and run-identifier token.
+[`write_results`](@ref) writes the tables and the manifest into the directory it is given, and
+refuses a directory that already holds files.
+
+The script writes to `data/sims/<system>/<run identifier>/`. If a run with the same identifier
+exists, it is first moved aside as `<run identifier>#1`, `#2`, …. Beside the tables the script
+writes the provenance record `metadata.toml`, a copy of the configuration as `configuration.toml`
+and a copy of the resolved manifest of its environment as `Manifest.toml`. The figures go to
+`plots/<system>/<run identifier>/`. The run identifier covers every configuration key that
+changes the result, so the directory name identifies the run. Four files inside it repeat the
+identifier in their names: `manifest_<run identifier>.toml`,
+`segmented_curves_<run identifier>.csv`, `total_average_R_T_<run identifier>.csv` and
+`leave_one_out_<run identifier>.csv`.
+
+A consuming code stages the whole directory and selects the manifest by its prefix. The manifest
+records the domain the curves were extracted on, and a consuming code refuses a curve extracted
+on a different one. [Naming](naming.md) describes the file layout, and
+[Configuration](configuration.md) lists every configuration key with its type, bounds, default
+and run-identifier token.

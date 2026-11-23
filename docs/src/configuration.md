@@ -3,19 +3,20 @@
 A run is driven by one TOML file, `config/<system>.toml`, read by [`load_configuration`](@ref)
 against a data directory the caller names. The loader enforces what this page lists: the
 sections and keys it knows, the type of every key, its bounds or its enumerated choices, and the
-existence of every file named. The rules that tie one key to another, given in the constraint
-column, are enforced by the [`Configuration`](@ref) constructor, so a configuration built by hand
-is held to them as well, those on the `[system]` keys aside, which the loader applies in building
-the fissioning system. An unknown section or key, a value outside its bounds, a choice it does
-not offer, `true` or `false` where a number stands, or a path that does not exist is refused with
-a message naming the key, so a run cannot start from a configuration it cannot honour. A key that is absent takes its default; a section marked required
-must be present even where every key of it has one. The shipped configurations set every key they
-read, so that the file states what the run honoured.
+existence of every file named. The rules that relate one key to another, given in the constraint
+column, are enforced by the [`Configuration`](@ref) constructor, so they also apply to a
+configuration built by hand. The rules on the `[system]` keys are the exception: the loader
+applies them when it builds the fissioning system. An unknown section or key, a value outside its
+bounds, a choice that is not offered, `true` or `false` in place of a number, or a path that does
+not exist is refused with a message that names the key. An absent key takes its default; a section
+marked required must be present even if every key in it has a default. The shipped configurations
+set most keys explicitly, including the Gilbert-Cameron keys their back-shifted Fermi gas runs do
+not read, so that each file shows its settings in one place.
 
-Every key that changes the result is a parameter of the run identifier, as the fifth column
-says: a readable token of it, or a part of the text its hash `h` is taken over. A key marked —
-is none: the system keys name the directory the identifier sits in, and the others change no
-result. [Naming](naming.md) defines the identifier, and `metadata.toml` records the
+Every key that changes the result is a parameter of the run identifier, as the fifth column says:
+it appears as a readable token, or as part of the text the hash `h` is taken over. A key marked —
+is not a parameter: the system keys name the directory the identifier sits in, and the others
+change no result. [Naming](naming.md) defines the identifier, and `metadata.toml` records the
 parameters by section and key under `[identifier.parameters]`.
 
 ## `[system]`, required
@@ -95,7 +96,11 @@ Without the section the run reports the mean over the fragment mass range alone.
 
 ## `[segments]`, required
 
-The segmented description of ``r_\nu(A_H)``; every key has a default.
+The segmented description of ``r_\nu(A_H)``; every key has a default. The breakpoint search is
+exhaustive, so its cost grows combinatorially with `max_segments` and falls as
+`min_points_per_segment` rises. Over the 49 heavy masses of the ²⁵²Cf range the shipped settings,
+6 and 4, examine 1.9 × 10⁵ breakpoint sets per fit; 8 and 2 examine 2.4 × 10⁷. The loader accepts
+every combination within the bounds below and does not estimate that cost.
 
 | Key | Type | Default | Constraint | In the identifier | Meaning |
 | :--- | :--- | :--- | :--- | :--- | :--- |

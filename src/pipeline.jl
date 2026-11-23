@@ -3,7 +3,7 @@
 """
     SymmetryDiagnostics
 
-The identities that hold by construction at the symmetric split, checked rather than assumed.
+Checks of the identities that hold by construction at the symmetric split.
 
 # Fields
 
@@ -89,7 +89,7 @@ written to disk by [`write_results`](@ref).
   that reaches the coverage floor, keyed by curve label and then by yield label. Empty when no
   yields were given.
 - `consensus_r_ν`: the combined multiplicity ratio the systematic-trend curve was fitted to, so
-  that the trend can be checked against its own input rather than taken on trust.
+  that the trend can be compared with its input.
 - `dataset_diagnostics`: one record per multiplicity dataset read, in the order read.
 - `dataset_outcomes`: for every dataset, whether it offers a segmented curve and, if not, why.
 - `symmetry`: the identities at the symmetric split, checked.
@@ -163,8 +163,7 @@ end
 """
     systematic_trend(result) -> ExtractedCurve
 
-The segmented curve that follows the systematic behaviour of the ratio rather than any single
-dataset.
+The segmented curve fitted to the combination of the pooled datasets.
 """
 function systematic_trend(result::ExtractionResult)
     index = findfirst(c -> c.label == SYSTEMATIC_TREND_LABEL, result.segmented_curves)
@@ -475,9 +474,9 @@ multiplicity ratio `r_ν = ν_H/(ν_L + ν_H)` of every dataset and the temperat
 describe the multiplicity ratio by joined straight segments, once per dataset and once more
 following its systematic behaviour.
 
-A run therefore returns several segmented curves rather than one. Where the datasets of a
-fissioning nucleus disagree — as they do markedly for some — a curve fitted through all of them
-describes none of them, and a prompt emission code has nothing to validate it against. They are
+A run therefore returns several segmented curves. Where the datasets of a fissioning nucleus
+disagree, as they do markedly for some, a curve fitted through all of them describes none of them,
+and a prompt emission code has nothing to validate it against. They are
 offered as alternatives: the code takes one as input, and which one describes reality is settled
 by comparing the multiplicity distributions and yields it produces against experiment. The
 systematic-trend curve is the one to use where a dataset is too sparse or too scattered to
@@ -1261,7 +1260,7 @@ function _fit_trend(
     return (; pooled, combined, correlogram, autocorrelation, trend, windows)
 end
 
-# The identities that hold by construction at the symmetric split, checked rather than assumed.
+# Checks of the identities that hold by construction at the symmetric split.
 function _symmetry_diagnostics(
     configuration::Configuration,
     relation::Tuple{RatioAveraging,LevelDensityModel,FragmentationDomain},

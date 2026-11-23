@@ -35,7 +35,7 @@ does not lower them; what its absence at every other mass number does to the com
 the business of [`pooled_correlation`](@ref). The mean of each dataset is removed, so a constant
 offset of one dataset from the others is in no lag.
 
-The estimate is low rather than high. The deviations of a short series from their own mean are
+The estimate is biased low. The deviations of a short series from their own mean are
 less correlated than its errors: for a series of `n` points and a lag-one correlation `ρ` the
 estimate falls short by about `(1 + 3ρ)/n`. And the combined curve carries a share of every other
 dataset's error into a deviation, a share that changes where one of them stops.

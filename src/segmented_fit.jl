@@ -358,7 +358,7 @@ function _best_for_order(
         wrss = sum(w .* (ys .- X * β) .^ 2)
         _within_bounds(bounds, xs, ψ, β, pinned, pinned_value) || return nothing
         criterion = _bic(wrss, n_measured, parameters)
-        # The first admissible candidate is kept whatever its criterion, as before.
+        # The first admissible candidate is kept whatever its criterion.
         if !best.found || criterion < best.bic
             best.found = true
             best.bic = criterion
