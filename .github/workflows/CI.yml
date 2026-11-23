@@ -23,7 +23,7 @@ jobs:
       fail-fast: false
       matrix:
         version:
-          - '1.11'
+          - 'min' # the floor declared under [compat] in Project.toml
           - '1'
         os:
           - ubuntu-latest

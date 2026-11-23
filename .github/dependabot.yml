@@ -22,7 +22,10 @@ updates:
     # Standard libraries ship with Julia itself. Pinning one to the version carried by a single
     # release makes the declared compatibility floor unsatisfiable, which has broken this
     # repository once already; their entries carry the form "<0.0.1, 1" and nothing narrower.
+    # JuliaFormatter is held to one exact release under /formatter, so that the local gate and the
+    # CI gate format alike; the pin is raised by hand, together with whatever it reformats.
     ignore:
+      - dependency-name: "JuliaFormatter"
       - dependency-name: "Dates"
       - dependency-name: "InteractiveUtils"
       - dependency-name: "LinearAlgebra"

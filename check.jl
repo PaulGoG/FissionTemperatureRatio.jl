@@ -5,7 +5,7 @@
 #
 # Mirrors the gate that CI applies, so a failure is reproducible locally.
 
-# Directories and root scripts the formatter covers; format.yml applies the same list.
+# Directories and root scripts the formatter covers; Format.yml applies the same list.
 const TARGETS = (
     "src", "test", "scripts", "bench", "docs", "ext", "formatter", "activate.jl", "check.jl"
 )
