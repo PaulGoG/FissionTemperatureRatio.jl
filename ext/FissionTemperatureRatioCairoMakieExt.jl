@@ -205,7 +205,7 @@ function FissionTemperatureRatio.plot_ratio(
             axis,
             [reference];
             color = :black,
-            linestyle = :dash,
+            linestyle = :dashdot,
             linewidth = 1.5,
             label = isempty(reference_label) ? nothing : reference_label,
         )
@@ -327,6 +327,8 @@ end
 # Legends sit above the axes, horizontally, so that they cannot collide with the data however the
 # points and their error bars happen to fall.
 function _legend_above(figure::Figure, axis::Axis, entries::Integer)
+    # One series needs no legend, and none has nothing to name.
+    entries > 1 || return figure
     # Banked so that no row exceeds the column count the canvas can hold; wider rows overflow the
     # figure and the rightmost label is clipped without any error.
     Legend(
@@ -379,7 +381,7 @@ function _fit_annotation(curve)
     fit = curve.fit
     count = FissionTemperatureRatio.segment_count(fit)
     quality = if fit.weights_imputed == fit.points
-        LaTeXString("no quoted uncertainties")
+        LaTeXString("No quoted uncertainties")
     else
         reduced = @sprintf("%.2f", fit.wrss / fit.dof)
         L"$\chi^2/\mathrm{dof} = %$(reduced)$"

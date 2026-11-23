@@ -24,6 +24,8 @@
         CairoMakie.with_theme(publication_theme()) do
             figure = plot_multiplicities([data])
             @test figure isa CairoMakie.Figure
+            # One series is drawn without a legend.
+            @test isempty(filter(block -> block isa CairoMakie.Legend, figure.content))
 
             ratio = plot_ratio(
                 [curve]; ylabel = "R", reference = 1.0, reference_label = "Unity"

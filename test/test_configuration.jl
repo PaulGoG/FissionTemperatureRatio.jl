@@ -803,7 +803,7 @@ end
             )
             # Without a yield distribution the floor gates nothing and is no parameter.
             configuration = load_configuration(path; data_directory = directory)
-            @test !haskey(run_parameters(configuration), "Ycov")
+            @test !haskey(run_parameters(configuration), "yield")
         end
     end
 

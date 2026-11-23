@@ -1,3 +1,5 @@
+using SHA: sha256
+
 # The pipeline on synthetic input: no shipped data is needed, so this runs on a bare clone.
 
 # The testsets below are functions of their own: as part of the one closure that holds the rest
@@ -480,6 +482,33 @@ end
                     "label", "kind", "temperature_ratio_file", "multiplicity_ratio_pivots_file"
                 ])
             end
+        end
+
+        @testset "every input file is recorded with its size and digest" begin
+            files = run_metadata(result)["inputs"]["files"]
+            read = ["datasets/full.dat", "datasets/partial.dat", "datasets/sparse.dat"]
+            @test sort!(collect(keys(files))) == sort!([read; "shell_corrections.dat"])
+            for name in keys(files)
+                path = joinpath(directory, name)
+                @test files[name]["size"] == filesize(path)
+                @test files[name]["sha256"] == bytes2hex(sha256(Base.read(path)))
+            end
+        end
+
+        @testset "a data file name leads with its accession" begin
+            label = FissionTemperatureRatio._dataset_label
+            accession = FissionTemperatureRatio._accession
+            @test label("23175008_C.Budtz-jorgensen_1988.dat") == "C. Budtz-jorgensen 1988"
+            @test accession("23175008_C.Budtz-jorgensen_1988.dat") == "23175008"
+            @test label("140650021_H.R.Bowman_1963.dat") == "H.R. Bowman 1963"
+            @test accession("140650021_H.R.Bowman_1963.dat") == "140650021"
+            # Entries outside the neutron areas of EXFOR lead with a letter.
+            @test label("C0123002_A.Author_2000.dat") == "A. Author 2000"
+            @test accession("C0123002_A.Author_2000.dat") == "C0123002"
+            # A tabulation numbered by hand, and one that carries no number.
+            @test label("1_A.Author_2000.dat") == "A. Author 2000"
+            @test accession("1_A.Author_2000.dat") == "1"
+            @test accession("full.dat") == "full"
         end
 
         @testset "ΔZ = 0 imposed at the symmetric split is recorded as the identifier shows it" begin

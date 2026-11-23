@@ -207,17 +207,17 @@ function _data_files(directory::AbstractString)
     return sort!(filter!(f -> endswith(f, ".dat") && !startswith(f, "."), readdir(directory)))
 end
 
-# `<accession>_<Author>_<year>.dat`. The accession is eight digits, or nine where the dataset is a
-# pointer within a subentry.
+# `<accession>_<Author>_<year>.dat`. The accession has eight characters, or nine where the dataset
+# is a pointer within a subentry; entries outside the neutron areas of EXFOR lead with a letter.
 function _dataset_label(file::AbstractString)
-    stem = replace(splitext(file)[1], r"^[0-9]+_" => "")
+    stem = replace(splitext(file)[1], ACCESSION_FILE_PREFIX => "")
     label = replace(stem, '_' => ' ')
     # Initials are written without a space in the file names; restore it for the legend.
     return replace(label, r"(?<=\b[A-Z])\.(?=[A-Z][a-z])" => ". ")
 end
 
 function _accession(file::AbstractString)
-    found = match(r"^([0-9]+)_", file)
+    found = match(ACCESSION_FILE_PREFIX, file)
     return found === nothing ? splitext(file)[1] : found.captures[1]
 end
 
@@ -1707,8 +1707,8 @@ function _diagnostic_rows(result::ExtractionResult, accessions::AbstractDict, di
             last_pair = d.last_pair,
             coverage = round(d.coverage; sigdigits = digits),
             outside_physical_range = d.outside_physical_range,
-            complement_sum = d.complement_sum,
-            complement_spread = d.complement_spread,
+            complement_sum = round(d.complement_sum; sigdigits = digits),
+            complement_spread = round(d.complement_spread; sigdigits = digits),
             without_uncertainties = d.without_uncertainties,
             qualifiers = _text_field(join(_qualifiers(data.record), " ")),
             pooling_weight = round(_measured_fraction(data.record); sigdigits = digits),

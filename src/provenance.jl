@@ -270,20 +270,20 @@ end
 
 What the library knows about a run, as nested tables ready for `TOML.print`: the system, every
 configuration value by section and key, defaults included, the parameters the run identifier was
-formed from, the input files and the retrievals that produced them — the parser revision and the
-record of the `⟨TKE⟩(A)` dataset in particular, with the heavy masses it was interpolated or
-extrapolated to — the package version, and a summary of the result: each segmented curve, the
-identities checked at the symmetric split, what became of every dataset, the autocorrelation the
-covariance of the trend was built with, the leave-one-out refits of the trend, and the flagged
-dataset curves.
+formed from, the input files with their size and SHA-256, the retrievals that produced them (the
+parser revision and the record of the `⟨TKE⟩(A)` dataset in particular, with the heavy masses it
+was interpolated or extrapolated to), the package version, and a summary of the result: each
+segmented curve, the identities checked at the symmetric split, what became of every dataset, the
+autocorrelation the covariance of the trend was built with, the leave-one-out refits of the trend,
+and the flagged dataset curves.
 
-A key that does not apply to the run is absent rather than written with a placeholder: an
-optional input not given, a test with no symmetric split to apply to, an autocorrelation no lag
+A key that does not apply to the run is absent, not written with a placeholder: an optional input
+not given, a test with no symmetric split to apply to, an autocorrelation no lag
 could estimate. The domain the curves were extracted on is the manifest's `[domain]` table, and
 the resolved dependencies are the `Manifest.toml` `scripts/run.jl` copies beside the record.
 
-The caller adds what only it knows — the run identifier's place on disk, the configuration path,
-the files written, the commit, the platform — and writes the whole; `scripts/run.jl` does.
+The caller adds what only it knows (the run identifier's place on disk, the configuration path,
+the files written, the commit, the platform) and writes the whole; `scripts/run.jl` does.
 """
 function run_metadata(result::ExtractionResult)
     configuration = result.configuration
@@ -354,6 +354,38 @@ function run_metadata(result::ExtractionResult)
     )
 end
 
+# Every input file a run read, by its path relative to the data directory, with its size in bytes
+# and its SHA-256: a result is then tied to the bytes it was computed from, and an input changed
+# in place is detectable. Inputs that ship with FissionFragmentsDomain are named, not files, and
+# are pinned by its version.
+function _input_files(result::ExtractionResult)
+    configuration = result.configuration
+    paths = String[data.source for data in result.datasets]
+    append!(paths, (distribution.source for distribution in result.mass_yields))
+    result.mean_kinetic_energy === nothing || push!(paths, result.mean_kinetic_energy.source)
+    level_density = configuration.level_density
+    for source in (
+        configuration.fragmentation.charge_distribution,
+        level_density.mass_excess_file,
+        level_density.model == "GC" ? level_density.shell_correction_file : "",
+    )
+        (isempty(source) || source in NAMED_SOURCES) || push!(paths, source)
+    end
+    for directory in (
+        configuration.multiplicity_directory,
+        configuration.yield_directory,
+        _parent(configuration.yield_file),
+        _parent(level_density.mean_kinetic_energy_file),
+    )
+        directory === nothing || append!(paths, first.(_retrieval_documents(directory)))
+    end
+    return Dict{String,Any}(
+        _relative_input(path, configuration) => Dict{String,Any}(
+            "size" => filesize(path), "sha256" => bytes2hex(open(sha256, path))
+        ) for path in unique!(sort!(paths))
+    )
+end
+
 # The input files of a run and the retrievals that produced them.
 function _inputs_record(result::ExtractionResult)
     configuration = result.configuration
@@ -393,6 +425,7 @@ function _inputs_record(result::ExtractionResult)
             !isempty(_flagged(record.qualifiers))
         ),
         "retrievals" => _retrieval_runs(configuration),
+        "files" => _input_files(result),
     )
     level_density.model == "GC" && (
         record["shell_correction_file"] = _input_value(

@@ -16,6 +16,10 @@ const FLAGGED_QUALIFIERS = ("DERIV", "SPA", "preliminary")
 # holds several datasets, a pointer character.
 const ACCESSION_PATTERN = r"^[0-9A-Z]{8,9}$"
 
+# What the name of a data file leads with, `<accession>_<Author>_<year>.dat`: an identifier of the
+# pattern above, or the digits of a tabulation numbered by hand.
+const ACCESSION_FILE_PREFIX = r"^([0-9A-Z]{8,9}|[0-9]+)_"
+
 """
     PairSumScale
 

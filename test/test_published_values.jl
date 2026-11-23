@@ -1,5 +1,6 @@
-# Regression against the total averages ⟨R_T⟩ of Table 1 of Eur. Phys. J. A 60, 190 (2024),
-# doi:10.1140/epja/s10050-024-01375-7; the rows and their tolerances are in `fixtures.jl`.
+# Regression against the total averages ⟨R_T⟩ of Tables 1 and 2 of Eur. Phys. J. A 60, 190
+# (2024), doi:10.1140/epja/s10050-024-01375-7; the rows and their tolerances are in
+# `fixtures.jl`.
 #
 # Two runs. The published settings — the ratio of means over the evaluated Gaussian charge tables
 # with ΔZ(A₀/2) = 0, or over the mean values for 233-U — need the digitised tables, which are held
@@ -59,6 +60,41 @@ DATA_AVAILABLE && @testset "published total averages" begin
                 end
             end
             published_rows_hold(results)
+        else
+            @test_skip false
+        end
+    end
+
+    @testset "Table 2: one charge per mass, and Gilbert-Cameron" begin
+        if has_inputs("U233_nth")
+            mktempdir() do directory
+                settings = published_settings("U233_nth")
+                variants = unique(
+                    (variant, change) for
+                    (variant, change, _, _, _) in PUBLISHED_VARIANT_AVERAGES
+                )
+                for (variant, (section, entries)) in variants
+                    set = Dict{String,Any}(deepcopy(settings.set))
+                    set[section] = merge(
+                        Dict{String,Any}(get(set, section, Dict{String,Any}())), entries
+                    )
+                    mkpath(joinpath(directory, replace(variant, ' ' => '_')))
+                    configuration = variant_configuration(
+                        "U233_nth",
+                        joinpath(directory, replace(variant, ' ' => '_'));
+                        set = set,
+                        remove = settings.remove,
+                    )
+                    result = run_pipeline(configuration; leave_one_out = false)
+                    variant == "Gilbert-Cameron" &&
+                        @test manifest_domain(result).level_density_model == "GC"
+                    for (name, _, dataset, published, tolerance) in PUBLISHED_VARIANT_AVERAGES
+                        name == variant || continue
+                        average = result.total_average_R_T[dataset]["V.M. Surin 1972"]
+                        @test average.value ≈ published rtol = tolerance
+                    end
+                end
+            end
         else
             @test_skip false
         end

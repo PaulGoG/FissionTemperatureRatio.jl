@@ -15,7 +15,7 @@ const CONFIG_DIRECTORY = joinpath(pkgdir(FissionTemperatureRatio), "config")
 # retrieved from EXFOR.
 const DATA_AVAILABLE =
     all(isdir(joinpath(DATA_DIRECTORY, s, "nu_vs_A")) for s in ("Cf252_sf", "U233_nth")) &&
-    isdir(joinpath(DATA_DIRECTORY, "U233_nth", "TKE_vs_A"))
+    all(isdir(joinpath(DATA_DIRECTORY, "U233_nth", d)) for d in ("TKE_vs_A", "Y_vs_A"))
 
 DATA_AVAILABLE || @warn "input data not present; the tests that need it are skipped" directory =
     DATA_DIRECTORY
@@ -170,6 +170,43 @@ const SHIPPED_TOLERANCE = Dict(
     ("Pu239_nth", "Yu.S. Zamyatnin 1979", "K. Nishio 1995") => 0.0030431,
     ("Pu239_nth", "J.S. Fraser 1966", "K. Nishio 1995") => 0.0080452,
 )
+
+# The total averages ⟨R_T⟩ of Table 2 of the same paper, 233-U(nth,f) over Surin's Y(A), under
+# two variants of the published settings: (i) one charge per mass number, (ii) Gilbert-Cameron
+# eq. (20) throughout with five charges per mass number. The bounds are those stated for
+# Table 1: 1 %, and 2.5 % for Apalin's measurement, whose non-integer masses the retrieval
+# interpolates.
+const PUBLISHED_VARIANT_AVERAGES = [
+    # variant, settings changed, ν(A) dataset, published ⟨R_T⟩, relative tolerance
+    (
+        "one charge per mass",
+        "fragmentation" => Dict("charges_per_mass" => 1),
+        "K. Nishio 1998",
+        1.1867,
+        0.010,
+    ),
+    (
+        "one charge per mass",
+        "fragmentation" => Dict("charges_per_mass" => 1),
+        "V.F. Apalin 1965",
+        1.0301,
+        0.025,
+    ),
+    (
+        "Gilbert-Cameron",
+        "level_density" => Dict("model" => "GC", "deformed_branch" => false),
+        "K. Nishio 1998",
+        1.1689,
+        0.010,
+    ),
+    (
+        "Gilbert-Cameron",
+        "level_density" => Dict("model" => "GC", "deformed_branch" => false),
+        "V.F. Apalin 1965",
+        1.0156,
+        0.025,
+    ),
+]
 
 # The synthetic configuration and input the pipeline, experiment and plotting tests run on.
 

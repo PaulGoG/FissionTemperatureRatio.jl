@@ -108,7 +108,7 @@ using FissionFragmentsDomain:
     write_temperature_ratio_manifest
 using LinearAlgebra: Symmetric, cond, dot, eigmin, tr
 using Measurements: Measurements
-using SHA: sha1
+using SHA: sha1, sha256
 using Statistics: mean, median, std
 using TOML: TOML
 
