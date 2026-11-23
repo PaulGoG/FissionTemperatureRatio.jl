@@ -26,6 +26,9 @@ the minor version and a patch release carries none.
 - Figures: the reference line (`Equal sharing`, `Equal temperatures`) is dash-dotted, so that its
   legend entry differs from that of the dashed systematic trend; a figure of one series carries
   no legend; the annotation `No quoted uncertainties` opens with a capital.
+- The activation scripts install the default registry where the Julia depot holds none, as on a
+  first use of Julia or a continuous-integration runner without a cache; they stopped there with
+  "no registries have been installed", `resolve` fetching none.
 - `formatter/activate.jl` moves an environment resolved under an earlier formatter pin to the
   current one, where it stopped with a resolver error.
 
