@@ -123,7 +123,11 @@ include("segmented_fit.jl")
 include("extracted_curve.jl")
 include("configuration.jl")
 include("plotting.jl")
+include("extraction_result.jl")
+include("dataset_input.jl")
+include("pooling.jl")
 include("pipeline.jl")
+include("output.jl")
 include("provenance.jl")
 
 # What a run is driven by, reads and returns, exported.

@@ -347,12 +347,16 @@ FissionTemperatureRatio/
 │   ├── autocorrelation.jl          errors of pooled datasets along the mass axis: correlogram, decay
 │   ├── configuration.jl            TOML configuration, parsed and validated; model builders
 │   ├── consensus.jl                combining datasets, and the diagnostics describing them
+│   ├── dataset_input.jl            ν(A) datasets as read: labels, accessions, exclusions
 │   ├── extracted_curve.jl          one extracted curve: fit, R_T, covariance; its averages
+│   ├── extraction_result.jl        what a run returns
 │   ├── FissionTemperatureRatio.jl  module definition and public interface
 │   ├── kinetic_energy.jl           ⟨TKE⟩(A) onto the heavy-mass range
 │   ├── multiplicity_ratio.jl       ν(A) input and the multiplicity ratio
-│   ├── pipeline.jl                 the run, from input to tabulated output and run record
+│   ├── output.jl                   tabulated output, the manifest and the file names
+│   ├── pipeline.jl                 the run, from input to segmented curves and total averages
 │   ├── plotting.jl                 figure interface; the implementation is in ext/
+│   ├── pooling.jl                  the datasets pooled into the systematic trend; leave-one-out refits
 │   ├── provenance.jl               run identification and metadata
 │   ├── retrieval.jl                the retrieval records beside the inputs, read once and checked
 │   ├── segmented_fit.jl            continuous piecewise-linear regression
