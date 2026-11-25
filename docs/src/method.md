@@ -43,10 +43,9 @@ uncertainty for one fragment of a pair and none for the other, the term of the u
 is left out, as it was for the values of [Tudora2024](@cite), and the uncertainty carried at that
 pair is a lower bound. This holds at 53 pairs in 12 of the datasets read. The segment count of the
 ²⁵²Cf trend depends on it: with those pairs read as quoting no uncertainty, the trend has four
-segments in place of six and ``\langle R_T \rangle`` is 1.0840 ± 0.0163 in place of
-1.0861 ± 0.0150. For ²³⁹Pu the same reading gives 1.0333 ± 0.0247 in place of 1.0340 ± 0.0253, and
-the ²³⁵U and ²³³U trends move by less than 0.001. Where neither fragment quotes an uncertainty the
-pair quotes none.
+segments in place of six and ``\langle R_T \rangle`` is 1.0840 ± 0.0157 in place of
+1.0861 ± 0.0144. The ²³⁵U, ²³⁹Pu and ²³³U trends move by 0.001 or less under the same reading.
+Where neither fragment quotes an uncertainty the pair quotes none.
 
 For a single effective ratio ``R_a`` in place of the per-charge ``\rho_Z`` the relation inverts in
 closed form, eq. (4) of [Tudora2024](@cite),
@@ -385,13 +384,13 @@ are alternative analyses of one experiment, for ²⁵²Cf (EXFOR 41720002 and 41
 (41720004 and 41694003); their tables differ by 0.34 and 0.36 neutrons rms.
 
 Pooled as two measurements they would give the ²⁵²Cf trend 5 segments, breakpoints at 130, 137,
-143 and 149, `χ²/dof` = 1.73 and `⟨R_T⟩` = 1.0908; pooled as one it takes 6 segments, breakpoints
-at 129, 133, 137, 142 and 149, `χ²/dof` = 1.79 and `⟨R_T⟩` = 1.0861, and 1.0823 with the
+143 and 149, `χ²/dof` = 1.56 and `⟨R_T⟩` = 1.0908; pooled as one it takes 6 segments, breakpoints
+at 129, 133, 137, 142 and 149, `χ²/dof` = 1.65 and `⟨R_T⟩` = 1.0861, and 1.0840 with the
 experiment left out. For ²³⁹Pu, with Nishio 1995 still pooled, the grouping alone keeps 6
 segments, with breakpoints at 126, 130, 137, 148 and 154 in place of 126, 130, 137, 149 and 154,
-`χ²/dof` = 0.54 in place of 0.49 and `⟨R_T⟩` = 1.0106 in place of 1.0293. The shipped ²³⁹Pu pool,
-which excludes Nishio 1995 as well, takes 5 segments, breakpoints at 128, 137, 144 and 155,
-`χ²/dof` = 0.70 and `⟨R_T⟩` = 1.0340, and 1.0216 with the experiment left out.
+`χ²/dof` = 0.48 in place of 0.42 and `⟨R_T⟩` = 1.0106 in place of 1.0293. The shipped ²³⁹Pu pool,
+which excludes Nishio 1995 as well, takes 6 segments, breakpoints at 126, 130, 137, 144 and 155,
+`χ²/dof` = 0.54 and `⟨R_T⟩` = 1.0285, and 1.0216 with the experiment left out.
 
 The fixed-effect weights ``a = 1/v = f/\sigma^2`` are then the inverse variances of the values, so
 the statistic ``Q = \sum a\,(r - \bar{r}_a)^2`` the variance is estimated from has the
@@ -535,9 +534,9 @@ own degrees of freedom, which count measured fractions and breakpoints:
 The two coincide for ``R = I``. The covariance is scaled by ``\max(1, \chi^2/\mathrm{E}[\chi^2])``,
 and by ``\chi^2/\mathrm{E}[\chi^2]`` alone where no point quotes an uncertainty. With positively
 correlated errors a smooth fit absorbs part of the error, and ``\mathrm{E}[\chi^2]`` falls below
-the degrees of freedom, to 0.653 of them for ²³⁵U and 0.523 for ²³⁹Pu. The reduced chi-squared of
-the ²³⁵U trend, 0.39, is consistent with correlated errors under a smooth fit: relative to its
-expectation, ``\chi^2`` is 0.60. That of the ²³⁹Pu trend, 0.70, is 1.33 times its expectation,
+the degrees of freedom, to 0.653 of them for ²³⁵U and 0.486 for ²³⁹Pu. The reduced chi-squared of
+the ²³⁵U trend, 0.37, is consistent with correlated errors under a smooth fit: relative to its
+expectation, ``\chi^2`` is 0.57. That of the ²³⁹Pu trend, 0.54, is 1.10 times its expectation,
 and the covariance of that trend is scaled by it.
 
 The table gives the values a run writes for the four shipped systems, with
@@ -550,14 +549,14 @@ uncertainty and the jackknife are the columns `R_T`, `R_T_uncertainty` and
 
 | System | ``\rho`` | ``\chi^2/\mathrm{dof}`` | ``\chi^2/\mathrm{E}[\chi^2]`` | ``\langle R_T \rangle`` ± `R_T_uncertainty` | `R_T_uncertainty_leave_one_out` |
 | :--- | ---: | ---: | ---: | ---: | ---: |
-| ²⁵²Cf(sf) | 0.865 | 1.79 | 3.58 | 1.0861 ± 0.0150 | 0.0103 |
-| ²³⁵U(nth,f) | 0.691 | 0.39 | 0.60 | 1.1210 ± 0.0152 | 0.0223 |
-| ²³⁹Pu(nth,f) | 0.812 | 0.70 | 1.33 | 1.0340 ± 0.0253 | 0.0274 |
-| ²³³U(nth,f) | 0.804 | 1.74 | 2.51 | 1.0657 ± 0.0917 | 0.1408 |
+| ²⁵²Cf(sf) | 0.865 | 1.65 | 3.28 | 1.0861 ± 0.0144 | 0.0100 |
+| ²³⁵U(nth,f) | 0.691 | 0.37 | 0.57 | 1.1210 ± 0.0152 | 0.0223 |
+| ²³⁹Pu(nth,f) | 0.812 | 0.54 | 1.10 | 1.0285 ± 0.0228 | 0.0274 |
+| ²³³U(nth,f) | 0.804 | 1.61 | 2.32 | 1.0657 ± 0.0883 | 0.1408 |
 
 Refitted with the combined points taken as independent, a number a run does not write, the four
-uncertainties of ``\langle R_T \rangle`` would be 0.0035, 0.0074, 0.0084 and 0.0306. The
-tabulated ``\sigma(R_T)`` of the trends is larger by a median factor of 3.6, 1.9, 2.5 and 2.7.
+uncertainties of ``\langle R_T \rangle`` would be 0.0033, 0.0074, 0.0086 and 0.0295. The
+tabulated ``\sigma(R_T)`` of the trends is larger by a median factor of 3.6, 1.9, 2.2 and 2.7.
 
 The matrix does not account for a constant offset of one dataset from the others: the correlogram
 removes the mean of each dataset, so such an offset appears in no lag and in no matrix built from
@@ -585,12 +584,12 @@ averages:
 | ²³⁹Pu(nth,f) | 1.0202 | 1.0596 |
 | ²³³U(nth,f) | 0.9721 | 1.1730 |
 
-For ²³⁵U and ²³³U the jackknife uncertainty exceeds the propagated one by a factor of 1.5,
-0.0223 against 0.0152 and 0.1408 against 0.0917: the datasets differ by offsets that the kernel
-does not describe, most of all for ²³³U, whose trend over four datasets moves between 0.97 and
-1.17 when one of them is left out. For ²³⁹Pu the two are about equal, 0.0274 against 0.0253; for
-²⁵²Cf, with thirteen experiments, the jackknife is about two thirds of the propagated uncertainty,
-0.0103 against 0.0150.
+For ²³⁵U and ²³³U the jackknife uncertainty exceeds the propagated one by a factor of 1.5 and
+1.6, 0.0223 against 0.0152 and 0.1408 against 0.0883: the datasets differ by offsets that the
+kernel does not describe, most of all for ²³³U, whose trend over four datasets moves between
+0.97 and 1.17 when one of them is left out. For ²³⁹Pu the jackknife is larger by a fifth, 0.0274
+against 0.0228; for ²⁵²Cf, with thirteen experiments, it is about two thirds of the propagated
+uncertainty, 0.0100 against 0.0144.
 
 `run_pipeline(configuration; leave_one_out = false)` skips the refits, which cost one trend fit per
 pooled dataset or experiment.
