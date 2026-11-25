@@ -2,6 +2,7 @@
 # datasets, the dispersion of unquoted pools and the estimate of the between-dataset variance.
 
 using StableRNGs: StableRNG
+using Statistics: mean, std
 
 # The combination of `curves`, each at one measured fraction, as the combined curve, the measured
 # fraction of each point and its uncertainty as one measurement.
@@ -276,5 +277,52 @@ end
         # An unquoted uncertainty is missing, and is accepted.
         unquoted = RatioCurve([126, 127], [0.5, 0.48], [missing, 0.01], "unquoted")
         @test FissionTemperatureRatio.consensus([unquoted, other]) isa RatioCurve
+    end
+
+    @testset "the measured fraction is the variance a combined point holds as whole measurements" begin
+        σ = [0.01, 0.02, 0.015, 0.03]
+        uncertainties = Union{Missing,Float64}[σ...]
+        factors = [1.0, 0.4, 0.7, 0.25]
+        μ = 0.4
+        draws = 200_000
+        cases = (
+            agreeing = [0.40, 0.401, 0.399, 0.4005],
+            disagreeing = [0.30, 0.36, 0.33, 0.27],
+            dominant = [0.10, 0.50, 0.30, 0.70],
+        )
+        fractions = Dict{Symbol,Float64}()
+        for (name, values) in pairs(cases)
+            _, spread, fraction, _, share = FissionTemperatureRatio._combine(
+                values, uncertainties, factors
+            )
+            fractions[name] = fraction
+            @test 0 < fraction ≤ 1
+
+            # With w = 1/(σ²/f + τ²), τ² is the same whichever value it is read from.
+            weights = share ./ spread^2
+            τ² = 1 ./ weights .- σ .^ 2 ./ factors
+            @test all(≈(first(τ²); atol = 1e-12), τ²)
+            # Zero up to roundoff where the truncation at zero acts.
+            @test all(≥(-1e-12), τ²)
+            name === :agreeing && @test first(τ²) ≈ 0 atol = 1e-12
+            name === :dominant && @test first(τ²) > 10 * maximum(σ .^ 2 ./ factors)
+
+            # E[(r̄ − μ)²]/spread² is the fraction when each value is a whole measurement of
+            # variance σ² + τ².
+            rng = StableRNG(20261125)
+            scale = sqrt.(σ .^ 2 .+ max(first(τ²), 0.0))
+            statistic = Vector{Float64}(undef, draws)
+            for draw in 1:draws
+                replicate = μ .+ scale .* randn(rng, length(σ))
+                statistic[draw] = (sum(share .* replicate) - μ)^2 / spread^2
+            end
+            @test abs(mean(statistic) - fraction) ≤ 3 * std(statistic) / sqrt(draws)
+        end
+        # The dispersion between datasets counts whole measurements, which the pooling factors
+        # do not reduce.
+        _, _, _, _, share = FissionTemperatureRatio._combine(
+            cases.dominant, uncertainties, factors
+        )
+        @test fractions[:dominant] > sum(share .* factors)
     end
 end

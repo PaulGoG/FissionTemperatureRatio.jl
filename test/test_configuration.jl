@@ -693,7 +693,7 @@ end
 
             # The limit on the breakpoint sets is a guard on the cost of the search: it refuses
             # a run or leaves its result as it is, and is no parameter of it.
-            @test configuration.segments.max_breakpoint_sets == 1_000_000
+            @test configuration.segments.max_breakpoint_sets == 10_000_000
             other = write_beside(
                 path,
                 replace(

@@ -179,4 +179,25 @@ end
             @test read_multiplicity(path; record = nothing).record === nothing
         end
     end
+
+    @testset "a directory is read once, however it is spelt" begin
+        mktempdir() do root
+            yields = joinpath(root, "yields")
+            mkdir(yields)
+            mkdir(joinpath(root, "other"))
+            write(joinpath(yields, "retrieval.toml"), RETRIEVAL_RECORD)
+            spellings = [yields, yields * "/", joinpath(root, "other", "..", "yields")]
+            retrievals = FissionTemperatureRatio._read_retrievals(spellings[2:3])
+            @test length(retrievals) == 1
+
+            # With the record gone from disk, only the documents held can answer.
+            rm(joinpath(yields, "retrieval.toml"))
+            for spelling in spellings
+                @test length(FissionTemperatureRatio._documents(retrievals, spelling)) == 1
+            end
+            # A directory not held is read from disk, and holds no record.
+            absent = FissionTemperatureRatio._documents(retrievals, joinpath(root, "other"))
+            @test isempty(absent)
+        end
+    end
 end
