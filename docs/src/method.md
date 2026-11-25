@@ -31,6 +31,22 @@ configuration; without one, every fragmentation is weighted by ``p(Z, A_H)`` alo
 says so in its log and in its manifest. A heavy mass beyond the measured span takes the value at
 the nearest measured mass and is listed as extrapolated in the run metadata.
 
+The uncertainty of ``r_\nu`` is propagated from those of the two multiplicities,
+
+```math
+\sigma_r^2 = \frac{\nu_L^2\, \sigma_H^2 + \nu_H^2\, \sigma_L^2}{(\nu_L + \nu_H)^4},
+```
+
+and that of ``R_T`` follows from it by the slope of the inversion. Where a dataset quotes an
+uncertainty for one fragment of a pair and none for the other, the term of the unquoted fragment
+is left out, as it was for the values of [Tudora2024](@cite), and the uncertainty carried at that
+pair is a lower bound. This holds at 53 pairs in 12 of the datasets read. The segment count of the
+²⁵²Cf trend depends on it: with those pairs read as quoting no uncertainty, the trend has four
+segments in place of six and ``\langle R_T \rangle`` is 1.0840 ± 0.0163 in place of
+1.0861 ± 0.0150. For ²³⁹Pu the same reading gives 1.0333 ± 0.0247 in place of 1.0340 ± 0.0253, and
+the ²³⁵U and ²³³U trends move by less than 0.001. Where neither fragment quotes an uncertainty the
+pair quotes none.
+
 For a single effective ratio ``R_a`` in place of the per-charge ``\rho_Z`` the relation inverts in
 closed form, eq. (4) of [Tudora2024](@cite),
 
