@@ -69,7 +69,10 @@ text. `R_T` is not piecewise-linear even where the multiplicity ratio is, becaus
 density parameters carry the shell structure into it. It is therefore tabulated at every mass
 number, and whatever interpolation a consumer applies reproduces the tabulated value. The pivot
 file holds `r_ν`, not `R_T`. The tabulated `R_T_uncertainty` is the square root of the diagonal of
-the propagated covariance of the curve. The tabulated points are not independent, so summing
+the propagated covariance of the curve. That covariance is taken at the selected breakpoints and
+does not contain the uncertainty of the number of segments: near a breakpoint that a neighbouring
+order places elsewhere, the curve of that order can lie several times `R_T_uncertainty` away, as
+the [method](method.md) page shows for ²³⁹Pu. The tabulated points are not independent, so summing
 their uncertainties in quadrature understates the uncertainty of any average over them.
 `total_average_R_T_<run identifier>.csv` carries the covariance-propagated uncertainty of each
 total average first and the independent-points one beside it.

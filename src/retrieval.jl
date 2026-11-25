@@ -101,17 +101,22 @@ end
 function _read_retrievals(directories)
     retrievals = RetrievalDocuments()
     for directory in directories
-        directory === nothing ||
-            haskey(retrievals, directory) ||
-            (retrievals[directory] = _retrieval_documents(directory))
+        directory === nothing && continue
+        key = _directory_key(directory)
+        haskey(retrievals, key) || (retrievals[key] = _retrieval_documents(key))
     end
     return retrievals
 end
 
 # The documents held for `directory`; those of a directory not held are read from it.
 function _documents(retrievals::RetrievalDocuments, directory::AbstractString)
-    return get(() -> _retrieval_documents(directory), retrievals, directory)
+    key = _directory_key(directory)
+    return get(() -> _retrieval_documents(key), retrievals, key)
 end
+
+# One spelling per directory, so that `yields/`, `yields` and `x/../yields` find the records read
+# once: normalised, without a trailing separator.
+_directory_key(directory::AbstractString) = dirname(joinpath(normpath(directory), "_"))
 
 # "MXW: Maxwellian-averaged" → "MXW"; the retrieval writes the tag and its meaning.
 _qualifier_tag(qualifier::AbstractString) = String(strip(first(split(qualifier, ':'))))

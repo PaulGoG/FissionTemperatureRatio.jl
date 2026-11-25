@@ -378,7 +378,7 @@ function _retrieval_directories(
 )
     return unique!(
         String[
-            directory for directory in (
+            _directory_key(directory) for directory in (
                 multiplicity_directory,
                 yield_directory,
                 _parent(yield_file),
@@ -443,9 +443,10 @@ struct Key
     allowed::Union{Nothing,Tuple{Real,Real},Tuple{Vararg{String}}}
 end
 
-# The largest number of breakpoint sets one fit examines where the configuration does not say:
-# about five times the 191350 of the shipped settings over 49 heavy masses.
-const DEFAULT_MAX_BREAKPOINT_SETS = 1_000_000
+# The largest number of breakpoint sets one fit examines where the configuration does not say.
+# Over 49 heavy masses it admits every segment limit at four points per segment, at most 1088589
+# sets, and refuses 8 segments of 2 points, 24128307 sets, and 9 of 3, 11025278.
+const DEFAULT_MAX_BREAKPOINT_SETS = 10_000_000
 
 # Every key of every section. The loader checks each value against its entry here and nothing
 # else; what depends on another key is checked where the settings are built, and by the

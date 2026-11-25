@@ -103,7 +103,8 @@ exhaustive, so its cost grows combinatorially with `max_segments` and falls as
 `min_points_per_segment` rises. Over the 49 heavy masses of the ²⁵²Cf range the shipped settings,
 6 and 4, examine 191350 breakpoint sets in a fit without windows; 8 and 2 examine 2.4 × 10⁷. A fit
 that would examine more than `max_breakpoint_sets` is refused before it starts, with the number in
-the message.
+the message. The default, 10⁷, admits every segment limit at four points per segment over such a
+range, at most 1.09 × 10⁶ sets, and refuses 8 segments of 2 points and 9 segments of 3.
 
 | Key | Type | Default | Constraint | In the identifier | Meaning |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -114,7 +115,7 @@ the message.
 | `windows_apply_to_datasets` | boolean | `false` | — | `h`, with windows | apply the windows to every dataset curve as well |
 | `min_pair_coverage` | real | `0.3` | 0 to 1 | `h` | the fraction of the range's heavy masses a dataset must pair to offer a curve of its own |
 | `autocorrelation_lags` | integer | `4` | 1 to 8 | `h` | lags of the deviation correlogram the trend's autocorrelation is fitted to |
-| `max_breakpoint_sets` | integer | `1000000` | 1 to 10⁹ | — | breakpoint sets one fit may examine, all segment counts together; above it the run is refused |
+| `max_breakpoint_sets` | integer | `10000000` | 1 to 10⁹ | — | breakpoint sets one fit may examine, all segment counts together; above it the run is refused |
 
 ## `[retrieval]`, optional
 

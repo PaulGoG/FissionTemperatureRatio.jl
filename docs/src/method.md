@@ -189,6 +189,13 @@ The sensitivity of a result to the selected order is reported with it: the syste
 refitted with one and two more segments, and its total average at each order is written beside the
 selected one.
 
+The propagated uncertainty of a curve is that of its coefficients at the selected breakpoints. It
+does not contain the uncertainty of the order or of the breakpoint positions. Where two orders are
+about equally supported, the curves they give can differ by more than that uncertainty near the
+breakpoints in which they differ. For ²³⁹Pu the criterion differs by 0.41 between five and six
+segments, and ``R_T`` at ``A_H = 128`` is 1.66 ± 0.11 with six and 2.17 ± 0.26 with five; from
+``A_H = 136`` on the two curves agree within 0.002.
+
 The coefficient covariance ``(X^\mathsf{T} W X)^{-1}`` is scaled by
 ``\max(1, \chi^2/\mathrm{dof})`` where the data quote uncertainties: it is inflated where the
 residuals exceed what the quoted uncertainties predict, and never shrunk below the quoted scale.
@@ -411,8 +418,10 @@ Where no value at a mass number quotes an uncertainty, each is taken to have the
 weights ``f``, and ``\mathrm{E}[\sum f (r - \bar{r})^2] = s^2 (k - 1)`` gives
 ``s^2 = \sum f (r - \bar{r})^2 / (k - 1)``. The mean has the standard error
 ``s/\sqrt{\sum f}``, which reduces to the usual standard error of the mean when the fractions are
-equal. If the values coincide there is no dispersion to estimate ``s^2`` from, and the combined
-point quotes no uncertainty. A value quoting no uncertainty beside values that
+equal. Under this model the whole dispersion is that of shares of a measurement, so the measured
+fraction of the combined point is ``\sum f^2/\sum f``. If the values coincide there is no
+dispersion to estimate ``s^2`` from, and the combined point quotes no uncertainty. A value quoting
+no uncertainty beside values that
 do takes the median of the quoted uncertainties at its mass number, as a point of a fit does.
 
 The datasets of one system disagree by ten to twenty times their quoted uncertainties.
@@ -426,12 +435,13 @@ segments. The standard error of a combined value treats the disagreement between
 independent from one mass number to the next, whereas the deviation of a dataset from the combined
 curve is largely an offset and a slow drift, correlated along the mass axis (next section). The
 combined curve therefore scatters about a smooth line far less than its standard
-error implies. For ²³⁵U the residuals of the trend give a reduced chi-squared of 6.5 against the
-quoted uncertainties alone and of 0.44 with ``\tau^2``, which is ten to twenty times ``\sigma^2``
-at the median. ²³⁹Pu gives 0.73 with ``\tau^2``. The selection of the segment count does not
+error implies. For ²³⁵U the residuals of the trend give a reduced chi-squared of 5.4 against the
+quoted uncertainties alone and of 0.37 with ``\tau^2``, which is about sixteen times ``\sigma^2``
+at the median. ²³⁹Pu gives 0.54 with ``\tau^2``. The selection of the segment count does not
 depend on that scale, since the criterion takes the noise from the residuals. Nor is it limited by
-`max_segments`: with the limit raised from 6 to 12 the ²³⁵U trend still selects five
-segments, and the ²³⁹Pu trend selects four, below the limit.
+`max_segments`: with the limit raised from 6 to 12 every trend selects the order it selects at 6,
+six segments for ²⁵²Cf, ²³⁵U and ²³⁹Pu and three for ²³³U, and the criterion rises at every order
+above.
 
 For the same reason no dataset is rejected for lying far from the others: in units of the quoted
 uncertainties none of them agrees with any other, so such a criterion would reject whatever it was
