@@ -27,8 +27,13 @@ ExforFissionData.jl v0.8.0.
   measurements, yet the mean stayed at the mean of `f`: the sample size of the trend, its degrees
   of freedom and `E[χ²]` came out low, and its uncertainty high, by 4 % for ²⁵²Cf and ²³³U. The
   ²³⁹Pu trend now selects 6 segments, with breakpoints at 126, 130, 137, 144 and 155, and its
-  uncertainty is lower by 10 %. In a simulation of six datasets interpolated from a 1.5 u grid,
-  `χ²` was 1.63 ± 0.06 times the former expectation and is 0.98 ± 0.04 times the present one.
+  uncertainty is lower by 10 %. The criterion separates five and six segments by 0.41 for it, and
+  by 0.13 the other way before, so the data do not resolve that order. Its `R_T` changes between
+  `A_H` = 121 and 135, most at 128, from 2.17 ± 0.28 to 1.66 ± 0.11, and from 136 on by at most
+  0.002. In simulated pools of six datasets, with the breakpoints and the correlation held at
+  their true values, the uncertainty reported for a yield-weighted mean of the trend was 23 % too
+  large for a pool of interpolated datasets; it now agrees with the scatter over the replicates
+  to within 9 % for pools of whole and of interpolated datasets alike.
 
 ### Added
 
@@ -36,10 +41,10 @@ ExforFissionData.jl v0.8.0.
   number of breakpoint sets the exhaustive search solves for one order, without enumerating
   them. `fit_segments` takes `max_breakpoint_sets` and refuses a search above it before any set
   is solved.
-- `segments.max_breakpoint_sets`, 1000000 by default, about five times the 191350 sets of the
-  shipped settings over 49 heavy masses. A run whose fit would examine more is refused with the
-  number in the message. The key is recorded with the configuration in `metadata.toml` and is
-  no parameter of the run identifier.
+- `segments.max_breakpoint_sets`, 10000000 by default. Over 49 heavy masses every segment limit
+  at four points per segment stays below it, at most 1088589 sets, against 191350 for the
+  shipped settings. The key is recorded with the configuration in `metadata.toml` and is no
+  parameter of the run identifier.
 - A precompilation workload: the first combination and fit of a session take about 1 s in place
   of about 13 s.
 - `read_multiplicity_directory` and `read_mass_yield_directory` take the retrieval records of
@@ -53,6 +58,10 @@ ExforFissionData.jl v0.8.0.
 - **Breaking:** `fragmentation.zero_polarization_at_symmetry = true` is refused for a fissioning
   nucleus of odd mass number, which has no symmetric split for it to act on; it changed the run
   identifier of a run it could not affect.
+- **Breaking:** a run whose breakpoint search would examine more than
+  `segments.max_breakpoint_sets` sets is refused before it starts, with the number in the
+  message: over 49 heavy masses, 8 segments of 2 points (24128307 sets) or 9 segments of 3
+  (11025278). Such configurations loaded, and each of their fits took several minutes.
 - **Breaking:** `SegmentSettings` has the field `max_breakpoint_sets` and `ExtractionResult` the
   field `retrievals`, each last.
 - **Breaking:** refused with an `ArgumentError` where they were accepted: an infinite quoted
@@ -63,15 +72,21 @@ ExforFissionData.jl v0.8.0.
   mass number outside the fragments of the fissioning nucleus in a `⟨TKE⟩(A)` table.
 - The retrieval records of the input directories are parsed once when a configuration is loaded
   and once per run, where a run parsed them about eight times; the run record is written from
-  the records the run read. No table, manifest or metadata entry changes by it.
+  the records the run read, keyed by the normalised directory. No table, manifest or metadata
+  entry changes by it.
 - `src/pipeline.jl` is divided into the result types, the dataset input, the pooling, the run
   and the tabulated output, five files in place of one.
 - The tests compare the sandwich covariance and `E[χ²]` with a dense evaluation written in the
   test, and the leave-one-out refits with runs that exclude the datasets left out, where they
   held numbers computed elsewhere.
-- Documentation: the method page states the measured fraction of a combined point and the
-  linear interpolation of `⟨TKE⟩(A)` between measured masses; every number that rests on a
-  systematic trend is regenerated.
+- Documentation: the method page states the measured fraction of a combined point, that of a
+  combination where no value quotes an uncertainty, and the linear interpolation of `⟨TKE⟩(A)`
+  between measured masses. The method and consuming pages state that the propagated uncertainty
+  of a curve is taken at the selected breakpoints and does not contain the uncertainty of the
+  number of segments. The method page gives, from simulated pools, how far the propagated
+  uncertainty of a trend falls short where its correlation is estimated and its order selected.
+  Every number that rests on a systematic trend is regenerated, among them those of the paragraph
+  on the segment limit, which dated from 0.4.
 
 ## [0.5.2] - 2026-11-25
 

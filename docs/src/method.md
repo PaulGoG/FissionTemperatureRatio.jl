@@ -494,7 +494,13 @@ short of ``\rho`` by about ``(1 + 3\rho)/n`` to first order in ``1/n``
 that is 0.07 to 0.11, and a simulation of the estimator as written here gives 0.09 at ``n = 40``.
 The combined curve, moreover, carries a share of every other dataset's error into each deviation.
 The fitted ``\rho``, and with it the uncertainty of the trend, are therefore on the low side; no
-correction is applied.
+correction is applied. In simulated pools of six datasets measured at the integer masses of the
+²⁵²Cf range, each with an error of ``\rho = 0.8`` along the mass axis, the fitted ``\rho`` is
+0.73. The scatter of a yield-weighted mean of the trend over the replicates then exceeds the
+uncertainty the trend reports for it by a quarter with the breakpoints held at their true
+positions, and by a third with the number of segments selected as a run selects it; with
+``\rho`` and the breakpoints at their true values it exceeds it by 7 %. The jackknife over the
+leave-one-out refits, written beside the propagated uncertainty, does not rest on ``\rho``.
 
 The kernel ``\rho^k`` of an AR(1) error is fitted to the first lags of the correlogram in least
 squares, minimising ``\sum_k (\rho_k - \rho^k)^2`` over `autocorrelation_lags` of them, four by
