@@ -196,10 +196,10 @@ the refits with each pooled dataset or experiment left out:
 
 | System | `R_T` ± `R_T_uncertainty` | `R_T_uncertainty_leave_one_out` |
 |---|---|---|
-| ²⁵²Cf(sf) | 1.0861 ± 0.0150 | 0.0103 |
+| ²⁵²Cf(sf) | 1.0861 ± 0.0144 | 0.0100 |
 | ²³⁵U(nth,f) | 1.1210 ± 0.0152 | 0.0223 |
-| ²³⁹Pu(nth,f) | 1.0340 ± 0.0253 | 0.0274 |
-| ²³³U(nth,f) | 1.0657 ± 0.0917 | 0.1408 |
+| ²³⁹Pu(nth,f) | 1.0285 ± 0.0228 | 0.0274 |
+| ²³³U(nth,f) | 1.0657 ± 0.0883 | 0.1408 |
 
 The inputs are the retrieval of ExforFissionData.jl v0.8.0; [`data/README.md`](data/README.md)
 records their provenance.
@@ -280,7 +280,7 @@ in machine-readable form, with the paper as the preferred citation. As BibTeX:
 @software{FissionTemperatureRatio,
   author  = {Gogîță, Paul-Adrian},
   title   = {FissionTemperatureRatio.jl},
-  version = {0.5.2},
+  version = {0.6.0},
   year    = {2026},
   url     = {https://github.com/PaulGoG/FissionTemperatureRatio.jl}
 }

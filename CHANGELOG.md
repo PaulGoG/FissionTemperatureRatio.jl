@@ -7,6 +7,72 @@ the minor version and a patch release carries none.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-25
+
+The results change. The measured fraction of a combined point follows its variance, so that a
+trend pooled from interpolated datasets that disagree counts its points as the measurements they
+are. The systematic trends, `⟨R_T⟩` over the primary yield with the propagated and the jackknife
+uncertainty: ²⁵²Cf 1.0861 ± 0.0144 (jackknife 0.0100, 6 segments), ²³⁵U 1.1210 ± 0.0152 (0.0223,
+6), ²³⁹Pu 1.0285 ± 0.0228 (0.0274, 6), ²³³U 1.0657 ± 0.0883 (0.1408, 3), against 1.0861 ± 0.0150,
+1.1210 ± 0.0152, 1.0340 ± 0.0253 (5 segments) and 1.0657 ± 0.0917 in 0.5.2. The curves of single
+datasets and their total averages are unchanged, and so is every run identifier. Inputs:
+ExforFissionData.jl v0.8.0.
+
+### Fixed
+
+- **Breaking:** the measured fraction of a combined point is the share of its variance `1/Σw`
+  that its values would give as whole measurements, `Σ w²(σ² + τ²)/Σw`. It was the weighted mean
+  of the members' fractions, `Σ w f/Σ w`. The two agree where the between-dataset variance `τ²`
+  is zero. Where `τ²` dominates, the weights no longer carry `f` and the values scatter as whole
+  measurements, yet the mean stayed at the mean of `f`: the sample size of the trend, its degrees
+  of freedom and `E[χ²]` came out low, and its uncertainty high, by 4 % for ²⁵²Cf and ²³³U. The
+  ²³⁹Pu trend now selects 6 segments, with breakpoints at 126, 130, 137, 144 and 155, and its
+  uncertainty is lower by 10 %. In a simulation of six datasets interpolated from a 1.5 u grid,
+  `χ²` was 1.63 ± 0.06 times the former expectation and is 0.98 ± 0.04 times the present one.
+
+### Added
+
+- `breakpoint_set_count(x, breakpoints; min_points_per_segment, required_windows)` gives the
+  number of breakpoint sets the exhaustive search solves for one order, without enumerating
+  them. `fit_segments` takes `max_breakpoint_sets` and refuses a search above it before any set
+  is solved.
+- `segments.max_breakpoint_sets`, 1000000 by default, about five times the 191350 sets of the
+  shipped settings over 49 heavy masses. A run whose fit would examine more is refused with the
+  number in the message. The key is recorded with the configuration in `metadata.toml` and is
+  no parameter of the run identifier.
+- A precompilation workload: the first combination and fit of a session take about 1 s in place
+  of about 13 s.
+- `read_multiplicity_directory` and `read_mass_yield_directory` take the retrieval records of
+  their directory by the keyword `records`, and read them themselves by default.
+
+### Changed
+
+- **Breaking:** a configuration is refused where an input path is absolute, climbs out of the
+  data directory with `..`, or names the data directory itself. Such a path loaded, and gave the
+  run identifier of the same input written beneath the directory.
+- **Breaking:** `fragmentation.zero_polarization_at_symmetry = true` is refused for a fissioning
+  nucleus of odd mass number, which has no symmetric split for it to act on; it changed the run
+  identifier of a run it could not affect.
+- **Breaking:** `SegmentSettings` has the field `max_breakpoint_sets` and `ExtractionResult` the
+  field `retrievals`, each last.
+- **Breaking:** refused with an `ArgumentError` where they were accepted: an infinite quoted
+  uncertainty in `fit_weights`; an ordinate or a pinned value that is not finite in
+  `fit_segments`, and bounds that are not ordered, which gave an `InsufficientDataError`; a
+  negative share or a dataset listed twice at one mass number in `pooled_correlation`; a ratio
+  that is not finite or a quoted uncertainty that is not positive and finite in `consensus`; a
+  mass number outside the fragments of the fissioning nucleus in a `⟨TKE⟩(A)` table.
+- The retrieval records of the input directories are parsed once when a configuration is loaded
+  and once per run, where a run parsed them about eight times; the run record is written from
+  the records the run read. No table, manifest or metadata entry changes by it.
+- `src/pipeline.jl` is divided into the result types, the dataset input, the pooling, the run
+  and the tabulated output, five files in place of one.
+- The tests compare the sandwich covariance and `E[χ²]` with a dense evaluation written in the
+  test, and the leave-one-out refits with runs that exclude the datasets left out, where they
+  held numbers computed elsewhere.
+- Documentation: the method page states the measured fraction of a combined point and the
+  linear interpolation of `⟨TKE⟩(A)` between measured masses; every number that rests on a
+  systematic trend is regenerated.
+
 ## [0.5.2] - 2026-11-25
 
 No result changes: the four shipped configurations reproduce the trends, the curves and the
@@ -1150,7 +1216,8 @@ branch:
   check so a partially present tree failed, and results were overwritten in place with no run
   identifier, commit or hardware record.
 
-[unreleased]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.5.2...HEAD
+[unreleased]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.4.1...v0.5.0
