@@ -116,6 +116,11 @@ fixed-effect weights `1/v` are then inverse variances, the statistic
 `Q = Σ (r − r̄)²/v` has the expectation `k − 1` where the datasets do not differ, and `τ²` is
 DerSimonian and Laird's moment estimate, truncated at zero.
 
+The measured fraction of a combined point is the share of its variance `1/Σw` that the values
+would give as whole measurements, `Σ w²(σ² + τ²)/Σw`. Without a between-dataset variance it is
+`Σ f²/σ² / Σ f/σ²`, the weighted mean of the fractions; where `τ²` dominates it tends to one,
+because the values then scatter as whole measurements whatever share of one each amounts to.
+
 Where a mass number has one measurement only, that value passes through with the uncertainty
 `σ/√f`: there is no dispersion to estimate. Where none of the values at a mass number carries a
 quoted uncertainty, each is taken to have the variance `s²/f` of its share of a measurement of
@@ -168,6 +173,21 @@ function _consensus(
                      $(length(weight)) for $(length(curve))"))
         all(f -> 0 < f <= 1, weight) ||
             throw(ArgumentError("a pooling weight lies in (0, 1], got $(weight)"))
+        for (A, value, σ) in zip(curve.A_H, curve.ratio, curve.σ)
+            isfinite(value) || throw(
+                ArgumentError(
+                    "the ratio of $(repr(curve.label)) at A_H = $(A) is not finite: $(value)",
+                ),
+            )
+            ismissing(σ) ||
+                (isfinite(σ) && σ > 0) ||
+                throw(
+                    ArgumentError(
+                        "the uncertainty of $(repr(curve.label)) at A_H = $(A) must be \
+                         positive and finite, got $(σ); an unquoted uncertainty is missing"
+                    ),
+                )
+        end
     end
     masses = sort!(unique!(reduce(vcat, (curve.A_H for curve in curves); init = Int[])))
     A_H = Int[]
@@ -255,6 +275,12 @@ function _combine(
 
     w = 1 ./ (v .+ τ²)
     spread = 1 / sqrt(sum(w))
-    fraction = sum(w .* factors) / sum(w)
+    # Taken as whole measurements the values would give the combination the variance
+    # Σ w²(σ² + τ²)/(Σw)²; the measured fraction is its share of the variance 1/Σw. It is
+    # Σ f²/σ² / Σ f/σ² without a between-dataset variance and tends to one where that variance
+    # dominates, since a dataset departs from the others as a whole, however it was interpolated.
+    # With w(σ²/f + τ²) = 1 the share is 1 − Σ w²σ²(1 − f)/f / Σw, the form evaluated: it is
+    # one exactly for whole measurements and cannot round above one.
+    fraction = 1 - sum(w .^ 2 .* σ .^ 2 .* (1 .- factors) ./ factors) / sum(w)
     return (sum(w .* values) / sum(w), spread, fraction, spread * sqrt(fraction), w ./ sum(w))
 end

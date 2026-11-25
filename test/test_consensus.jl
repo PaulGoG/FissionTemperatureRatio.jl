@@ -223,4 +223,58 @@ end
         measured = consensus([low, high])
         @test only(measured.σ) ≈ sqrt(1.5 / 2)
     end
+
+    @testset "the measured fraction of a combined point is the share of its variance a measurement holds" begin
+        combine = FissionTemperatureRatio._combine
+        quoted(σ...) = Union{Missing,Float64}[σ...]
+
+        # Agreement, τ² = 0: Σ f²/σ² / Σ f/σ² = (10⁴ + 625)/(10⁴ + 1250).
+        _, spread, fraction, single, _ = combine([0.4, 0.4], quoted(0.01, 0.02), [1.0, 0.5])
+        @test fraction ≈ 17 / 18 rtol = 1e-12
+        @test single^2 / fraction ≈ spread^2 rtol = 1e-12
+
+        # A dispersion below its expectation, Q = 0.8 on one degree of freedom: τ² = 0 again.
+        _, _, fraction, _, _ = combine([0.30, 0.50], quoted(0.1, 0.1), [1.0, 0.25])
+        @test fraction ≈ 0.85 rtol = 1e-12
+
+        # Q = 3.2 on a = (100, 25): τ² = 2.2/40, w = (200/13, 200/19), Σw = 6400/247. Taken as
+        # whole measurements the two values would give the variance Σ w²(σ² + τ²)/(Σw)², which
+        # is 265/304 of 1/Σw; the weighted mean of the fractions is 4450/6400.
+        value, spread, fraction, single, share = combine(
+            [0.2, 0.6], quoted(0.1, 0.1), [1.0, 0.25]
+        )
+        @test value ≈ 0.3625 rtol = 1e-12
+        @test spread^2 ≈ 247 / 6400 rtol = 1e-12
+        @test fraction ≈ 265 / 304 rtol = 1e-12
+        @test single ≈ spread * sqrt(265 / 304) rtol = 1e-12
+        @test share ≈ [19 / 32, 13 / 32] rtol = 1e-12
+
+        # The between-dataset variance dominant: Q = 10⁴, τ² = 9999/(5 × 10⁵), w = 50 each. The
+        # values scatter as whole measurements whatever their fractions, so the combined point
+        # counts as one measurement but for the part σ² holds, 5 × 10⁻⁵.
+        _, spread, fraction, _, _ = combine([0.30, 0.50], quoted(0.001, 0.001), [0.5, 0.5])
+        @test spread ≈ 0.1 rtol = 1e-12
+        @test fraction ≈ 0.99995 rtol = 1e-12
+
+        # Whole measurements stay whole at any τ².
+        _, _, fraction, _, _ = combine([0.2, 0.6], quoted(0.1, 0.1), [1.0, 1.0])
+        @test fraction ≈ 1 rtol = 1e-12
+    end
+
+    @testset "values that cannot be weighted are refused" begin
+        exact = RatioCurve([126, 127], [0.5, 0.48], [0.0, 0.01], "exact")
+        other = RatioCurve([126, 127], [0.5, 0.47], [0.01, 0.01], "other")
+        @test_throws "must be positive and finite" FissionTemperatureRatio.consensus([
+            exact, other
+        ])
+        unbounded = RatioCurve([126, 127], [0.5, 0.48], [Inf, 0.01], "unbounded")
+        @test_throws "must be positive and finite" FissionTemperatureRatio.consensus([
+            unbounded, other
+        ])
+        undefined = RatioCurve([126, 127], [NaN, 0.48], [0.01, 0.01], "undefined")
+        @test_throws "is not finite" FissionTemperatureRatio.consensus([undefined, other])
+        # An unquoted uncertainty is missing, and is accepted.
+        unquoted = RatioCurve([126, 127], [0.5, 0.48], [missing, 0.01], "unquoted")
+        @test FissionTemperatureRatio.consensus([unquoted, other]) isa RatioCurve
+    end
 end
