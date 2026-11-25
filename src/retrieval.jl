@@ -82,6 +82,10 @@ struct RetrievalRecord
     run::Dict{String,Any}
 end
 
+# The parsed `retrieval*.toml` documents of several directories, by directory: what one loaded
+# configuration or one run reads of them, once.
+const RetrievalDocuments = Dict{String,Vector{Pair{String,Dict{String,Any}}}}
+
 # Every `retrieval*.toml` in a directory: one per query that contributed files to it.
 function _retrieval_documents(directory::AbstractString)
     isdir(directory) || return Pair{String,Dict{String,Any}}[]
@@ -91,6 +95,22 @@ function _retrieval_documents(directory::AbstractString)
     return [
         joinpath(directory, name) => TOML.parsefile(joinpath(directory, name)) for name in names
     ]
+end
+
+# The documents of every distinct directory of `directories`, `nothing` entries skipped.
+function _read_retrievals(directories)
+    retrievals = RetrievalDocuments()
+    for directory in directories
+        directory === nothing ||
+            haskey(retrievals, directory) ||
+            (retrievals[directory] = _retrieval_documents(directory))
+    end
+    return retrievals
+end
+
+# The documents held for `directory`; those of a directory not held are read from it.
+function _documents(retrievals::RetrievalDocuments, directory::AbstractString)
+    return get(() -> _retrieval_documents(directory), retrievals, directory)
 end
 
 # "MXW: Maxwellian-averaged" → "MXW"; the retrieval writes the tag and its meaning.
@@ -193,14 +213,20 @@ end
 
 The [`RetrievalRecord`](@ref) of every data file the `retrieval*.toml` records in `directory`
 list, keyed by file name; empty where the directory holds no record. Each record is read once.
+The method on a vector of `path => document` pairs takes the records of a directory already
+parsed.
 
 Throws an `ArgumentError` naming the record where an entry states a key this package reads with
 the wrong type or out of range, where a `[run]` table is not a table, and where two entries list
 one file.
 """
 function retrieval_records(directory::AbstractString)
+    return retrieval_records(_retrieval_documents(directory))
+end
+
+function retrieval_records(documents::AbstractVector{<:Pair})
     records = Dict{String,RetrievalRecord}()
-    for (path, document) in _retrieval_documents(directory)
+    for (path, document) in documents
         run = get(document, "run", Dict{String,Any}())
         run isa AbstractDict ||
             throw(ArgumentError("the retrieval record $(path) has a [run] that is not a table"))
@@ -249,9 +275,13 @@ warns when the records were written by different versions. A directory holding n
 tabulation not produced by the retrieval, is not judged.
 """
 function check_retrieval_versions(directories, floor::VersionNumber)
+    return check_retrieval_versions(_read_retrievals(directories), floor)
+end
+
+function check_retrieval_versions(retrievals::RetrievalDocuments, floor::VersionNumber)
     versions = Dict{String,VersionNumber}()
-    for directory in unique(directories)
-        for (record, document) in _retrieval_documents(directory)
+    for directory in sort!(collect(keys(retrievals)))
+        for (record, document) in retrievals[directory]
             run = get(document, "run", nothing)
             stated = run isa AbstractDict ? get(run, "package_version", nothing) : nothing
             version = stated isa AbstractString ? tryparse(VersionNumber, stated) : nothing

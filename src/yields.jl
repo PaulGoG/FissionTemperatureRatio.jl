@@ -12,6 +12,8 @@
 
 Read every `.dat` file in `directory`, sorted by name so that output rows are ordered
 reproducibly. Other files are ignored, so a run record can sit beside the data it describes.
+`records` are the retrieval records of the directory, read from it by default; a caller that
+holds them passes them.
 
 The label of each distribution is its file name stripped of the leading archive identifier and the
 extension, with underscores replaced by spaces. Two files of one author and year carry their
@@ -21,11 +23,14 @@ keyed by label, and a shared one would let the second distribution replace the f
 Throws an `ArgumentError` where the directory does not exist, holds no data file, or holds two
 files of one EXFOR accession: one distribution would be averaged over twice.
 """
-function read_mass_yield_directory(directory::AbstractString)
+function read_mass_yield_directory(
+    directory::AbstractString;
+    records::AbstractDict{String,RetrievalRecord} = retrieval_records(directory),
+)
     isdir(directory) || throw(ArgumentError("yield directory not found: $(directory)"))
     files = _data_files(directory)
     isempty(files) && throw(ArgumentError("yield directory holds no data files: $(directory)"))
-    _refuse_shared_accession(directory, files, retrieval_records(directory))
+    _refuse_shared_accession(directory, files, records)
     return [
         read_mass_yield(joinpath(directory, file); label = label) for
         (file, label) in zip(files, _unique_labels(files))

@@ -354,6 +354,40 @@ function A_H_range(configuration::Configuration)
     return configuration.fragmentation.heavy_mass_min:configuration.fragmentation.heavy_mass_max
 end
 
+# The directory of an optional input file.
+_parent(::Nothing) = nothing
+_parent(path::AbstractString) = dirname(path)
+
+# The directories whose retrieval records a run reads: those of the multiplicity datasets, of the
+# yield distributions, of the primary distribution and of the ⟨TKE⟩(A) dataset.
+function _retrieval_directories(configuration::Configuration)
+    return _retrieval_directories(
+        configuration.multiplicity_directory,
+        configuration.yield_directory,
+        configuration.yield_file,
+        configuration.level_density.mean_kinetic_energy_file,
+    )
+end
+
+# The same, from the four values before a `Configuration` holds them.
+function _retrieval_directories(
+    multiplicity_directory::AbstractString,
+    yield_directory::Union{AbstractString,Nothing},
+    yield_file::Union{AbstractString,Nothing},
+    mean_kinetic_energy_file::Union{AbstractString,Nothing},
+)
+    return unique!(
+        String[
+            directory for directory in (
+                multiplicity_directory,
+                yield_directory,
+                _parent(yield_file),
+                _parent(mean_kinetic_energy_file),
+            ) if directory !== nothing
+        ],
+    )
+end
+
 """
     has_symmetric_split(configuration) -> Bool
 
@@ -580,9 +614,13 @@ end
 # one dataset held there, and is keyed as `_exclusion_key` keys that dataset: by its accession,
 # or by its label where it carries none. A label that names a dataset with an accession is
 # refused, with the accession to write in its place.
-function _resolve_exclusions(entries, directory::AbstractString, path::String)
+function _resolve_exclusions(
+    entries,
+    directory::AbstractString,
+    path::String,
+    records::AbstractDict{String,RetrievalRecord},
+)
     files = _data_files(directory)
-    records = retrieval_records(directory)
     _refuse_shared_accession(directory, files, records)
     labels = _unique_labels(files)
     accessions = [_accession(get(records, file, nothing), file) for file in files]
@@ -810,28 +848,25 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
     # Before any entry of a record is read: a directory written by a release below the floor is
     # refused for that, and not for an entry an older release wrote in another form.
     energies = level_density.mean_kinetic_energy_file
-    check_retrieval_versions(
-        String[
-            directory for directory in (
-                multiplicity_directory,
-                yield_directory,
-                yield_file === nothing ? nothing : dirname(yield_file),
-                energies === nothing ? nothing : dirname(energies),
-            ) if directory !== nothing
-        ],
-        min_retrieval_version,
+    retrievals = _read_retrievals(
+        _retrieval_directories(multiplicity_directory, yield_directory, yield_file, energies)
     )
+    check_retrieval_versions(retrievals, min_retrieval_version)
 
     excluded_datasets = _resolve_exclusions(
         _exclusions(sections.multiplicity.exclude, "multiplicity.exclude"),
         multiplicity_directory,
         "multiplicity.exclude",
+        retrieval_records(_documents(retrievals, multiplicity_directory)),
     )
     yield_exclusions = _exclusions(yields.exclude, "yield.exclude")
     excluded_mass_yields = Dict{String,String}()
     if yield_directory !== nothing
         excluded_mass_yields = _resolve_exclusions(
-            yield_exclusions, yield_directory, "yield.exclude"
+            yield_exclusions,
+            yield_directory,
+            "yield.exclude",
+            retrieval_records(_documents(retrievals, yield_directory)),
         )
     elseif !isempty(yield_exclusions)
         # Read for its form first, so that a malformed entry reports its own error.
@@ -876,7 +911,11 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
     # What rests on the file itself. The ⟨TKE⟩(A) dataset must be one a retrieval produced, so that
     # its provenance and its qualifiers are on record, and it must reach the heavy-mass range.
     if energies !== nothing
-        record = retrieval_record(energies)
+        record = get(
+            retrieval_records(_documents(retrievals, dirname(energies))),
+            basename(energies),
+            nothing,
+        )
         record === nothing && throw(
             ArgumentError(
                 "level_density.mean_kinetic_energy_file: no retrieval record beside \

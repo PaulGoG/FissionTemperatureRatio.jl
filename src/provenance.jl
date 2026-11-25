@@ -375,13 +375,8 @@ function _input_files(result::ExtractionResult)
     )
         (isempty(source) || source in NAMED_SOURCES) || push!(paths, source)
     end
-    for directory in (
-        configuration.multiplicity_directory,
-        configuration.yield_directory,
-        _parent(configuration.yield_file),
-        _parent(level_density.mean_kinetic_energy_file),
-    )
-        directory === nothing || append!(paths, first.(_retrieval_documents(directory)))
+    for directory in _retrieval_directories(configuration)
+        append!(paths, first.(_documents(result.retrievals, directory)))
     end
     return Dict{String,Any}(
         _relative_input(path, configuration) => Dict{String,Any}(
@@ -428,7 +423,7 @@ function _inputs_record(result::ExtractionResult)
             label => record.qualifiers for (label, record) in result.mass_yield_records if
             !isempty(_flagged(record.qualifiers))
         ),
-        "retrievals" => _retrieval_runs(configuration),
+        "retrievals" => _retrieval_runs(result),
         "files" => _input_files(result),
     )
     level_density.model == "GC" && (
@@ -530,16 +525,11 @@ end
 # The `[run]` table of every retrieval record in the input directories: which parser revision
 # produced the files, from which of its configurations, and when. `load_configuration` has held
 # every record to the version floor, so each carries one.
-function _retrieval_runs(configuration::Configuration)
+function _retrieval_runs(result::ExtractionResult)
+    configuration = result.configuration
     runs = Dict{String,Any}()
-    for directory in (
-        configuration.multiplicity_directory,
-        configuration.yield_directory,
-        _parent(configuration.yield_file),
-        _parent(configuration.level_density.mean_kinetic_energy_file),
-    )
-        directory === nothing && continue
-        for (record, document) in _retrieval_documents(directory)
+    for directory in _retrieval_directories(configuration)
+        for (record, document) in _documents(result.retrievals, directory)
             runs[_relative_input(record, configuration)] = Dict{String,Any}(
                 get(document, "run", Dict{String,Any}())
             )
@@ -564,9 +554,6 @@ function _offset_record(energies, distribution, system)
     record["offset_MeV"] = offset.offset
     return record
 end
-
-_parent(::Nothing) = nothing
-_parent(path::AbstractString) = dirname(path)
 
 # The ⟨TKE⟩(A) dataset that weighted the inversion: the file, its retrieval record entry, the
 # parser revision that wrote it, a digest of the whole record, and the heavy masses that rest on

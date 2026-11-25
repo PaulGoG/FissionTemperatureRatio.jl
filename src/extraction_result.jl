@@ -113,6 +113,8 @@ written to disk by [`write_results`](@ref).
 - `curve_flags`: for each dataset curve that resolves no minimum over a range covering a
   required window, by label, the reason
   [`unresolved_minimum`](@ref) gives; such a curve stays in the manifest.
+- `retrievals`: the retrieval records of the input directories as the run read them, by
+  directory; the run record is written from these.
 """
 struct ExtractionResult
     configuration::Configuration
@@ -143,6 +145,7 @@ struct ExtractionResult
     leave_one_out_requested::Bool
     leave_one_out::Vector{LeaveOneOut}
     curve_flags::Dict{String,String}
+    retrievals::RetrievalDocuments
 end
 
 """

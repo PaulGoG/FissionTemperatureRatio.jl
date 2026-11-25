@@ -28,8 +28,9 @@ and ``R_T(A_H)`` is its root, which is unique: the right-hand side falls strictl
 as ``R_T`` grows. This is `ratio_averaging = "charge_resolved"`, the default. The mean total
 kinetic energy comes from a measured pre-neutron ``\langle \mathrm{TKE} \rangle(A)`` named in the
 configuration; without one, every fragmentation is weighted by ``p(Z, A_H)`` alone, and the run
-says so in its log and in its manifest. A heavy mass beyond the measured span takes the value at
-the nearest measured mass and is listed as extrapolated in the run metadata.
+says so in its log and in its manifest. A heavy mass between two measured masses takes the value
+interpolated linearly between them, and one beyond the measured span the value at the nearest
+measured mass; the run metadata lists both kinds.
 
 The uncertainty of ``r_\nu`` is propagated from those of the two multiplicities,
 
@@ -170,8 +171,8 @@ chosen by the Bayesian information criterion [Schwarz1978](@cite), which penalis
 slope and the extra breakpoint; its value at every order examined is kept, so the choice can be
 audited. The sample size and the degrees of freedom count measurements, not points. A point of a
 dataset that the retrieval interpolated onto integer masses counts as the ratio of the dataset's
-measured points to its written rows, and a point of the combined curve as the average of its
-contributors' fractions, weighted as in the combination. Interpolated points share the
+measured points to its written rows, and a point of the combined curve as the fraction the
+combination gives it, set out under [Combining datasets](@ref). Interpolated points share the
 measurements that bracket them; counted as independent, they would favour extra segments.
 
 The fraction ``f`` enters a fit in one place. A point of uncertainty ``\sigma``, taken as one
@@ -332,6 +333,20 @@ one mass number a dataset holds one row, so the combination sees no correlation 
 values, and the inflation stands for the redundancy the fit of the combined curve would otherwise
 count ``n/m`` times. ``\tau^2`` is the variance of the offset by which a dataset's curve departs
 from the others as a whole, and interpolation does not dilute it.
+
+The combined value has the variance ``1/\sum w``. Taken as whole measurements, the same values
+with the same weights would give it the variance ``\sum w^2 (\sigma^2 + \tau^2)/(\sum w)^2``,
+and the measured fraction of the combined point is the ratio of the two,
+
+```math
+\bar{f} = \frac{\sum w^2\, (\sigma^2 + \tau^2)}{\sum w}
+        = 1 - \frac{1}{\sum w} \sum w^2 \sigma^2\, \frac{1 - f}{f}.
+```
+
+Without a between-dataset variance this is ``\sum (f^2/\sigma^2) / \sum (f/\sigma^2)``, the
+weighted mean of the fractions. Where ``\tau^2`` dominates it tends to one: the values then
+scatter as whole measurements whatever share of one each amounts to, and the combined point
+counts as one measurement in the sample size and the degrees of freedom of the trend.
 
 Datasets of one experiment enter the pool as one. A retrieval record names, under
 `correlated_with`, the other datasets of the experiment a dataset belongs to, and under

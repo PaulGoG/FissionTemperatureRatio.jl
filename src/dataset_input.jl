@@ -6,6 +6,8 @@
 
 Read every `.dat` file in `directory`, sorted by name so that colours and markers are assigned
 reproducibly. Other files are ignored, so a run record can sit beside the data it describes.
+`records` are the retrieval records of the directory, read from it by default; a caller that
+holds them passes them.
 
 The label of each dataset is its file name stripped of the leading archive identifier and the
 extension, with underscores replaced by spaces, which is how the measurements are named in the
@@ -16,12 +18,14 @@ in parentheses instead.
 Throws an `ArgumentError` where the directory does not exist, holds no data file, or holds two
 files of one EXFOR accession: one measurement would be read, fitted and pooled twice.
 """
-function read_multiplicity_directory(directory::AbstractString)
+function read_multiplicity_directory(
+    directory::AbstractString;
+    records::AbstractDict{String,RetrievalRecord} = retrieval_records(directory),
+)
     isdir(directory) || throw(ArgumentError("multiplicity directory not found: $(directory)"))
     files = _data_files(directory)
     isempty(files) &&
         throw(ArgumentError("multiplicity directory holds no data files: $(directory)"))
-    records = retrieval_records(directory)
     _refuse_shared_accession(directory, files, records)
     return [
         read_multiplicity(
@@ -86,10 +90,11 @@ end
 
 # The exclusion key of every data file of a directory, with its label, from the file names and the
 # retrieval record alone.
-function _directory_keys(directory::AbstractString)
+function _directory_keys(
+    directory::AbstractString, records::AbstractDict{String,RetrievalRecord}
+)
     isdir(directory) || throw(ArgumentError("directory not found: $(directory)"))
     files = _data_files(directory)
-    records = retrieval_records(directory)
     _refuse_shared_accession(directory, files, records)
     return Dict(
         _exclusion_key(get(records, file, nothing), file, label) => label for
@@ -160,9 +165,9 @@ end
 
 # The retrieval record of each yield distribution, keyed by label, where one lists it; the
 # records of each directory are read once.
-function _records_by_label(mass_yields::Vector{MassYield})
+function _records_by_label(mass_yields::Vector{MassYield}, retrievals::RetrievalDocuments)
     by_directory = Dict(
-        directory => retrieval_records(directory) for
+        directory => retrieval_records(_documents(retrievals, directory)) for
         directory in unique(dirname(y.source) for y in mass_yields)
     )
     records = Dict{String,RetrievalRecord}()

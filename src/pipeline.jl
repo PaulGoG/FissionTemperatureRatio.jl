@@ -35,9 +35,10 @@ and adds the provenance record and the figures.
 """
 function run_pipeline(configuration::Configuration; leave_one_out::Bool = true)
     @info "reading input" configuration = configuration.source
-    inversion = _inversion(configuration)
+    retrievals = _read_retrievals(_retrieval_directories(configuration))
+    inversion = _inversion(configuration, retrievals)
     relation = (inversion.averaging, inversion.model, inversion.domain)
-    input = _multiplicity_input(configuration, inversion)
+    input = _multiplicity_input(configuration, inversion, retrievals)
     per_dataset = _dataset_curves(configuration, relation, input)
     pool = _pooled_trend(configuration, relation, input)
     trend = pool.fitted.trend
@@ -56,7 +57,7 @@ function run_pipeline(configuration::Configuration; leave_one_out::Bool = true)
         @warn message
     end
 
-    yields = _mass_yield_input(configuration, inversion)
+    yields = _mass_yield_input(configuration, inversion, retrievals)
     heavy_masses = inversion.domain.heavy_masses
     total_average_R_T = _total_averages(segmented_curves, yields.averaged, heavy_masses)
     for curve in segmented_curves, distribution in yields.averaged
@@ -109,13 +110,14 @@ function run_pipeline(configuration::Configuration; leave_one_out::Bool = true)
         leave_one_out,
         refits,
         per_dataset.flags,
+        retrievals,
     )
 end
 
 # The fragmentation domain and the relation between R_T and E*_H/TXE on it: the mass table, the
 # level density model, the charge distribution, the ⟨TKE⟩(A) dataset where one is configured, and
 # the averaging that reduces the relation over the charges.
-function _inversion(configuration::Configuration)
+function _inversion(configuration::Configuration, retrievals::RetrievalDocuments)
     settings = configuration.level_density
     masses = build_mass_table(settings)
     model = build_level_density_model(settings, masses)
@@ -133,7 +135,14 @@ function _inversion(configuration::Configuration)
     mean_kinetic_energy = if settings.mean_kinetic_energy_file === nothing
         nothing
     else
-        read_mean_kinetic_energy(settings.mean_kinetic_energy_file, configuration.system, range)
+        file = settings.mean_kinetic_energy_file
+        records = retrieval_records(_documents(retrievals, dirname(file)))
+        read_mean_kinetic_energy(
+            file,
+            configuration.system,
+            range;
+            record = get(records, basename(file), nothing),
+        )
     end
     # As `load_configuration` requires, for a configuration built by hand: the dataset's
     # provenance and qualifiers are on record, or it weights nothing.
@@ -150,13 +159,21 @@ end
 # The multiplicity datasets and what is formed from each before anything is fitted: r_ν and R_T
 # point by point, and the diagnostics. The exclusions are checked against the datasets read, and
 # the qualifiers and scales the retrieval records are reported, first.
-function _multiplicity_input(configuration::Configuration, inversion)
-    datasets = read_multiplicity_directory(configuration.multiplicity_directory)
+function _multiplicity_input(
+    configuration::Configuration, inversion, retrievals::RetrievalDocuments
+)
+    directory = configuration.multiplicity_directory
+    datasets = read_multiplicity_directory(
+        directory; records = retrieval_records(_documents(retrievals, directory))
+    )
     # An exclusion that names no dataset is a configuration the run cannot honour.
     # `load_configuration` has checked it; a configuration built by hand has not.
     _excluded_labels(configuration.excluded_datasets, datasets)
     if configuration.yield_directory !== nothing
-        held = _directory_keys(configuration.yield_directory)
+        held = _directory_keys(
+            configuration.yield_directory,
+            retrieval_records(_documents(retrievals, configuration.yield_directory)),
+        )
         for key in sort!(collect(keys(configuration.excluded_mass_yields)))
             haskey(held, key) || throw(
                 ArgumentError(
@@ -298,7 +315,9 @@ end
 # record of each; the coverage of each in yield, against the primary, since a set's own yields
 # cannot measure it; and those averaged over, the others being below the coverage floor or
 # excluded by the configuration, reported but not averaged over.
-function _mass_yield_input(configuration::Configuration, inversion)
+function _mass_yield_input(
+    configuration::Configuration, inversion, retrievals::RetrievalDocuments
+)
     A₀ = configuration.system.compound.A
     reference = if configuration.yield_file === nothing
         nothing
@@ -309,14 +328,17 @@ function _mass_yield_input(configuration::Configuration, inversion)
         )
     end
     mass_yields = if configuration.yield_directory !== nothing
-        read_mass_yield_directory(configuration.yield_directory)
+        read_mass_yield_directory(
+            configuration.yield_directory;
+            records = retrieval_records(_documents(retrievals, configuration.yield_directory)),
+        )
     elseif reference !== nothing
         [reference]
     else
         MassYield[]
     end
     # Read before the symmetrization, which keeps the source and the label of each.
-    records = _records_by_label(mass_yields)
+    records = _records_by_label(mass_yields, retrievals)
     if configuration.symmetrize_yields && !isempty(mass_yields)
         mass_yields = [symmetrized_yield(y, A₀) for y in mass_yields]
         reference = symmetrized_yield(reference, A₀)
