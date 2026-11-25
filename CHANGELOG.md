@@ -7,6 +7,13 @@ the minor version and a patch release carries none.
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-11-25
+
+No result changes: the four shipped configurations reproduce the trends, the curves and the
+manifests of 0.5.1. This release carries what three independent reviews of 0.5.1 found and could
+be corrected without changing a result or breaking a consumer. `metadata.toml` gains
+`[inputs.files]`, and two columns of `dataset_diagnostics.csv` are rounded as the others are.
+
 ### Added
 
 - `metadata.toml` records every input file a run read under `[inputs.files]`, keyed by its path
@@ -40,6 +47,10 @@ the minor version and a patch release carries none.
   `plot_multiplicities`, which has none; the configuration page states the cost of the exhaustive
   breakpoint search. Sentences across the README, the pages and `data/README.md` are restated in
   full where they were compressed, with no number or claim changed.
+- The method page states how the uncertainty of the multiplicity ratio is propagated, and that it
+  is a lower bound at the 53 pairs, in 12 datasets, of which one fragment alone quotes an
+  uncertainty; it gives the trends obtained when those pairs are read as quoting none. The
+  procedure is unchanged.
 - JuliaFormatter is pinned at 2.14.8, which reformats nothing; Dependabot no longer proposes to
   widen the pin. CI names the Julia floor by the `min` alias, read from `[compat]`.
 
@@ -1139,7 +1150,8 @@ branch:
   check so a partially present tree failed, and results were overwritten in place with no run
   identifier, commit or hardware record.
 
-[unreleased]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.5.1...HEAD
+[unreleased]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.5.2...HEAD
+[0.5.2]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.4.0...v0.4.1
