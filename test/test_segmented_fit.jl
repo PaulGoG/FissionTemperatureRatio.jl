@@ -150,6 +150,101 @@ using LinearAlgebra: LinearAlgebra
         @test_throws ArgumentError fit_segments(A_H, noisy, σ; max_segments = 0)
         @test_throws ArgumentError fit_segments(A_H, noisy, σ; min_points_per_segment = 1)
         @test_throws ArgumentError fit_segments([3, 2, 1], [1.0, 2.0, 3.0], [1.0, 1.0, 1.0])
+        @test_throws ArgumentError fit_weights([0.1, Inf])
+        @test_throws ArgumentError fit_weights([0.1, NaN])
+        @test_throws "y must be finite" fit_segments(
+            A_H, vcat(NaN, noisy[2:end]), σ; max_segments = 2
+        )
+        @test_throws "y must be finite" fit_segments(
+            A_H, vcat(noisy[1:(end - 1)], Inf), σ; max_segments = 2
+        )
+        @test_throws "pinned_value must be finite" fit_segments(
+            A_H, noisy, σ; max_segments = 2, pinned_value = NaN
+        )
+        @test_throws "bounds must be an ordered open interval" fit_segments(
+            A_H, noisy, σ; max_segments = 2, bounds = (1.0, 0.0)
+        )
+        @test_throws "bounds must be an ordered open interval" fit_segments(
+            A_H, noisy, σ; max_segments = 2, bounds = (0.5, 0.5)
+        )
+    end
+
+    @testset "the number of breakpoint sets a search examines" begin
+        count_sets = FissionTemperatureRatio.breakpoint_set_count
+
+        # Every admissible set, by enumeration of the subsets of the interior abscissae.
+        function enumerated(x, breakpoints, min_points, windows)
+            interior = unique(x)[2:(end - 1)]
+            total = 0
+            for mask in 0:(2 ^ length(interior) - 1)
+                count_ones(mask) == breakpoints || continue
+                ψ = [interior[i] for i in eachindex(interior) if (mask >> (i - 1)) & 1 == 1]
+                edges = vcat(first(x) - 1, ψ, last(x))
+                all(
+                    count(xi -> edges[j] < xi ≤ edges[j + 1], x) ≥ min_points for
+                    j in 1:(length(edges) - 1)
+                ) || continue
+                all(window -> any(in(window), ψ), windows) || continue
+                total += 1
+            end
+            return total
+        end
+
+        # On n consecutive integers, c breakpoints divide the points into c + 1 runs of at least
+        # m: the compositions of n into c + 1 parts of at least m, binomial(n − (c + 1)m + c, c).
+        consecutive = collect(126:174)
+        @test [count_sets(consecutive, c; min_points_per_segment = 4) for c in 0:5] ==
+            [binomial(49 - 4 * (c + 1) + c, c) for c in 0:5] ==
+            [1, 42, 741, 7140, 40920, 142506]
+        @test count_sets(consecutive, 12; min_points_per_segment = 4) == 0
+        @test count_sets(consecutive, 3; min_points_per_segment = 2) isa BigInt
+
+        # Repeated and missing abscissae, with and without windows.
+        x = [1, 2, 2, 3, 5, 6, 7, 7, 8, 10, 11, 12, 13, 15, 16]
+        for breakpoints in 0:4, min_points in 2:4
+            for windows in
+                (UnitRange{Int}[], [5:7], [3:4], [2:3, 10:12], [6:6, 7:7], [20:25], [4:4])
+                @test count_sets(
+                    x,
+                    breakpoints;
+                    min_points_per_segment = min_points,
+                    required_windows = windows,
+                ) == enumerated(x, breakpoints, min_points, windows)
+            end
+        end
+
+        @test_throws ArgumentError count_sets(consecutive, -1)
+        @test_throws ArgumentError count_sets(consecutive, 1; min_points_per_segment = 1)
+        @test_throws ArgumentError count_sets([3, 2, 1], 1)
+    end
+
+    @testset "a search above the limit is refused before it starts" begin
+        # Twenty consecutive points, at least four per segment, up to three segments:
+        # 1 + 13 + 45 = 59 sets.
+        x = collect(120:139)
+        y = [a ≤ 130 ? 0.50 - 0.020 * (a - 120) : 0.30 + 0.008 * (a - 130) for a in x]
+        y .+= 0.002 .* iseven.(x)
+        σ_x = fill(0.004, length(x))
+        at_limit = fit_segments(x, y, σ_x; max_segments = 3, max_breakpoint_sets = 59)
+        unlimited = fit_segments(x, y, σ_x; max_segments = 3)
+        @test at_limit.breakpoints == unlimited.breakpoints
+        @test at_limit.coefficients == unlimited.coefficients
+        exception = try
+            fit_segments(x, y, σ_x; max_segments = 3, max_breakpoint_sets = 58)
+        catch caught
+            caught
+        end
+        @test exception isa ArgumentError
+        @test occursin("59", exception.msg)
+        @test occursin("max_breakpoint_sets", exception.msg)
+        # One order alone: 45 sets with two breakpoints.
+        @test fit_segments(
+            x, y, σ_x; min_segments = 3, max_segments = 3, max_breakpoint_sets = 45
+        ) isa SegmentedFit
+        @test_throws ArgumentError fit_segments(
+            x, y, σ_x; min_segments = 3, max_segments = 3, max_breakpoint_sets = 44
+        )
+        @test_throws ArgumentError fit_segments(x, y, σ_x; max_breakpoint_sets = 0)
     end
 
     @testset "pivots span the fitted range" begin

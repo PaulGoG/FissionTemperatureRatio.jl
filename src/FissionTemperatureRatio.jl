@@ -152,7 +152,7 @@ public A_H_range, has_symmetric_split, SHIPPED_MASS_TABLE, SHIPPED_SHELL_CORRECT
 public multiplicity, read_mass_yield_directory, mass_yield_coverage, yield_fraction
 public mean_kinetic_energy_offset, PairSumScale, check_retrieval_versions, FLAGGED_QUALIFIERS
 public DatasetDiagnostics, diagnose, consensus
-public fit_weights, evaluate, covariance, pivots, unresolved_minimum
+public fit_weights, breakpoint_set_count, evaluate, covariance, pivots, unresolved_minimum
 public CORRELOGRAM_LAGS, deviation_correlogram, autocorrelation_decay, pooled_correlation
 public SymmetryDiagnostics, manifest_domain, curve_accessions, pooled_datasets
 public superseded_datasets, deviation_autocorrelation, run_parameters

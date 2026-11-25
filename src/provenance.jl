@@ -57,6 +57,7 @@ function _configuration_values(configuration::Configuration)
             "windows_apply_to_datasets" => segments.windows_apply_to_datasets,
             "min_pair_coverage" => segments.min_pair_coverage,
             "autocorrelation_lags" => segments.autocorrelation_lags,
+            "max_breakpoint_sets" => segments.max_breakpoint_sets,
         ),
         "retrieval" => Dict{String,Any}(
             "min_package_version" => string(configuration.min_retrieval_version)
@@ -99,7 +100,8 @@ without yields.
 An exclusion list enters as its sorted accessions, the reasons changing nothing, and an empty
 one not at all; the required windows as `[first, last]` pairs. The system is not a parameter: it
 names the directory the identifier sits in. Neither are `[retrieval]`, a guard on the inputs,
-nor `[output]`, which changes how a number is rendered and not the number.
+`segments.max_breakpoint_sets`, a guard on the cost of the search, nor `[output]`, which changes
+how a number is rendered and not the number.
 
 Every value is one TOML represents, so the table read back from `metadata.toml` gives the same
 identifier through [`run_identifier`](@ref).
@@ -123,6 +125,8 @@ function run_parameters(configuration::Configuration)
         configuration.yield_directory === nothing &&
         delete!(parameters["yield"], "min_yield_coverage")
     segments = parameters["segments"]
+    # A guard on the cost of the search: it refuses a run or leaves it as it is.
+    delete!(segments, "max_breakpoint_sets")
     if isempty(configuration.segments.required_windows)
         delete!(segments, "required_windows")
         delete!(segments, "windows_apply_to_datasets")

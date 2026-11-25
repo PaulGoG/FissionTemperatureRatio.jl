@@ -8,10 +8,12 @@ column, are enforced by the [`Configuration`](@ref) constructor, so they also ap
 configuration built by hand. The rules on the `[system]` keys are the exception: the loader
 applies them when it builds the fissioning system. An unknown section or key, a value outside its
 bounds, a choice that is not offered, `true` or `false` in place of a number, or a path that does
-not exist is refused with a message that names the key. An absent key takes its default; a section
-marked required must be present even if every key in it has a default. The shipped configurations
-set most keys explicitly, including the Gilbert-Cameron keys their back-shifted Fermi gas runs do
-not read, so that each file shows its settings in one place.
+not exist is refused with a message that names the key. A path is written relative to the data
+directory and lies beneath it: an absolute path, one that climbs out of it with `..`, and the
+directory itself are refused when the configuration is loaded. An absent key takes its default; a
+section marked required must be present even if every key in it has a default. The shipped
+configurations set most keys explicitly, including the Gilbert-Cameron keys their back-shifted
+Fermi gas runs do not read, so that each file shows its settings in one place.
 
 Every key that changes the result is a parameter of the run identifier, as the fifth column says:
 it appears as a readable token, or as part of the text the hash `h` is taken over. A key marked —
@@ -42,7 +44,7 @@ number of the fissioning nucleus; the symmetric split is ``A_0/2``, rounded up f
 | `heavy_mass_min` | integer | the symmetric split | from the symmetric split to ``A_0 - 1`` | `h` | smallest heavy-fragment mass number |
 | `heavy_mass_max` | integer | required | above `heavy_mass_min`, at most ``A_0 - 1`` | `h` | largest heavy-fragment mass number |
 | `charge_distribution_file` | string | `"wahl"` | `"wahl"`, `"mean"`, or the path of a table `A dZ sigma_Z` under the data directory | `chg` | the isobaric charge distribution: Wahl's ``Z_p`` model, the mean values of the published extraction, or a tabulated one |
-| `zero_polarization_at_symmetry` | boolean | `false` | not allowed with `"wahl"`, which fixes it | `dZ0` | ``\Delta Z = 0`` at the symmetric split for a table or `"mean"` |
+| `zero_polarization_at_symmetry` | boolean | `false` | not allowed with `"wahl"`, which fixes it; refused for an odd ``A_0``, which has no symmetric split | `dZ0` | ``\Delta Z = 0`` at the symmetric split for a table or `"mean"` |
 
 ## `[level_density]`, required
 
@@ -99,8 +101,9 @@ Without the section the run reports the mean over the fragment mass range alone.
 The segmented description of ``r_\nu(A_H)``; every key has a default. The breakpoint search is
 exhaustive, so its cost grows combinatorially with `max_segments` and falls as
 `min_points_per_segment` rises. Over the 49 heavy masses of the ²⁵²Cf range the shipped settings,
-6 and 4, examine 1.9 × 10⁵ breakpoint sets per fit; 8 and 2 examine 2.4 × 10⁷. The loader accepts
-every combination within the bounds below and does not estimate that cost.
+6 and 4, examine 191350 breakpoint sets in a fit without windows; 8 and 2 examine 2.4 × 10⁷. A fit
+that would examine more than `max_breakpoint_sets` is refused before it starts, with the number in
+the message.
 
 | Key | Type | Default | Constraint | In the identifier | Meaning |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -111,6 +114,7 @@ every combination within the bounds below and does not estimate that cost.
 | `windows_apply_to_datasets` | boolean | `false` | — | `h`, with windows | apply the windows to every dataset curve as well |
 | `min_pair_coverage` | real | `0.3` | 0 to 1 | `h` | the fraction of the range's heavy masses a dataset must pair to offer a curve of its own |
 | `autocorrelation_lags` | integer | `4` | 1 to 8 | `h` | lags of the deviation correlogram the trend's autocorrelation is fitted to |
+| `max_breakpoint_sets` | integer | `1000000` | 1 to 10⁹ | — | breakpoint sets one fit may examine, all segment counts together; above it the run is refused |
 
 ## `[retrieval]`, optional
 

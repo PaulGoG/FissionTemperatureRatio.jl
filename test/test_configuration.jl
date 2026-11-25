@@ -362,6 +362,62 @@ end
                 "[segments]",
             ),
             (
+                "breakpoint-set limit below one",
+                replace(
+                    MINIMAL_CONFIGURATION,
+                    "max_segments = 3" => "max_segments = 3\nmax_breakpoint_sets = 0",
+                ),
+                "segments.max_breakpoint_sets",
+            ),
+            (
+                "breakpoint-set limit not an integer",
+                replace(
+                    MINIMAL_CONFIGURATION,
+                    "max_segments = 3" => "max_segments = 3\nmax_breakpoint_sets = 1.5",
+                ),
+                "segments.max_breakpoint_sets",
+            ),
+            (
+                "absolute input path",
+                replace(
+                    MINIMAL_CONFIGURATION,
+                    "subdirectory = \"datasets\"" => "subdirectory = \"/datasets\"",
+                ),
+                "multiplicity.subdirectory",
+            ),
+            (
+                "input path climbing out of the data directory",
+                replace(
+                    MINIMAL_CONFIGURATION,
+                    "subdirectory = \"datasets\"" => "subdirectory = \"../datasets\"",
+                ),
+                "multiplicity.subdirectory",
+            ),
+            (
+                "the data directory itself as an input directory",
+                replace(
+                    MINIMAL_CONFIGURATION,
+                    "subdirectory = \"datasets\"" => "subdirectory = \".\"",
+                ),
+                "multiplicity.subdirectory",
+            ),
+            (
+                "empty input directory",
+                replace(
+                    MINIMAL_CONFIGURATION,
+                    "subdirectory = \"datasets\"" => "subdirectory = \"\"",
+                ),
+                "multiplicity.subdirectory",
+            ),
+            (
+                "mass table climbing out of the data directory",
+                replace(
+                    MINIMAL_CONFIGURATION,
+                    "model = \"BSFG\"" => "model = \"BSFG\"\nmass_excess_file = \"sub/../../mass_excess.dat\"",
+                ),
+                "level_density.mass_excess_file",
+            ),
+            (
                 "unknown key",
                 replace(
                     MINIMAL_CONFIGURATION,
@@ -388,6 +444,17 @@ end
                     @test occursin(key, sprint(showerror, thrown))
                 end
             end
+        end
+    end
+
+    @testset "an input path may pass through .. while it stays beneath the data directory" begin
+        body = replace(
+            MINIMAL_CONFIGURATION,
+            "subdirectory = \"datasets\"" => "subdirectory = \"TKE_vs_A/../datasets\"",
+        )
+        with_configuration(body) do path, directory
+            loaded = load_configuration(path; data_directory = directory)
+            @test normpath(loaded.multiplicity_directory) == joinpath(directory, "datasets")
         end
     end
 
@@ -418,6 +485,7 @@ end
                 settings.windows_apply_to_datasets,
                 settings.min_pair_coverage,
                 settings.autocorrelation_lags,
+                settings.max_breakpoint_sets,
             )
             @test_throws "segments.required_windows[1]" rebuilt(segments = windows)
             fragmentation = loaded.fragmentation
@@ -439,6 +507,31 @@ end
             @test_throws "fragmentation.zero_polarization_at_symmetry" rebuilt(
                 fragmentation = wahl_at_zero
             )
+            # A fissioning nucleus of odd mass number has no symmetric split, whatever the
+            # charge model; the pin is itself refused there, so it is released.
+            odd_system = neutron_induced_fission(Nuclide(92, 232), 2.53e-8, "nth")
+            odd_fragmentation = FissionTemperatureRatio.FragmentationSettings(
+                fragmentation.charges_per_mass, 117, 140, "mean", true
+            )
+            unpinned = FissionTemperatureRatio.SegmentSettings(
+                settings.max_segments,
+                settings.min_points_per_segment,
+                false,
+                UnitRange{Int}[],
+                settings.windows_apply_to_datasets,
+                settings.min_pair_coverage,
+                settings.autocorrelation_lags,
+                settings.max_breakpoint_sets,
+            )
+            @test_throws "has no symmetric split" rebuilt(
+                system = odd_system, fragmentation = odd_fragmentation, segments = unpinned
+            )
+            odd_without_zero = FissionTemperatureRatio.FragmentationSettings(
+                fragmentation.charges_per_mass, 117, 140, "mean", false
+            )
+            @test rebuilt(
+                system = odd_system, fragmentation = odd_without_zero, segments = unpinned
+            ) isa Configuration
         end
     end
 
@@ -597,6 +690,24 @@ end
             @test run_parameters(lagged)["segments"]["autocorrelation_lags"] == 2
             @test run_identifier(lagged) != identifier
             @test !occursin("lags", run_identifier(lagged))
+
+            # The limit on the breakpoint sets is a guard on the cost of the search: it refuses
+            # a run or leaves its result as it is, and is no parameter of it.
+            @test configuration.segments.max_breakpoint_sets == 1_000_000
+            other = write_beside(
+                path,
+                replace(
+                    MINIMAL_CONFIGURATION,
+                    "max_segments = 3" => "max_segments = 3\nmax_breakpoint_sets = 500000",
+                ),
+            )
+            limited = load_configuration(other; data_directory = directory)
+            @test limited.segments.max_breakpoint_sets == 500000
+            @test !haskey(
+                FissionTemperatureRatio.run_parameters(limited)["segments"],
+                "max_breakpoint_sets",
+            )
+            @test run_identifier(limited) == identifier
 
             # A list enters in full, so two window sets are two runs.
             other = write_beside(

@@ -66,6 +66,14 @@
             far = joinpath(directory, "far.dat")
             write(far, "A TKE\n200 170.0\n")
             @test_throws ArgumentError read_mean_kinetic_energy(far, system, 117:159)
+            # A mass number outside 1:A₀ - 1 is no fragment of the system, however valid the
+            # other rows are; the fissioning nucleus itself is none either.
+            for (name, row) in
+                (("above", "260 170.0"), ("negative", "-5 170.0"), ("nucleus", "234 170.0"))
+                outside = joinpath(directory, "outside_$(name).dat")
+                write(outside, "A TKE\n126 170.0\n$(row)\n140 175.0\n")
+                @test_throws "outside 1:233" read_mean_kinetic_energy(outside, system, 117:159)
+            end
         end
     end
 end

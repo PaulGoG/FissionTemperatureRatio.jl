@@ -129,6 +129,10 @@ between the measurements that a consuming code could not tell from a measured fe
 
 `autocorrelation_lags` is the number of lags of the deviation correlogram the autocorrelation of
 the systematic trend is fitted to, [`autocorrelation_decay`](@ref).
+
+`max_breakpoint_sets` is the largest number of breakpoint sets one fit may examine, all orders
+together, [`breakpoint_set_count`](@ref). The search is exhaustive and its size grows
+combinatorially with `max_segments`; a fit above the limit is refused before it starts.
 """
 struct SegmentSettings
     max_segments::Int
@@ -138,6 +142,7 @@ struct SegmentSettings
     windows_apply_to_datasets::Bool
     min_pair_coverage::Float64
     autocorrelation_lags::Int
+    max_breakpoint_sets::Int
 end
 
 """
@@ -159,11 +164,11 @@ end
 A complete, validated pipeline configuration, as [`load_configuration`](@ref) reads it from a TOML
 file. The constructor enforces the rules that tie one setting to another — the heavy-mass range
 to the fissioning nucleus, the pin to the symmetric split, the required windows to the range, the
-zero polarization to a charge model that takes it, the excitation weights to the charge-resolved
-inversion, a yield directory to its primary distribution and an exclusion of yields to a
-directory — so that a configuration assembled by hand cannot hold a combination the pipeline
-cannot honour either. What is checked against a single key, its type, bounds and choices, is the
-loader's.
+zero polarization to a charge model that takes it and to a nucleus with a symmetric split, the
+excitation weights to the charge-resolved inversion, a yield directory to its primary
+distribution and an exclusion of yields to a directory — so that a configuration assembled by
+hand cannot hold a combination the pipeline cannot honour either. What is checked against a
+single key, its type, bounds and choices, is the loader's.
 
 `data_directory` is the root every input path was resolved against; the run identifier and the
 metadata spell input paths relative to it, so that a run made on another machine names the same
@@ -276,6 +281,15 @@ function _check_rules(
             ArgumentError(
                 "fragmentation.zero_polarization_at_symmetry applies to a tabulated or a mean \
                  charge distribution; Wahl's model sets the polarization at A0/2 itself"
+            ),
+        )
+    # Without a symmetric split there is no A0/2 for the key to act on.
+    fragmentation.zero_polarization_at_symmetry &&
+        isodd(A₀) &&
+        throw(
+            ArgumentError(
+                "fragmentation.zero_polarization_at_symmetry requires an even fissioning mass \
+                 number; A0 = $(A₀) has no symmetric split"
             ),
         )
     level_density.mean_kinetic_energy_file === nothing ||
@@ -395,6 +409,10 @@ struct Key
     allowed::Union{Nothing,Tuple{Real,Real},Tuple{Vararg{String}}}
 end
 
+# The largest number of breakpoint sets one fit examines where the configuration does not say:
+# about five times the 191350 of the shipped settings over 49 heavy masses.
+const DEFAULT_MAX_BREAKPOINT_SETS = 1_000_000
+
 # Every key of every section. The loader checks each value against its entry here and nothing
 # else; what depends on another key is checked where the settings are built, and by the
 # `Configuration` constructor.
@@ -442,6 +460,7 @@ const CONFIGURATION_KEYS = (
         autocorrelation_lags = Key(
             Integer, DEFAULT_AUTOCORRELATION_LAGS, (1, CORRELOGRAM_LAGS)
         ),
+        max_breakpoint_sets = Key(Integer, DEFAULT_MAX_BREAKPOINT_SETS, (1, 10^9)),
     ),
     retrieval = (min_package_version = Key(String, DEFAULT_MIN_RETRIEVAL_VERSION, nothing),),
     output = (significant_digits = Key(Integer, 6, (1, 15)),),
@@ -619,16 +638,31 @@ function _windows(raw::Union{AbstractVector,Nothing}, path::String)
     return windows
 end
 
+# The spelling of an input under the data directory. An absolute path, one that climbs out of the
+# directory and the directory itself are refused: the run record spells every input relative to
+# the data directory, and such a path would name a file the record cannot place.
+function _beneath(root::AbstractString, relative::AbstractString, path::String)
+    isempty(relative) &&
+        throw(ArgumentError("$(path) must name a path under the data directory, got \"\""))
+    isabspath(relative) && throw(
+        ArgumentError("$(path) must be relative to the data directory, got $(repr(relative))"),
+    )
+    parts = splitpath(normpath(relative))
+    (first(parts) == ".." || parts == ["."]) && throw(
+        ArgumentError("$(path) must lie beneath the data directory, got $(repr(relative))")
+    )
+    return joinpath(root, relative)
+end
+
 # A file or a directory under the data directory, by the spelling the configuration gives.
 function _input_file(root::AbstractString, relative::AbstractString, path::String)
-    isempty(relative) && throw(ArgumentError("$(path) must name a file; omit it for none"))
-    resolved = joinpath(root, relative)
+    resolved = _beneath(root, relative, path)
     isfile(resolved) || throw(ArgumentError("$(path) does not exist: $(resolved)"))
     return resolved
 end
 
 function _input_directory(root::AbstractString, relative::AbstractString, path::String)
-    resolved = joinpath(root, relative)
+    resolved = _beneath(root, relative, path)
     isdir(resolved) || throw(ArgumentError("$(path) does not exist: $(resolved)"))
     return resolved
 end
@@ -636,7 +670,7 @@ end
 # A named source, or a file under the data directory.
 function _source(root::AbstractString, value::AbstractString, named, path::String)
     value in named && return String(value)
-    resolved = joinpath(root, value)
+    resolved = _beneath(root, value, path)
     isfile(resolved) || throw(
         ArgumentError(
             "$(path) must be one of $(join(named, " | ")) or a table under the data \
@@ -651,9 +685,10 @@ end
 
 Read and validate a pipeline configuration.
 
-Every key is checked for presence, type, enumerated choice and numerical range, every input
-file named by the configuration is checked for existence, and a section or key the loader does
-not know is refused, before the pipeline is allowed to start; the rules that tie one key to
+Every key is checked for presence, type, enumerated choice and numerical range, and every input
+file named by the configuration for existence. A path that is absolute, climbs out of the data
+directory or names the directory itself is refused, as is a section or key the loader does not
+know. All of this is done before the pipeline is allowed to start; the rules that tie one key to
 another are the [`Configuration`](@ref) constructor's. Failures throw an `ArgumentError` naming
 the offending key, so that a configuration the pipeline cannot honour never begins a run. A
 `true` or `false` where a number stands is refused, not read as one or zero. Every retrieval
@@ -817,6 +852,7 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
         entry.windows_apply_to_datasets,
         Float64(entry.min_pair_coverage),
         entry.autocorrelation_lags,
+        entry.max_breakpoint_sets,
     )
 
     configuration = Configuration(

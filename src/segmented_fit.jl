@@ -114,8 +114,9 @@ borrows the scale of the uncertainties from the sets that do quote them, which i
 and the number of points it was applied to is recorded with the fit. Where no point has a quoted
 uncertainty the weights are uniform and the fit reduces to ordinary least squares.
 
-A quoted uncertainty must be positive. Zero denotes an exact value, which has no finite weight;
-an unquoted uncertainty is `missing`, never zero, so that the two cannot be confused.
+A quoted uncertainty must be positive and finite. Zero denotes an exact value, which has no
+finite weight; an unquoted uncertainty is `missing`, never zero, so that the two cannot be
+confused.
 
 The weights are not rescaled, so that the weighted residual sum of squares is a chi-squared to
 the extent that the quoted uncertainties are trustworthy. A constant factor on the weights shifts
@@ -149,10 +150,11 @@ function fit_weights(σ::AbstractVector{<:Union{Missing,Real}})
     end
     for index in eachindex(σ)
         quoted[index] || continue
-        σ[index] > 0 || throw(
+        (σ[index] > 0 && isfinite(σ[index])) || throw(
             ArgumentError(
-                "a quoted uncertainty must be positive, got $(σ[index]) at position \
-                 $(index); an unquoted uncertainty is missing, and zero denotes an exact value",
+                "a quoted uncertainty must be positive and finite, got $(σ[index]) at \
+                 position $(index); an unquoted uncertainty is missing, and zero denotes an \
+                 exact value",
             ),
         )
         w[index] = 1 / σ[index]^2
@@ -302,6 +304,82 @@ function _each_breakpoint_set(
 end
 
 """
+    breakpoint_set_count(x, breakpoints; min_points_per_segment, required_windows) -> BigInt
+
+The number of breakpoint sets the exhaustive search of [`fit_segments`](@ref) solves for the
+order of `breakpoints` interior breakpoints: ascending sets of `breakpoints` distinct interior
+abscissae of `x` that leave at least `min_points_per_segment` points, `4` by default, in every
+segment and place a breakpoint in every window of `required_windows`.
+
+The number is obtained without enumerating the sets, by dynamic programming over the candidate
+abscissae in ascending order, so that the size of a search is known before it is run. An
+abscissa that repeats is one candidate, and each of its points counts in its segment, as in the
+search. On `n` consecutive integers without windows the number is
+`binomial(n − (c + 1)m + c, c)` for `c` breakpoints and `m` points per segment.
+
+# Examples
+
+The 49 mass numbers from 126 to 174 admit `binomial(30, 5)` sets of five breakpoints with four
+points per segment:
+
+```jldoctest
+julia> FissionTemperatureRatio.breakpoint_set_count(collect(126:174), 5; min_points_per_segment = 4)
+142506
+```
+"""
+function breakpoint_set_count(
+    x::AbstractVector{<:Integer},
+    breakpoints::Integer;
+    min_points_per_segment::Integer = 4,
+    required_windows::Vector{UnitRange{Int}} = UnitRange{Int}[],
+)
+    breakpoints ≥ 0 ||
+        throw(ArgumentError("breakpoints must be at least 0, got $(breakpoints)"))
+    min_points_per_segment ≥ 2 || throw(
+        ArgumentError(
+            "min_points_per_segment must be at least 2, got $(min_points_per_segment)"
+        ),
+    )
+    issorted(x) || throw(ArgumentError("x must be sorted in ascending order"))
+    # The model without breakpoints has no point count applied, as in the search.
+    breakpoints == 0 && return isempty(required_windows) ? BigInt(1) : BigInt(0)
+
+    xs = collect(Int, x)
+    distinct = unique(xs)
+    candidates = length(distinct) ≥ 3 ? distinct[2:(end - 1)] : Int[]
+    c = length(candidates)
+    breakpoints > c && return BigInt(0)
+    n = length(xs)
+    m = min_points_per_segment
+    # Number of points at or below each candidate, from its position in the sorted abscissae.
+    below = [searchsortedlast(xs, ψ) for ψ in candidates]
+    # A window is missed when it lies wholly below the first breakpoint, wholly between two
+    # consecutive ones, or wholly above the last.
+    missed_before(j) = any(W -> last(W) < candidates[j], required_windows)
+    missed_between(i, j) =
+        any(W -> first(W) > candidates[i] && last(W) < candidates[j], required_windows)
+    missed_after(j) = any(W -> first(W) > candidates[j], required_windows)
+
+    # N[j]: admissible choices of the first d breakpoints whose d-th is candidates[j].
+    N = [below[j] ≥ m && !missed_before(j) ? BigInt(1) : BigInt(0) for j in 1:c]
+    for _ in 2:breakpoints
+        next = zeros(BigInt, c)
+        for j in 1:c, i in 1:(j - 1)
+            iszero(N[i]) && continue
+            below[j] - below[i] ≥ m || continue
+            missed_between(i, j) && continue
+            next[j] += N[i]
+        end
+        N = next
+    end
+    total = zero(BigInt)
+    for j in 1:c
+        (n - below[j] ≥ m && !missed_after(j)) && (total += N[j])
+    end
+    return total
+end
+
+"""
     InsufficientDataError <: Exception
 
 Thrown by [`fit_segments`](@ref) when the arguments are valid but the data cannot support a fit:
@@ -377,7 +455,8 @@ end
 
 """
     fit_segments(x, y, σ; max_segments, min_segments, min_points_per_segment, pinned_value,
-                 required_windows, bounds, measured, correlation) -> SegmentedFit
+                 required_windows, bounds, measured, correlation, max_breakpoint_sets)
+                 -> SegmentedFit
 
 Fit `y(x)` by a continuous piecewise-linear function, selecting both the number of segments and
 the breakpoint positions from the data.
@@ -433,12 +512,18 @@ for correlated ones, `P` being the residual projector of the weighted fit.
   make the temperature ratio relation undefined; candidates that do are rejected outright rather
   than repaired afterwards. The test is exact, because a piecewise-linear function attains its
   extrema at its pivots.
+- `max_breakpoint_sets`: the largest number of breakpoint sets the search may examine, all
+  orders together; `Inf`, no limit, by default. Above it the fit is refused before any set is
+  solved, since the search is exhaustive and its size grows combinatorially with
+  `max_segments`; [`breakpoint_set_count`](@ref) gives the number for one order.
 
 `σ` is `missing` where no uncertainty is quoted and positive otherwise; see
 [`fit_weights`](@ref).
 
 Throws a `DimensionMismatch` when the inputs have different lengths, an `ArgumentError` for an
-invalid keyword value, unsorted abscissae or a non-positive quoted uncertainty, and an
+invalid keyword value, unsorted abscissae, a non-finite ordinate, a non-finite `pinned_value`,
+`bounds` that are not an ordered open interval, a quoted uncertainty that is not positive and
+finite, or a search that would examine more than `max_breakpoint_sets` breakpoint sets, and an
 [`InsufficientDataError`](@ref) when the data cannot support a fit under the constraints.
 
 # Examples
@@ -485,6 +570,7 @@ function fit_segments(
     bounds::Union{Tuple{Real,Real},Nothing} = nothing,
     measured::Union{AbstractVector{<:Real},Nothing} = nothing,
     correlation::Union{Nothing,AbstractMatrix{<:Real}} = nothing,
+    max_breakpoint_sets::Real = Inf,
 )
     length(x) == length(y) == length(σ) ||
         throw(DimensionMismatch("x, y and σ must have equal lengths, got \
@@ -501,6 +587,17 @@ function fit_segments(
         ),
     )
     issorted(x) || throw(ArgumentError("x must be sorted in ascending order"))
+    nonfinite = findfirst(!isfinite, y)
+    nonfinite === nothing ||
+        throw(ArgumentError("y must be finite, got $(y[nonfinite]) at position $(nonfinite)"))
+    (pinned_value !== nothing && !isfinite(pinned_value)) &&
+        throw(ArgumentError("pinned_value must be finite, got $(pinned_value)"))
+    (bounds !== nothing && !(bounds[1] < bounds[2])) && throw(
+        ArgumentError("bounds must be an ordered open interval (lower, upper), got $(bounds)"),
+    )
+    max_breakpoint_sets ≥ 1 || throw(
+        ArgumentError("max_breakpoint_sets must be at least 1, got $(max_breakpoint_sets)")
+    )
     R = correlation === nothing ? nothing : _correlation_matrix(correlation, length(x))
 
     n = length(x)
@@ -533,6 +630,27 @@ function fit_segments(
         ),
     )
     candidates = distinct[2:(end - 1)]
+
+    # The search is exhaustive, so its size is counted before any set is solved, over the
+    # orders the loop below examines.
+    if isfinite(max_breakpoint_sets)
+        total = zero(BigInt)
+        for count in (min_segments - 1):(max_segments - 1)
+            count ≤ length(candidates) || break
+            n ≥ (count + 1) * min_points_per_segment || break
+            n_measured - ((pinned ? 1 : 2) + 2 * count) > 0 || continue
+            total += breakpoint_set_count(xs, count; min_points_per_segment, required_windows)
+        end
+        total > max_breakpoint_sets && throw(
+            ArgumentError(
+                "the search would examine $(total) breakpoint sets, above \
+                 max_breakpoint_sets = $(max_breakpoint_sets): $(n) points, \
+                 max_segments = $(max_segments), \
+                 min_points_per_segment = $(min_points_per_segment); lower max_segments, \
+                 raise min_points_per_segment or raise the limit"
+            ),
+        )
+    end
 
     best = nothing
     selection = Tuple{Int,Float64}[]

@@ -47,9 +47,9 @@ it onto every heavy mass number of `heavy_masses`; see [`MeanKineticEnergy`](@re
 taken by position. `record` is the dataset's retrieval record, by default the one beside the
 file, [`retrieval_record`](@ref).
 
-Throws an `ArgumentError` naming the file when a mass number repeats, a value is not a positive
-finite energy, or no tabulated mass falls on the heavy wing of `system` directly or through the
-complement.
+Throws an `ArgumentError` naming the file when a mass number repeats, a mass number is not that
+of a fragment of the fissioning nucleus, a value is not a positive finite energy, or no tabulated
+mass falls on the heavy wing of `system` directly or through the complement.
 """
 function read_mean_kinetic_energy(
     path::AbstractString,
@@ -61,7 +61,12 @@ function read_mean_kinetic_energy(
     masses = integer_column(table, :A)
     energies = column(table, :TKE, Float64)
     allunique(masses) || throw(ArgumentError("$(path) repeats a mass number"))
+    A₀ = system.compound.A
     for (A, TKE) in zip(masses, energies)
+        0 < A < A₀ || throw(
+            ArgumentError("$(path) has the mass number A = $(A) outside 1:$(A₀ - 1), the \
+                           fragments of A0 = $(A₀)")
+        )
         isfinite(TKE) && TKE > 0 || throw(
             ArgumentError(
                 "$(path) has a non-positive or non-finite ⟨TKE⟩ = $(TKE) at A = $(A)"
@@ -69,7 +74,6 @@ function read_mean_kinetic_energy(
         )
     end
 
-    A₀ = system.compound.A
     heavy = Dict{Int,Float64}()
     complement = Dict{Int,Float64}()
     for (A, TKE) in zip(masses, energies)

@@ -166,7 +166,9 @@ R(A, A′) = ρ^|A − A′| Σᵢ [sᵢ(A) sᵢ(A′)]^(1/2),
 
 the sum over the datasets `i` that hold both mass numbers, `sᵢ(A)` being the share of the
 combined value at `A` that dataset `i` carries, its normalized weight. `members[m]` lists the
-datasets combined at `A_H[m]` and `shares[m]` their shares, which sum to one.
+datasets combined at `A_H[m]` and `shares[m]` their shares, which sum to one. The shares are
+non-negative and a dataset is listed once per mass number; the square roots of the kernel and
+its positive semi-definiteness rest on both.
 
 Where the same datasets hold two mass numbers with the same shares the entry is `ρ^|A − A′|`. A
 dataset held at one of them and not at the other brings an error the other combined value does
@@ -189,6 +191,10 @@ function pooled_correlation(
     for m in 1:n
         length(members[m]) == length(shares[m]) ||
             throw(DimensionMismatch("one share per member at A_H = $(A_H[m])"))
+        all(s -> s ≥ 0, shares[m]) ||
+            throw(ArgumentError("a share at A_H = $(A_H[m]) is negative: $(shares[m])"))
+        allunique(members[m]) ||
+            throw(ArgumentError("a dataset is listed twice at A_H = $(A_H[m]): $(members[m])"))
         isapprox(sum(shares[m]), 1; atol = 1e-8) || throw(
             ArgumentError("the shares at A_H = $(A_H[m]) sum to $(sum(shares[m])), not to one"),
         )

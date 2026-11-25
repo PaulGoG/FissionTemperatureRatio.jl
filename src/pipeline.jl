@@ -492,6 +492,7 @@ function _segment(
             required_windows = windows,
             bounds = (0.0, 1.0),
             correlation = correlation,
+            max_breakpoint_sets = settings.max_breakpoint_sets,
         )
     catch exception
         exception isa InsufficientDataError || rethrow()
