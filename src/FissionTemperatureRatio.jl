@@ -108,6 +108,7 @@ using FissionFragmentsDomain:
     write_temperature_ratio_manifest
 using LinearAlgebra: Symmetric, cond, dot, eigmin, tr
 using Measurements: Measurements
+using PrecompileTools: @compile_workload, @setup_workload
 using SHA: sha1, sha256
 using Statistics: mean, median, std
 using TOML: TOML
@@ -129,6 +130,7 @@ include("pooling.jl")
 include("pipeline.jl")
 include("output.jl")
 include("provenance.jl")
+include("precompile.jl")
 
 # What a run is driven by, reads and returns, exported.
 export Configuration, load_configuration

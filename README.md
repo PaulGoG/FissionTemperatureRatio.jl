@@ -357,6 +357,7 @@ FissionTemperatureRatio/
 │   ├── pipeline.jl                 the run, from input to segmented curves and total averages
 │   ├── plotting.jl                 figure interface; the implementation is in ext/
 │   ├── pooling.jl                  the datasets pooled into the systematic trend; leave-one-out refits
+│   ├── precompile.jl               the calls of a first extraction, compiled with the package
 │   ├── provenance.jl               run identification and metadata
 │   ├── retrieval.jl                the retrieval records beside the inputs, read once and checked
 │   ├── segmented_fit.jl            continuous piecewise-linear regression
