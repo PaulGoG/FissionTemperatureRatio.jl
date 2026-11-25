@@ -808,11 +808,35 @@ end
             @test all(0 .< table.yield_fraction .<= 1)
 
             # The jackknife over the three refits of this pool, each with one dataset left out:
-            # ⟨R_T⟩ = 1.2187470, 1.2174755, 1.2180882 over the primary yield.
+            # ⟨R_T⟩ ≈ 1.2187, 1.2175, 1.2181 over the primary yield. Each refit is compared with
+            # a run whose configuration excludes the datasets that refit left out.
             spread = leave_one_out_spread(with_yields, "A. Both 2000")
             θ = [entry.total_average_R_T["A. Both 2000"] for entry in with_yields.leave_one_out]
-            @test θ ≈ [1.2187470483698384, 1.2174755267121293, 1.2180882077943818] rtol = 1e-8
-            @test spread.uncertainty ≈ 7.342745987e-4 rtol = 1e-6
+            left_out_path = joinpath(directory, "with_yields_left_out.toml")
+            references = map(with_yields.leave_one_out) do entry
+                exclusions = map(entry.datasets) do label
+                    return "{ dataset = \"$(label)\", reason = \"left out\" }"
+                end
+                write(
+                    left_out_path,
+                    replace(
+                        PIPELINE_CONFIGURATION,
+                        "[multiplicity]" => "[multiplicity]\nexclude = [$(join(exclusions, ", "))]",
+                    ) *
+                    "\n[yield]\nsubdirectory = \"yields\"\n" *
+                    "mass_yield_file = \"yields/10000001_A.Both_2000.dat\"\n",
+                )
+                refit = run_pipeline(
+                    load_configuration(left_out_path; data_directory = directory);
+                    leave_one_out = false,
+                )
+                return refit.total_average_R_T[SYSTEMATIC_TREND_LABEL]["A. Both 2000"].value
+            end
+            @test θ ≈ references rtol = 1e-10
+            k = 3
+            θ̄ = sum(references) / k
+            @test spread.uncertainty ≈ sqrt((k - 1) / k * sum(abs2, references .- θ̄)) rtol =
+                1e-8
             @test (spread.min, spread.max, spread.refits) == (minimum(θ), maximum(θ), 3)
             row = only(
                 filter(

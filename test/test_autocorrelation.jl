@@ -105,6 +105,10 @@ using Statistics: mean, var
         @test_throws ArgumentError pooled_correlation(masses, members, shares, 1.0)
         @test_throws ArgumentError pooled_correlation([1], [[1, 2]], [[0.5, 0.4]], ρ)
         @test_throws DimensionMismatch pooled_correlation([1, 2], [[1]], [[1.0]], ρ)
+        # A negative share and a dataset listed twice are refused: the kernel takes square roots
+        # of products of shares, and its positive semi-definiteness rests on one share per dataset.
+        @test_throws "is negative" pooled_correlation([1], [[1, 2]], [[1.5, -0.5]], ρ)
+        @test_throws "listed twice" pooled_correlation([1], [[1, 1]], [[0.5, 0.5]], ρ)
     end
 
     @testset "the decay fitted to the first lags" begin
@@ -146,6 +150,45 @@ using Statistics: mean, var
         @test identity.expected_wrss ≈ default.dof rtol = 1e-12
     end
 
+    # The sandwich covariance of a fit at fixed breakpoints and the expectation of its residual
+    # sum of squares, evaluated densely from their definitions: Σ = D R D with D = W^(-1/2), the
+    # residual projector M = I − X(XᵀWX)⁻¹XᵀW, the covariance (XᵀWX)⁻¹XᵀWΣWX(XᵀWX)⁻¹ and
+    # E[wrss] = dof · tr(MᵀWMΣ)/(n − p). `fit_segments` reaches the same quantities by another
+    # route, and is compared with these.
+    function dense_reference(x, y, σ, ψ, ρ; pinned = nothing, f = ones(length(x)))
+        n = length(x)
+        columns = Vector{Float64}[]
+        pinned === nothing && push!(columns, ones(n))
+        push!(columns, Float64.(x .- first(x)))
+        for breakpoint in ψ
+            push!(columns, Float64.(max.(x .- breakpoint, 0)))
+        end
+        X = reduce(hcat, columns)
+        ordinates = pinned === nothing ? float.(y) : y .- pinned
+        W = LinearAlgebra.Diagonal(f ./ σ .^ 2)
+        gram = X' * W * X
+        β = gram \ (X' * W * ordinates)
+        residuals = ordinates - X * β
+        wrss = residuals' * W * residuals
+        p = size(X, 2)
+        dof = sum(f) - (p + length(ψ))
+        R = [ρ^abs(x[i] - x[j]) for i in 1:n, j in 1:n]
+        D = LinearAlgebra.Diagonal(1 ./ sqrt.(LinearAlgebra.diag(W)))
+        Σ = D * R * D
+        M = LinearAlgebra.I - X * (gram \ (X' * W))
+        expected = dof * LinearAlgebra.tr(M' * W * M * Σ) / (n - p)
+        covariance = (gram \ (X' * W * Σ * W * X)) / gram * max(1.0, wrss / expected)
+        # The standard deviation of the fitted value at `at`, by the row of the design there.
+        function spread(at)
+            row = Float64[]
+            pinned === nothing && push!(row, 1.0)
+            push!(row, at - first(x))
+            append!(row, (max(at - breakpoint, 0) for breakpoint in ψ))
+            return sqrt(row' * covariance * row)
+        end
+        return (; wrss, dof, expected, covariance, spread)
+    end
+
     @testset "the kernel changes the covariance and nothing else" begin
         independent = fit_segments(A_H, r, σ; max_segments = 3)
         correlated = fit_segments(A_H, r, σ; max_segments = 3, correlation = ar1(A_H, 0.6))
@@ -154,42 +197,48 @@ using Statistics: mean, var
         end
         @test correlated.correlated
         @test correlated.breakpoints == [130]
-        # Dense reference: tr(MᵀWMΣ) = 10.979589328 of n − p = 17, on dof = 16.
-        @test correlated.wrss ≈ 1.24038896427 rtol = 1e-9
-        @test correlated.expected_wrss ≈ 10.3337311323 rtol = 1e-9
+        reference = dense_reference(A_H, r, σ, [130], 0.6)
+        # For orientation: tr(MᵀWMΣ) ≈ 10.979589328 of n − p = 17, on dof = 16.
+        @test correlated.wrss ≈ reference.wrss rtol = 1e-9
+        @test correlated.expected_wrss ≈ reference.expected rtol = 1e-9
         @test correlated.expected_wrss < correlated.dof
-        @test last(evaluate(correlated, 125)) ≈ 0.00210195917509 rtol = 1e-8
-        @test last(evaluate(correlated, 135)) ≈ 0.00222876174861 rtol = 1e-8
-        @test correlated.covariance[1, 1] ≈ 1.27940352109e-05 rtol = 1e-8
-        @test correlated.covariance[end, end] ≈ 9.54053566821e-07 rtol = 1e-8
+        @test last(evaluate(correlated, 125)) ≈ reference.spread(125) rtol = 1e-8
+        @test last(evaluate(correlated, 135)) ≈ reference.spread(135) rtol = 1e-8
+        @test correlated.covariance[1, 1] ≈ reference.covariance[1, 1] rtol = 1e-8
+        @test correlated.covariance[end, end] ≈ reference.covariance[end, end] rtol = 1e-8
+        @test correlated.covariance ≈ reference.covariance rtol = 1e-8
         @test correlated.covariance ≈ correlated.covariance'
-        @test last(evaluate(independent, 125)) ≈ 0.00113940163782 rtol = 1e-8
+        @test last(evaluate(independent, 125)) ≈
+            dense_reference(A_H, r, σ, [130], 0.0).spread(125) rtol = 1e-8
     end
 
     @testset "the scale refers to the expectation of wrss under the kernel" begin
-        # Uncertainties a quarter of the above: wrss is sixteen times larger, 19.85, which is 1.24
-        # times dof = 16 and 1.92 times its expectation under the kernel.
+        # Uncertainties a quarter of the above: wrss is sixteen times larger, about 19.85, which
+        # is 1.24 times dof = 16 and 1.92 times its expectation under the kernel.
         tight = fill(0.001, length(A_H))
         independent = fit_segments(A_H, r, tight; max_segments = 3)
         correlated = fit_segments(A_H, r, tight; max_segments = 3, correlation = ar1(A_H, 0.6))
-        wrss = 16 * 1.24038896427
-        @test correlated.wrss ≈ wrss rtol = 1e-9
-        @test correlated.expected_wrss ≈ 10.3337311323 rtol = 1e-9
-        @test last(evaluate(correlated, 125)) ≈
-            0.00210195917509 / 4 * sqrt(wrss / 10.3337311323) rtol = 1e-8
-        @test last(evaluate(independent, 125)) ≈ 0.00113940163782 / 4 * sqrt(wrss / 16) rtol =
-            1e-8
+        reference = dense_reference(A_H, r, σ, [130], 0.6)
+        tight_reference = dense_reference(A_H, r, tight, [130], 0.6)
+        tight_independent = dense_reference(A_H, r, tight, [130], 0.0)
+        @test tight_reference.wrss ≈ 16 * reference.wrss
+        @test correlated.wrss ≈ tight_reference.wrss rtol = 1e-9
+        @test correlated.expected_wrss ≈ tight_reference.expected rtol = 1e-9
+        @test last(evaluate(correlated, 125)) ≈ tight_reference.spread(125) rtol = 1e-8
+        @test last(evaluate(independent, 125)) ≈ tight_independent.spread(125) rtol = 1e-8
     end
 
     @testset "with the pin and with measured fractions" begin
         pinned = fit_segments(
             A_H, r, σ; max_segments = 3, pinned_value = 0.5, correlation = ar1(A_H, 0.6)
         )
+        reference = dense_reference(A_H, r, σ, [130], 0.6; pinned = 0.5)
         @test pinned.breakpoints == [130]
         @test pinned.dof == 17
-        @test pinned.expected_wrss ≈ 12.9192454707 rtol = 1e-9
-        @test last(evaluate(pinned, 125)) ≈ 0.00154109502308 rtol = 1e-8
-        @test last(evaluate(pinned, 135)) ≈ 0.00221520291928 rtol = 1e-8
+        @test pinned.expected_wrss ≈ reference.expected rtol = 1e-9
+        @test last(evaluate(pinned, 125)) ≈ reference.spread(125) rtol = 1e-8
+        @test last(evaluate(pinned, 135)) ≈ reference.spread(135) rtol = 1e-8
+        @test pinned.covariance ≈ reference.covariance rtol = 1e-8
         @test last(evaluate(pinned, 120)) ≈ 0 atol = 1e-12
 
         # A fraction common to every point: the degrees of freedom count measurements, the share
@@ -197,9 +246,10 @@ using Statistics: mean, var
         halved = fit_segments(
             A_H, r, σ; max_segments = 3, measured = fill(0.5, 20), correlation = ar1(A_H, 0.6)
         )
+        halved_reference = dense_reference(A_H, r, σ, [130], 0.6; f = fill(0.5, 20))
         @test halved.dof == 6
-        @test halved.expected_wrss ≈ 3.87514917461 rtol = 1e-9
-        @test last(evaluate(halved, 125)) ≈ 0.00297261917297 rtol = 1e-8
+        @test halved.expected_wrss ≈ halved_reference.expected rtol = 1e-9
+        @test last(evaluate(halved, 125)) ≈ halved_reference.spread(125) rtol = 1e-8
     end
 
     @testset "a long series: the variance of the mean grows by (1 + ρ)/(1 − ρ)" begin
