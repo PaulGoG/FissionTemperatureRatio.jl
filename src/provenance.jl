@@ -99,9 +99,11 @@ entirely, is the only one, an optional input that is not given, the [yield] keys
 without yields.
 An exclusion list enters as its sorted accessions, the reasons changing nothing, and an empty
 one not at all; the required windows as `[first, last]` pairs. The system is not a parameter: it
-names the directory the identifier sits in. Neither are `[retrieval]`, a guard on the inputs,
-`segments.max_breakpoint_sets`, a guard on the cost of the search, nor `[output]`, which changes
-how a number is rendered and not the number.
+names the directory the identifier sits in. Neither are `[retrieval]`, a guard on the inputs, nor
+`[output]`, which changes how a number is rendered and not the number.
+`segments.max_breakpoint_sets`, a guard on the cost of the search, is a parameter only where it is
+not its default: another value can leave a refit of the trend with more segments than selected
+out of the total averages.
 
 Every value is one TOML represents, so the table read back from `metadata.toml` gives the same
 identifier through [`run_identifier`](@ref).
@@ -125,8 +127,11 @@ function run_parameters(configuration::Configuration)
         configuration.yield_directory === nothing &&
         delete!(parameters["yield"], "min_yield_coverage")
     segments = parameters["segments"]
-    # A guard on the cost of the search: it refuses a run or leaves it as it is.
-    delete!(segments, "max_breakpoint_sets")
+    # A guard on the cost of the search. Where it is not its default it can leave a refit of the
+    # trend out, and enters; at its default it does not, which keeps every identifier formed
+    # before the key existed.
+    configuration.segments.max_breakpoint_sets == DEFAULT_MAX_BREAKPOINT_SETS &&
+        delete!(segments, "max_breakpoint_sets")
     if isempty(configuration.segments.required_windows)
         delete!(segments, "required_windows")
         delete!(segments, "windows_apply_to_datasets")

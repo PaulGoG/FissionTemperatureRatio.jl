@@ -691,9 +691,21 @@ end
             @test run_identifier(lagged) != identifier
             @test !occursin("lags", run_identifier(lagged))
 
-            # The limit on the breakpoint sets is a guard on the cost of the search: it refuses
-            # a run or leaves its result as it is, and is no parameter of it.
+            # The limit on the breakpoint sets is a guard on the cost of the search. At its
+            # default it is no parameter, which keeps the identifiers formed before the key
+            # existed; another value can leave a refit of the trend out of the total averages,
+            # and enters h.
             @test configuration.segments.max_breakpoint_sets == 10_000_000
+            @test !haskey(run_parameters(configuration)["segments"], "max_breakpoint_sets")
+            other = write_beside(
+                path,
+                replace(
+                    MINIMAL_CONFIGURATION,
+                    "max_segments = 3" => "max_segments = 3\nmax_breakpoint_sets = 10000000",
+                ),
+            )
+            @test run_identifier(load_configuration(other; data_directory = directory)) ==
+                identifier
             other = write_beside(
                 path,
                 replace(
@@ -703,11 +715,9 @@ end
             )
             limited = load_configuration(other; data_directory = directory)
             @test limited.segments.max_breakpoint_sets == 500000
-            @test !haskey(
-                FissionTemperatureRatio.run_parameters(limited)["segments"],
-                "max_breakpoint_sets",
-            )
-            @test run_identifier(limited) == identifier
+            @test run_parameters(limited)["segments"]["max_breakpoint_sets"] == 500000
+            @test run_identifier(limited) != identifier
+            @test !occursin("breakpoint", run_identifier(limited))
 
             # A list enters in full, so two window sets are two runs.
             other = write_beside(

@@ -102,8 +102,9 @@ The segmented description of ``r_\nu(A_H)``; every key has a default. The breakp
 exhaustive, so its cost grows combinatorially with `max_segments` and falls as
 `min_points_per_segment` rises. Over the 49 heavy masses of the ²⁵²Cf range the shipped settings,
 6 and 4, examine 191350 breakpoint sets in a fit without windows; 8 and 2 examine 2.4 × 10⁷. A fit
-that would examine more than `max_breakpoint_sets` is refused before it starts, with the number in
-the message. The refits of the systematic trend with one and two segments more than selected are
+that would examine more than `max_breakpoint_sets` is refused before its search starts, and the
+run stops there with the number in the message; the number rests on the data, so loading the
+configuration does not check it. The refits of the systematic trend with one and two segments more than selected are
 left out above the limit instead, with a message, and their columns of the total averages are then
 empty. The default, 10⁷, admits every segment limit at four points per segment over such a
 range, at most 1.09 × 10⁶ sets, and refuses 8 segments of 2 points and 9 segments of 3.
@@ -117,7 +118,7 @@ range, at most 1.09 × 10⁶ sets, and refuses 8 segments of 2 points and 9 segm
 | `windows_apply_to_datasets` | boolean | `false` | — | `h`, with windows | apply the windows to every dataset curve as well |
 | `min_pair_coverage` | real | `0.3` | 0 to 1 | `h` | the fraction of the range's heavy masses a dataset must pair to offer a curve of its own |
 | `autocorrelation_lags` | integer | `4` | 1 to 8 | `h` | lags of the deviation correlogram the trend's autocorrelation is fitted to |
-| `max_breakpoint_sets` | integer | `10000000` | 1 to 10⁹ | — | breakpoint sets one fit may examine, all segment counts together; above it the run is refused |
+| `max_breakpoint_sets` | integer | `10000000` | 1 to 10⁹ | `h`, where not the default | breakpoint sets one fit may examine, all segment counts together; a fit above it stops the run, and a refit of the trend with more segments than selected is left out |
 
 ## `[retrieval]`, optional
 

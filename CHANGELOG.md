@@ -33,7 +33,12 @@ ExforFissionData.jl v0.8.0.
   0.002. In simulated pools of six datasets, with the breakpoints and the correlation held at
   their true values, the uncertainty reported for a yield-weighted mean of the trend was 23 % too
   large for a pool of interpolated datasets; it now agrees with the scatter over the replicates
-  to within 9 % for pools of whole and of interpolated datasets alike.
+  to within 9 % for pools of whole and of interpolated datasets alike. With the correlation
+  fitted and the number of segments selected, as a run does, the scatter exceeds the reported
+  uncertainty by 36 % to 41 % in every pool. Before, the excess was the same for a pool of whole
+  datasets and 23 % for a pool of interpolated ones, because the overstatement of the former
+  fraction offset part of it; the uncertainty of a trend pooled from interpolated datasets is
+  therefore smaller against its scatter now than before. The method page states the shortfall.
 
 ### Added
 
@@ -43,8 +48,9 @@ ExforFissionData.jl v0.8.0.
   is solved.
 - `segments.max_breakpoint_sets`, 10000000 by default. Over 49 heavy masses every segment limit
   at four points per segment stays below it, at most 1088589 sets, against 191350 for the
-  shipped settings. The key is recorded with the configuration in `metadata.toml` and is no
-  parameter of the run identifier.
+  shipped settings. The key is recorded with the configuration in `metadata.toml`. It enters the
+  run identifier only where it is not its default, because another value can leave a refit of
+  the trend out of the total averages; every existing identifier is kept.
 - A precompilation workload: the first combination and fit of a session take about 1 s in place
   of about 13 s.
 - `read_multiplicity_directory` and `read_mass_yield_directory` take the retrieval records of
@@ -58,9 +64,10 @@ ExforFissionData.jl v0.8.0.
 - **Breaking:** `fragmentation.zero_polarization_at_symmetry = true` is refused for a fissioning
   nucleus of odd mass number, which has no symmetric split for it to act on; it changed the run
   identifier of a run it could not affect.
-- **Breaking:** a run whose breakpoint search would examine more than
-  `segments.max_breakpoint_sets` sets is refused before it starts, with the number in the
-  message: over 49 heavy masses, 8 segments of 2 points (24128307 sets) or 9 segments of 3
+- **Breaking:** a fit whose breakpoint search would examine more than
+  `segments.max_breakpoint_sets` sets is refused before its search starts, and the run stops
+  there with the number in the message. The number rests on the data, so loading the
+  configuration does not check it. Over 49 heavy masses the limit refuses 8 segments of 2 points (24128307 sets) or 9 segments of 3
   (11025278). Such configurations loaded, and each of their fits took several minutes. The
   refits of the trend with one and two segments more than selected are left out above the limit,
   with a message, and leave `R_T_one_more_segment` or `R_T_two_more_segments` empty: over 49

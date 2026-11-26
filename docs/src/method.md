@@ -185,9 +185,10 @@ fractions of its contributors, so the fit is given the uncertainty of one measur
 trend of a pool that holds a single interpolated dataset is then identical to that dataset's own
 fit in breakpoints, coefficients, ``\chi^2``, degrees of freedom and covariance.
 
-The sensitivity of a result to the selected order is reported with it: the systematic trend is
-refitted with one and two more segments, and its total average at each order is written beside the
-selected one. An order whose search would examine more than `max_breakpoint_sets` breakpoint sets
+The sensitivity of a result to orders above the selected one is reported with it: the systematic
+trend is refitted with one and two more segments, and its total average at each order is written
+beside the selected one. A lower order is not refitted; where it is about as well supported as
+the selected one, as five segments are for ²³⁹Pu, the next paragraph applies. An order whose search would examine more than `max_breakpoint_sets` breakpoint sets
 is not refitted, and its column is left empty.
 
 The propagated uncertainty of a curve is that of its coefficients at the selected breakpoints. It
@@ -500,7 +501,10 @@ correction is applied. In simulated pools of six datasets measured at the intege
 0.73. The scatter of a yield-weighted mean of the trend over the replicates then exceeds the
 uncertainty the trend reports for it by a quarter with the breakpoints held at their true
 positions, and by a third with the number of segments selected as a run selects it; with
-``\rho`` and the breakpoints at their true values it exceeds it by 7 %. The jackknife over the
+``\rho`` and the breakpoints at their true values it exceeds it by 7 %. In pools of which half or
+all of the datasets are interpolated from a grid of 1.5 u, the fitted ``\rho`` is 0.74 and 0.78,
+and the excess with the number of segments selected is 39 % and 41 % (± 9 %): the same within
+the resolution of the simulation. The jackknife over the
 leave-one-out refits, written beside the propagated uncertainty, does not rest on ``\rho``.
 
 The kernel ``\rho^k`` of an AR(1) error is fitted to the first lags of the correlogram in least
