@@ -27,8 +27,10 @@ updates:
     ignore:
       - dependency-name: "JuliaFormatter"
       - dependency-name: "Dates"
+      - dependency-name: "Distributed"
       - dependency-name: "InteractiveUtils"
       - dependency-name: "LinearAlgebra"
+      - dependency-name: "Logging"
       - dependency-name: "Printf"
       - dependency-name: "SHA"
       - dependency-name: "Statistics"
