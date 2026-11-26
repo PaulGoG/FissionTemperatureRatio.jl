@@ -200,7 +200,7 @@ segments, and ``R_T`` at ``A_H = 128`` is 1.66 ± 0.11 with six and 2.18 ± 0.27
 its propagated uncertainty; from ``A_H = 136`` on the two curves agree within 0.002. The
 uncertainty a run reports for a systematic trend contains part of this, through the jackknife
 described under [The uncertainty of the trend](@ref): the refits behind it select their own
-breakpoints, and for ²³⁹Pu at ``A_H = 128`` it is 0.40.
+breakpoints, and for ²³⁹Pu at ``A_H = 128`` it is 0.23.
 
 The coefficient covariance ``(X^\mathsf{T} W X)^{-1}`` is scaled by
 ``\max(1, \chi^2/\mathrm{dof})`` where the data quote uncertainties: it is inflated where the
@@ -519,8 +519,8 @@ short of ``\rho`` by about ``(1 + 3\rho)/n`` to first order in ``1/n``
 that is 0.07 to 0.11. The combined curve, moreover, carries a share of every other dataset's error
 into each deviation. The fitted ``\rho``, and with it the propagated uncertainty of the trend, are
 therefore on the low side; no correction is applied to ``\rho``. In the simulations of the
-calibration at the end of this section, pools generated with ``\rho`` = 0.82 to 0.97 are fitted
-as 0.67 to 0.86 on average, lower by 0.11 to 0.22. The uncertainty a run reports for the trend
+calibration at the end of this section, pools generated with ``\rho`` = 0.83 to 0.97 are fitted
+as 0.67 to 0.85 on average, lower by 0.12 to 0.23. The uncertainty a run reports for the trend
 does not
 rest on the propagated one alone: it is the larger of that and the jackknife over refits with
 pooled datasets left out, which does not use ``\rho``.
@@ -658,9 +658,9 @@ weighted sum of its values; otherwise it is formed mass number by mass number. A
 not reach a mass number is left out of the sum there, and a mass number that fewer than two refits
 reach has no jackknife. Where only some of the pooled datasets cover a mass number the jackknife
 there is biased, since the refits that reach it are those that keep some of them: for a mean of
-the datasets that cover it, low by about a fifth where two of four cover it and high by a quarter
-where three do, and where one experiment alone covers it the jackknife does not contain that
-experiment's own error at all. The covariance between two mass numbers that different refits
+the datasets that cover it, the jackknife variance is low by a sixth where two of four cover it
+and high by a quarter where three do, and where one experiment alone covers it the jackknife does
+not contain that experiment's own error at all. The covariance between two mass numbers that different refits
 reach is damped as well, which lowers the jackknife of an average that draws on both. A refit
 whose datasets do not reach the symmetric split is fitted unpinned, and one whose datasets admit
 no breakpoint in a required window without it; both enter the jackknife at the mass numbers they
@@ -738,10 +738,15 @@ and the correlation ``\rho_g^{|A - A'|}`` along the mass axis. The whole error o
 correlated, as the covariance of the trend takes it to be: with the quoted part independent from
 one mass number to the next, simulated pools are less correlated than the measured ones.
 ``\rho_g`` is the coefficient at which such pools give the fitted ``\rho`` of the run on average.
-It is 0.97, 0.82, 0.94 and 0.95 for ²⁵²Cf, ²³⁵U, ²³⁹Pu and ²³³U, where the runs fit 0.865, 0.691,
-0.811 and 0.804: the bias of the fitted ``\rho`` described above. For ²⁵²Cf and ²³³U no coefficient
-reaches the fitted value, and the one that comes closest is taken, at which the pools give 0.861
-and 0.745. A replicate is treated as a run treats the data: the pool is combined, ``\rho`` is
+It is 0.97, 0.83, 0.95 and 0.95 for ²⁵²Cf, ²³⁵U, ²³⁹Pu and ²³³U, where the runs fit 0.865, 0.691,
+0.811 and 0.804: the bias of the fitted ``\rho`` described above. For ²⁵²Cf, ²³⁹Pu and ²³³U no
+coefficient reaches the fitted value, and the one that comes closest is taken, at which the pools
+give 0.852, 0.796 and 0.737. The first four lags of the simulated correlograms follow the measured
+ones for ²⁵²Cf, 0.82, 0.73, 0.62 and 0.55 against 0.81, 0.77, 0.62 and 0.59, and likewise for ²³⁵U
+and ²³⁹Pu. For ²³³U, where one of the four datasets holds even mass numbers only, they do not
+beyond the second: 0.60, 0.67, 0.35 and 0.39 against 0.63, 0.59, 0.52 and 0.55. At the symmetric
+split the simulated value is that of the curve, since ``r_\nu = 1/2`` there by its definition and
+every dataset holds that value. A replicate is treated as a run treats the data: the pool is combined, ``\rho`` is
 fitted, the trend is fitted with the pin, the required windows and the selection of the
 configuration, and it is refitted with half of the pooled datasets left out.
 
@@ -755,42 +760,43 @@ when the replicates are resampled.
 
 | System | Pooled | Replicates | Uncertainty | ``R_T``: within ``\sigma`` | within ``2\sigma`` | ``\langle R_T \rangle``: within ``\sigma`` | within ``2\sigma`` | scatter / rms ``\sigma`` |
 | :--- | ---: | ---: | :--- | ---: | ---: | ---: | ---: | ---: |
-| ²⁵²Cf(sf) | 13 | 80 | propagated | 0.526 | 0.823 | 0.550 | 0.800 | 1.32 (1.18 to 1.44) |
-| | | | jackknife | 0.682 | 0.937 | 0.662 | 0.900 | 0.92 (0.83 to 1.01) |
-| | | | reported | 0.689 | 0.944 | 0.675 | 0.912 | 0.90 (0.81 to 1.00) |
-| ²³⁵U(nth,f) | 7 | 120 | propagated | 0.418 | 0.729 | 0.500 | 0.750 | 1.57 (1.45 to 1.67) |
-| | | | jackknife | 0.677 | 0.919 | 0.658 | 0.883 | 0.95 (0.87 to 1.02) |
-| | | | reported | 0.681 | 0.925 | 0.667 | 0.883 | 0.95 (0.88 to 1.01) |
-| ²³⁹Pu(nth,f) | 4 | 200 | propagated | 0.497 | 0.788 | 0.500 | 0.740 | 1.38 (1.30 to 1.47) |
-| | | | jackknife | 0.623 | 0.876 | 0.625 | 0.880 | 0.95 (0.90 to 1.01) |
-| | | | reported | 0.641 | 0.895 | 0.650 | 0.890 | 0.95 (0.89 to 1.00) |
-| ²³³U(nth,f) | 4 | 200 | propagated | 0.297 | 0.550 | 0.360 | 0.610 | 0.48 (0.37 to 1.98) |
-| | | | jackknife | 0.575 | 0.797 | 0.655 | 0.880 | 0.88 (0.78 to 0.97) |
-| | | | reported | 0.597 | 0.833 | 0.665 | 0.895 | 0.43 (0.36 to 0.81) |
+| ²⁵²Cf(sf) | 13 | 80 | propagated | 0.517 | 0.812 | 0.537 | 0.775 | 1.37 (1.22 to 1.49) |
+| | | | jackknife | 0.679 | 0.938 | 0.662 | 0.900 | 0.92 (0.83 to 1.01) |
+| | | | reported | 0.687 | 0.943 | 0.662 | 0.912 | 0.91 (0.82 to 1.00) |
+| ²³⁵U(nth,f) | 7 | 120 | propagated | 0.405 | 0.715 | 0.458 | 0.750 | 1.62 (1.50 to 1.73) |
+| | | | jackknife | 0.679 | 0.916 | 0.658 | 0.875 | 0.95 (0.87 to 1.02) |
+| | | | reported | 0.683 | 0.921 | 0.658 | 0.875 | 0.95 (0.88 to 1.01) |
+| ²³⁹Pu(nth,f) | 4 | 200 | propagated | 0.503 | 0.778 | 0.470 | 0.715 | 1.49 (1.40 to 1.57) |
+| | | | jackknife | 0.628 | 0.875 | 0.620 | 0.900 | 0.95 (0.89 to 1.00) |
+| | | | reported | 0.641 | 0.893 | 0.635 | 0.905 | 0.94 (0.89 to 1.00) |
+| ²³³U(nth,f) | 4 | 200 | propagated | 0.290 | 0.541 | 0.360 | 0.605 | 1.61 (1.39 to 2.00) |
+| | | | jackknife | 0.574 | 0.798 | 0.660 | 0.890 | 0.85 (0.77 to 0.93) |
+| | | | reported | 0.596 | 0.833 | 0.665 | 0.905 | 0.80 (0.75 to 0.85) |
 
-The propagated uncertainty alone holds 30 % to 53 % of the errors of ``R_T`` and 36 % to 55 % of
-those of ``\langle R_T \rangle``. The reported uncertainty holds 60 % to 69 % of the errors of
-``R_T`` and 83 % to 94 % within twice it, and 65 % to 68 % and 88 % to 91 % of those of
-``\langle R_T \rangle``. It is an estimate with one degree of freedom fewer than there are pooled
-experiments where all of them cover a mass number, so the fractions to compare with are those of
-a ``t`` distribution: 60.9 % and 86.1 % for the four experiments of ²³⁹Pu and ²³³U, 64.4 % and
-90.8 % for seven, 66.3 % and 93.1 % for thirteen. The last column is 0.90 to 0.95 for three of the
-pools. For ²³³U it is unstable, as its interval shows: the propagated uncertainty of a few
-replicates is several times the scatter, and their squares dominate the mean.
+The propagated uncertainty alone holds 29 % to 52 % of the errors of ``R_T`` and 36 % to 54 % of
+those of ``\langle R_T \rangle``, and the scatter of ``\langle R_T \rangle`` exceeds its root
+mean square by a factor of 1.4 to 1.6. The reported uncertainty holds 60 % to 69 % of the errors
+of ``R_T`` and 83 % to 94 % within twice it, and 64 % to 67 % and 88 % to 91 % of those of
+``\langle R_T \rangle``; the last column is 0.80 to 0.95. It is an estimate with one degree of
+freedom fewer than there are pooled experiments where all of them cover a mass number, so the
+fractions to compare with are those of a ``t`` distribution: 60.9 % and 86.1 % for the four
+experiments of ²³⁹Pu and ²³³U, 64.4 % and 90.8 % for seven, 66.3 % and 93.1 % for thirteen.
 
 The simulation tests the rule under the errors it generates. It does not size the errors of the
 measured pools. ``s_i`` holds everything the residuals of a dataset about the trend hold,
 including what joined segments miss in every dataset alike, and the simulation generates all of
 it as independent between experiments. For ²⁵²Cf the simulated pools scatter in
-``\langle R_T \rangle`` by 0.0271 and their jackknife has a root mean square of 0.0294, where
+``\langle R_T \rangle`` by 0.0272 and their jackknife has a root mean square of 0.0297, where
 the jackknife of the measured pool is 0.0086: the measured experiments agree in
 ``\langle R_T \rangle`` better than the simulated ones do. For ²³⁵U and ²³⁹Pu the two are closer,
-0.0298 against 0.0231 and 0.0451 against 0.0305. Where the jackknife of ``\langle R_T \rangle`` is
-below the propagated uncertainty, as for the measured pools of ²⁵²Cf and ²³³U, a run reports the
-propagated one. In the replicates of that kind the root-mean-square error of
-``\langle R_T \rangle`` over the root mean square of the reported uncertainty is 0.83 for ²⁵²Cf
-(13 replicates of 80), 1.02 for ²³⁵U (15 of 120) and 1.09 for ²³⁹Pu (29 of 200), each within its
-interval of one; for ²³³U there are 9 such replicates of 200, too few to say. An error that
+0.0312 against 0.0231 and 0.0494 against 0.0305. Where the jackknife of ``\langle R_T \rangle``
+is below the propagated uncertainty, as for the measured pools of ²⁵²Cf and ²³³U, a run reports
+the propagated one. In the replicates of that kind the root-mean-square error of
+``\langle R_T \rangle`` over the root mean square of the reported uncertainty is 0.77 for ²⁵²Cf
+(9 replicates of 80; 68 % interval 0.61 to 0.96), 1.22 for ²³⁵U (12 of 120; 0.93 to 1.48), 1.22
+for ²³⁹Pu (23 of 200; 1.05 to 1.41) and 1.01 for ²³³U (8 of 200; 0.96 to 2.43): such replicates
+are few, and among them the reported uncertainty is not too small for ²⁵²Cf and may be by a
+fifth for ²³⁹Pu, where the jackknife of a replicate has come out low by chance. An error that
 several experiments share is in neither uncertainty.
 
 For the four shipped systems, over the primary yield distribution, a run writes the reported

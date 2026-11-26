@@ -60,25 +60,27 @@ configuration that leaves the two new keys at their defaults. Inputs: ExforFissi
   subset where there are at most `jackknife_subsets`, and that many drawn otherwise. With two or
   three pooled datasets these are the leave-one-out refits. That holds for `R_T_uncertainty` at
   each mass number of the tabulated trend, for `r_nu_uncertainty` at its pivots, and for the term
-  of the curve in the uncertainty of `⟨R_T⟩` and of the range mean, which is
-  `max(wᵀ C w, wᵀ Σ_J w)` with `Σ_J` the jackknife covariance of `R_T` over the refits. The
-  independent-points uncertainty of the trend's total average is formed from the tabulated
-  uncertainties and changes with them. 0.6.0 stated that the propagated uncertainty is too small
-  once the correlation is fitted and the number of segments selected, as a run does. Simulated on
-  the pools of the four shipped configurations, with errors as correlated along the mass axis
-  as the measured ones, it holds 30 % to 53 % of the errors of `R_T` where a normal error has
-  68.3 %; the reported uncertainty holds 60 % to 69 %, and 83 % to 94 % within twice it. The
-  simulation tests the rule and does not size the errors of the measured pools: for ²⁵²Cf the
-  simulated experiments differ more than the measured ones do. Half of the datasets are left
-  out, and not one, because the breakpoints of a trend are selected: the delete-one jackknife is inconsistent for estimates that are not smooth, and the
-  delete-d one with d a fixed fraction of k consistent (Shao and Wu 1989,
-  [doi:10.1214/aos/1176347263](https://doi.org/10.1214/aos/1176347263)); a selected fit is
-  covered by neither result, but where the leave-one-out refits divide between two sets of
-  breakpoints the delete-one form exceeds the distance between them. For ²⁵²Cf at `A_H` = 130, where `R_T` = 1.74 has a propagated uncertainty of 0.069, it
-  gives 0.62; the jackknife with six of the thirteen experiments left out gives 0.21. The trend
-  of a pool from which fewer than two refits give a curve, the trend of
-  `run_pipeline(configuration; leave_one_out = false)` and the curve of every dataset carry the
-  propagated uncertainty as before. At a pinned mass number both uncertainties are zero.
+  of the curve in the uncertainty of `⟨R_T⟩` and of the range mean, which is `max(wᵀ C w, wᵀ Σ_J
+  w)` with `Σ_J` the jackknife covariance of `R_T` over the refits. The independent-points
+  uncertainty of the trend's total average is formed from the tabulated uncertainties and changes
+  with them. 0.6.0 stated that the propagated uncertainty is too small once the correlation is
+  fitted and the number of segments selected, as a run does. Simulated on the pools of the four
+  shipped configurations, with errors correlated along the mass axis so that the pools give the
+  fitted `ρ` of the run or, for ²⁵²Cf, ²³⁹Pu and ²³³U, as near to it as any coefficient brings
+  them, it holds 29 % to 52 % of the errors of `R_T` where a normal error has 68.3 %; the reported
+  uncertainty holds 60 % to 69 %, and 83 % to 94 % within twice it. The simulation tests the rule
+  and does not size the errors of the measured pools: for ²⁵²Cf the simulated experiments differ
+  more than the measured ones do. Half of the datasets are left out, and not one, because the
+  breakpoints of a trend are selected: the delete-one jackknife is inconsistent for estimates that
+  are not smooth, and the delete-d one with d a fixed fraction of k consistent (Shao and Wu 1989,
+  [doi:10.1214/aos/1176347263](https://doi.org/10.1214/aos/1176347263)); a selected fit is covered
+  by neither result, but where the leave-one-out refits divide between two sets of breakpoints the
+  delete-one form exceeds the distance between them. For ²⁵²Cf at `A_H` = 130, where `R_T` = 1.74
+  has a propagated uncertainty of 0.069, it gives 0.62; the jackknife with six of the thirteen
+  experiments left out gives 0.21. The trend of a pool from which fewer than two refits give a
+  curve, the trend of `run_pipeline(configuration; leave_one_out = false)` and the curve of every
+  dataset carry the propagated uncertainty as before. At a pinned mass number both uncertainties
+  are zero.
 - **Breaking:** `ExtractedCurve` has the new field `R_T_jackknife_covariance`, `nothing` for a
   curve without a jackknife. `R_T_covariance` stays the propagated covariance; its diagonal is
   the square of `R_T.σ` for a curve without a jackknife only. `TotalAverage` has the new field
