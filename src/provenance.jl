@@ -460,8 +460,9 @@ end
 
 # The correlogram, with NaN at a lag that holds no value, whether an autocorrelation could be
 # fitted to it and, where it could, the coefficient the covariance was formed with, the scale of
-# the trend's covariance against the expectation of χ², and the leave-one-out spread of ⟨R_T⟩
-# over each yield distribution it was formed for.
+# the trend's covariance against the expectation of χ², whether the trend carries the jackknife
+# over its refits and where that is the larger, and the leave-one-out spread of ⟨R_T⟩ over each
+# yield distribution it was formed for, with the propagated uncertainty of that ⟨R_T⟩.
 function _trend_uncertainty_record(result::ExtractionResult)
     ρ = deviation_autocorrelation(result)
     record = Dict{String,Any}(
@@ -480,8 +481,23 @@ function _trend_uncertainty_record(result::ExtractionResult)
         record["covariance_scale"] = _covariance_scale(
             fit.wrss, fit.expected_wrss, fit.weights_imputed, fit.points
         )
+        # Whether the trend carries the jackknife over its refits, how many gave a curve, and
+        # the mass numbers where the jackknife of R_T is the larger of the two uncertainties.
+        trend = result.segmented_curves[index]
+        Σ_J = trend.R_T_jackknife_covariance
+        record["jackknife_applied"] = Σ_J !== nothing
+        if Σ_J !== nothing
+            record["jackknife_refits"] = count(
+                entry -> entry.segments > 0, result.leave_one_out
+            )
+            record["jackknife_larger_at"] = Int[
+                A for (i, A) in enumerate(trend.R_T.A_H) if
+                Σ_J[i, i] > 0 && trend.R_T.σ[i] == sqrt(Σ_J[i, i])
+            ]
+        end
     end
     spreads = Dict{String,Any}()
+    averages = get(result.total_average_R_T, SYSTEMATIC_TREND_LABEL, nothing)
     for distribution in result.mass_yields
         spread = leave_one_out_spread(result, distribution.label)
         spread === nothing && continue
@@ -490,6 +506,13 @@ function _trend_uncertainty_record(result::ExtractionResult)
             "max" => spread.max,
             "uncertainty" => spread.uncertainty,
             "refits" => spread.refits,
+        )
+        # The uncertainty of ⟨R_T⟩ with the propagated covariance alone, beside the jackknife:
+        # the total averages state the larger of the two.
+        average = averages === nothing ? nothing : get(averages, distribution.label, nothing)
+        average === nothing || (
+            spreads[distribution.label]["uncertainty_propagated"] =
+                average.uncertainty_propagated
         )
     end
     record["leave_one_out"] = spreads

@@ -206,11 +206,12 @@ function _write_ratio_tables!(
         pivot_table = DataFrame(;
             A_H = [point[1] for point in points],
             r_nu = [round(point[2]; sigdigits = digits) for point in points],
-            # The propagated uncertainty at each pivot. The fit carries it, and a file that states
-            # the segmented description without it invites the reader to assume there is none.
+            # The uncertainty of the curve's `r_ν` at each pivot: the propagated one, and for a
+            # trend that carries a jackknife the larger of the two. A file that states the
+            # segmented description without it invites the reader to assume there is none.
             r_nu_uncertainty = [
-                round(last(evaluate(curve.fit, Float64(point[1]))); sigdigits = digits) for
-                point in points
+                round(curve.r_ν.σ[findfirst(==(point[1]), curve.r_ν.A_H)]; sigdigits = digits)
+                for point in points
             ],
         )
         path = joinpath(directory, "r_nu_vs_A_H_pivots_$(token).csv")

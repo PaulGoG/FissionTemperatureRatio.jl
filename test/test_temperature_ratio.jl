@@ -162,4 +162,87 @@ end
         @test mean ≈ sum(curve.R_T.ratio) / length(A_H)
         @test σ > 0
     end
+
+    @testset "the jackknife covariance is the Gram matrix of the scaled deviations" begin
+        refits = [
+            RatioCurve([130, 131, 132, 133], [1.0, 2.0, 4.0, 7.0], fill(0.1, 4), "a"),
+            RatioCurve([130, 131, 132], [2.0, 2.0, 1.0], fill(0.1, 3), "b"),
+            RatioCurve([130, 131], [3.0, 5.0], fill(0.1, 2), "c"),
+        ]
+        Σ = FissionTemperatureRatio._jackknife_covariance([130, 131, 132, 133], refits)
+        # Worked by hand. At 130 the values 1, 2, 3 deviate from their mean by −1, 0, 1, and at
+        # 131 the values 2, 2, 5 by −1, −1, 2, each scaled by √(2/3); at 132 two refits hold 4
+        # and 1, which deviate by ±1.5, scaled by √(1/2); at 133 one refit alone holds a value.
+        @test Σ ≈ [
+            4 / 3 2 -sqrt(3) / 2 0
+            2 4 0 0
+            -sqrt(3) / 2 0 9 / 4 0
+            0 0 0 0
+        ] atol = 1e-14
+        @test Σ == Σ'
+        @test FissionTemperatureRatio._jackknife_covariance([130, 131], RatioCurve[]) ==
+            zeros(2, 2)
+    end
+
+    @testset "a curve with refits carries the larger of its propagated uncertainty and the jackknife" begin
+        domain = shipped_domain("Cf252_sf")
+        A_H = collect(126:150)
+        base = reference_ratio.(A_H) .+ 0.002 .* iseven.(A_H)
+        function extracted(value, label)
+            fit = fit_segments(
+                A_H, value, fill(0.004, length(A_H)); max_segments = 3, pinned_value = 0.5
+            )
+            data = RatioCurve(A_H, value, fill(0.004, length(A_H)), label)
+            return ExtractedCurve(label, fit, data, ChargeResolved(), BSFG_MODEL, domain)
+        end
+        # The refits leave the pin where it is and differ from one another by a slope, far more
+        # than the propagated uncertainty of the curve.
+        tilted(shift) = extracted(base .+ shift .* (A_H .- 126) ./ 24, "refit")
+        curve = extracted(base, "synthetic")
+        refits = [tilted(shift) for shift in (-0.05, 0.0, 0.08)]
+        @test all(refit.R_T.A_H == curve.R_T.A_H for refit in refits)
+        @test all(refit.r_ν.A_H == curve.r_ν.A_H for refit in refits)
+        raised = ExtractedCurve(curve, refits)
+
+        @test curve.R_T_jackknife_covariance === nothing
+        @test raised.label == curve.label
+        @test raised.fit === curve.fit
+        @test raised.coverage == curve.coverage
+        @test raised.r_ν.ratio == curve.r_ν.ratio
+        @test raised.R_T.ratio == curve.R_T.ratio
+        @test raised.R_T_covariance == curve.R_T_covariance
+        # The delete-one jackknife standard error of k values.
+        jackknife(θ) = sqrt((length(θ) - 1) / length(θ) * sum(abs2, θ .- sum(θ) / length(θ)))
+        for index in eachindex(A_H)
+            σ_r = jackknife([refit.r_ν.ratio[index] for refit in refits])
+            σ_R = jackknife([refit.R_T.ratio[index] for refit in refits])
+            @test raised.r_ν.σ[index] ≈ max(curve.r_ν.σ[index], σ_r) atol = 1e-14
+            @test raised.R_T.σ[index] ≈ max(curve.R_T.σ[index], σ_R) atol = 1e-14
+            @test sqrt(raised.R_T_jackknife_covariance[index, index]) ≈ σ_R atol = 1e-14
+        end
+        # Every refit holds the pin: no spread there, and the uncertainty stays zero.
+        @test raised.R_T.σ[1] == 0
+        @test raised.R_T.σ[end] > 2 * curve.R_T.σ[end]
+
+        # An average of the curve takes the jackknife of the same average over the refits.
+        yields = MassYield(
+            A_H, exp.(-((A_H .- 140) ./ 5) .^ 2), fill(missing, length(A_H)), "y", ""
+        )
+        value, σ = total_average(raised, yields)
+        σ_jackknife = jackknife([first(total_average(refit, yields)) for refit in refits])
+        @test value == first(total_average(curve, yields))
+        @test σ_jackknife > last(total_average(curve, yields))
+        @test σ ≈ σ_jackknife rtol = 1e-10
+        σ_mean = last(range_mean(raised))
+        @test σ_mean > last(range_mean(curve))
+        @test σ_mean ≈ jackknife([first(range_mean(refit)) for refit in refits]) rtol = 1e-10
+
+        # Where the propagated uncertainty is the larger it stands: refits that barely differ.
+        unraised = ExtractedCurve(curve, [tilted(shift) for shift in (-1e-6, 0.0, 1e-6)])
+        @test unraised.R_T.σ == curve.R_T.σ
+        @test unraised.r_ν.σ == curve.r_ν.σ
+        @test last(total_average(unraised, yields)) == last(total_average(curve, yields))
+
+        @test_throws ArgumentError ExtractedCurve(curve, refits[1:1])
+    end
 end

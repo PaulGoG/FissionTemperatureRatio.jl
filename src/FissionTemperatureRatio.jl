@@ -106,7 +106,7 @@ using FissionFragmentsDomain:
     ratio_averaging,
     ratio_averaging_label,
     write_temperature_ratio_manifest
-using LinearAlgebra: Symmetric, cond, dot, eigmin, tr
+using LinearAlgebra: Symmetric, cond, diag, dot, eigmin, tr
 using Measurements: Measurements
 using PrecompileTools: @compile_workload, @setup_workload
 using SHA: sha1, sha256

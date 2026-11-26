@@ -110,7 +110,8 @@ end
 
 # The trend refitted with each pooled dataset left out in turn, the datasets of one experiment
 # together: how far ⟨R_T⟩, the number of segments and the breakpoints rest on one of them. Only the
-# values of a refit are used, so it takes the points as independent.
+# values of a refit are used, so it takes the points as independent. The curves of the refits
+# are returned beside their records; the jackknife of the trend is formed from them.
 function _leave_one_out(
     units,
     datasets::Vector{Multiplicity},
@@ -118,8 +119,9 @@ function _leave_one_out(
     configuration::Configuration,
     averaged::Vector{MassYield},
 )
+    length(units.curves) ≥ 2 || return (; entries = LeaveOneOut[], curves = ExtractedCurve[])
     refits = LeaveOneOut[]
-    length(units.curves) ≥ 2 || return refits
+    curves = ExtractedCurve[]
     settings = configuration.segments
     @info "leave-one-out refits of the systematic trend" refits = length(units.curves)
     for j in eachindex(units.curves)
@@ -153,6 +155,7 @@ function _leave_one_out(
             distribution.label => first(total_average(refit, distribution)) for
             distribution in averaged if _overlaps(refit.R_T, distribution)
         )
+        push!(curves, refit)
         push!(
             refits,
             LeaveOneOut(
@@ -173,7 +176,7 @@ function _leave_one_out(
     length(units.curves) == 2 &&
         @warn "two pooled experiments: each leave-one-out refit rests on one of them, and the \
                jackknife uncertainty of the trend is half the difference of the two"
-    return refits
+    return (; entries = refits, curves)
 end
 
 # The experiments among the datasets `candidates` indexes: the connected components of the

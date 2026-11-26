@@ -168,11 +168,14 @@ function test_leave_one_out(directory, configuration, result, written)
         @test [only(entry["datasets"]) for entry in record] == pooled_datasets(result)
         @test record[1]["breakpoints"] == result.leave_one_out[1].breakpoints
 
-        # Skipped on request: the curves are the same, and no table is written.
+        # Skipped on request: the values of the curves are the same, the trend carries its
+        # propagated uncertainty alone, which the jackknife over the refits can only raise, and
+        # no table is written.
         without = run_pipeline(configuration; leave_one_out = false)
         @test isempty(without.leave_one_out)
         @test systematic_trend(without).R_T.ratio == systematic_trend(result).R_T.ratio
-        @test systematic_trend(without).R_T.σ == systematic_trend(result).R_T.σ
+        @test systematic_trend(without).R_T_jackknife_covariance === nothing
+        @test all(systematic_trend(without).R_T.σ .≤ systematic_trend(result).R_T.σ)
         @test !haskey(
             write_results(without, joinpath(directory, "output", "without")), "leave_one_out"
         )
@@ -800,10 +803,8 @@ end
             @test startswith(
                 metadata["result"]["mass_yields_not_averaged"]["C. Tail 2000"], "coverage"
             )
-            table = CSV.read(
-                write_results(with_yields, joinpath(directory, "output", "yields"))["total_average_R_T"],
-                DataFrame,
-            )
+            written_yields = write_results(with_yields, joinpath(directory, "output", "yields"))
+            table = CSV.read(written_yields["total_average_R_T"], DataFrame)
             @test !("C. Tail 2000" in table.mass_yield)
             @test all(0 .< table.yield_fraction .<= 1)
 
@@ -813,7 +814,7 @@ end
             spread = leave_one_out_spread(with_yields, "A. Both 2000")
             θ = [entry.total_average_R_T["A. Both 2000"] for entry in with_yields.leave_one_out]
             left_out_path = joinpath(directory, "with_yields_left_out.toml")
-            references = map(with_yields.leave_one_out) do entry
+            exclusion_runs = map(with_yields.leave_one_out) do entry
                 exclusions = map(entry.datasets) do label
                     return "{ dataset = \"$(label)\", reason = \"left out\" }"
                 end
@@ -830,8 +831,12 @@ end
                     load_configuration(left_out_path; data_directory = directory);
                     leave_one_out = false,
                 )
-                return refit.total_average_R_T[SYSTEMATIC_TREND_LABEL]["A. Both 2000"].value
+                return refit
             end
+            references = [
+                run.total_average_R_T[SYSTEMATIC_TREND_LABEL]["A. Both 2000"].value for
+                run in exclusion_runs
+            ]
             @test θ ≈ references rtol = 1e-10
             k = 3
             θ̄ = sum(references) / k
@@ -850,6 +855,86 @@ end
             record = run_metadata(with_yields)["result"]["trend_uncertainty"]["leave_one_out"]
             @test record["A. Both 2000"]["refits"] == 3
             @test record["A. Both 2000"]["uncertainty"] == spread.uncertainty
+
+            # The trend carries the jackknife over the same three refits: each of its
+            # uncertainties is the larger of the propagated one, which a run without the refits
+            # writes, and the jackknife of the same quantity. The refit curves are the trends of
+            # the runs that exclude the dataset left out.
+            plain_run = run_pipeline(
+                load_configuration(path; data_directory = directory); leave_one_out = false
+            )
+            plain = systematic_trend(plain_run)
+            raised = systematic_trend(with_yields)
+            reference_trends = [systematic_trend(run) for run in exclusion_runs]
+            jackknife(θ) =
+                sqrt((length(θ) - 1) / length(θ) * sum(abs2, θ .- sum(θ) / length(θ)))
+            @test plain.R_T_jackknife_covariance === nothing
+            @test raised.R_T_jackknife_covariance !== nothing
+            @test raised.R_T.A_H == plain.R_T.A_H
+            @test raised.R_T.ratio == plain.R_T.ratio
+            @test raised.R_T_covariance == plain.R_T_covariance
+            for quantity in (:r_ν, :R_T)
+                tabulated = getfield(raised, quantity)
+                propagated = getfield(plain, quantity)
+                for (index, A) in enumerate(tabulated.A_H)
+                    held = Float64[]
+                    for reference in reference_trends
+                        refit = getfield(reference, quantity)
+                        found = findfirst(==(A), refit.A_H)
+                        found === nothing || push!(held, refit.ratio[found])
+                    end
+                    σ_J = length(held) ≥ 2 ? jackknife(held) : 0.0
+                    @test tabulated.σ[index] ≈ max(propagated.σ[index], σ_J) rtol = 1e-8 atol =
+                        1e-12
+                end
+            end
+            # The refits differ by more than the propagated uncertainty at some mass number.
+            @test any(raised.R_T.σ .> plain.R_T.σ)
+            # No dataset curve carries a jackknife, and none changes.
+            for (curve, same) in zip(with_yields.segmented_curves, plain_run.segmented_curves)
+                curve.label == SYSTEMATIC_TREND_LABEL && continue
+                @test curve.label == same.label
+                @test curve.R_T_jackknife_covariance === nothing
+                @test curve.R_T.σ == same.R_T.σ
+                @test curve.r_ν.σ == same.r_ν.σ
+            end
+            # ⟨R_T⟩ of the trend: the term from the curve is the larger of the two.
+            raised_entry = with_yields.total_average_R_T[SYSTEMATIC_TREND_LABEL]["A. Both 2000"]
+            plain_entry = plain_run.total_average_R_T[SYSTEMATIC_TREND_LABEL]["A. Both 2000"]
+            @test raised_entry.value == plain_entry.value
+            @test raised_entry.uncertainty ≥ plain_entry.uncertainty
+            # The propagated uncertainty stays on record beside the larger of the two.
+            @test raised_entry.uncertainty_propagated == plain_entry.uncertainty
+            @test plain_entry.uncertainty_propagated == plain_entry.uncertainty
+            @test record["A. Both 2000"]["uncertainty_propagated"] == plain_entry.uncertainty
+            @test row.R_T_uncertainty ≈ raised_entry.uncertainty rtol = 1e-5
+            masses = plain.R_T.A_H
+            @test all(reference.R_T.A_H == masses for reference in reference_trends)
+            unquoted = MassYield(
+                masses, peak.(masses), fill(missing, length(masses)), "unquoted", ""
+            )
+            @test last(total_average(raised, unquoted)) ≈ max(
+                last(total_average(plain, unquoted)),
+                jackknife([
+                    first(total_average(reference, unquoted)) for reference in reference_trends
+                ]),
+            ) rtol = 1e-8
+            uncertainty_record = run_metadata(with_yields)["result"]["trend_uncertainty"]
+            @test uncertainty_record["jackknife_applied"]
+            @test uncertainty_record["jackknife_refits"] == 3
+            @test uncertainty_record["jackknife_larger_at"] ==
+                [A for (A, σ, σ₀) in zip(raised.R_T.A_H, raised.R_T.σ, plain.R_T.σ) if σ > σ₀]
+            plain_record = run_metadata(plain_run)["result"]["trend_uncertainty"]
+            @test !plain_record["jackknife_applied"]
+            @test !haskey(plain_record, "jackknife_refits")
+            # The pivots of the trend are written with the uncertainty of its tabulated r_ν.
+            pivot_table = CSV.read(
+                written_yields["r_nu_pivots/$(SYSTEMATIC_TREND_LABEL)"], DataFrame
+            )
+            for pivot in eachrow(pivot_table)
+                index = findfirst(==(pivot.A_H), raised.r_ν.A_H)
+                @test pivot.r_nu_uncertainty ≈ raised.r_ν.σ[index] rtol = 1e-5 atol = 1e-12
+            end
 
             # A distribution excluded by configuration is read and reported, never averaged.
             write(

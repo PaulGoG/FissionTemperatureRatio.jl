@@ -27,7 +27,9 @@ is not piecewise-linear.
 `leave_one_out` refits the systematic trend once with each pooled dataset left out, the datasets
 of one experiment together, [`LeaveOneOut`](@ref). The refits cost one trend fit per pooled
 dataset or experiment and can be skipped where only the curves are wanted; the result then
-carries none, and records that they were not asked for.
+carries none, and records that they were not asked for. With at least two refits the trend
+carries their jackknife: its uncertainties are the larger of the propagated one and the
+jackknife. Without the refits it carries the propagated uncertainty alone.
 
 Nothing is written. [`write_results`](@ref) writes the tables and the manifest of a result into a
 directory of the caller's choosing; `scripts/run.jl` names that directory by the run identifier
@@ -42,12 +44,31 @@ function run_pipeline(configuration::Configuration; leave_one_out::Bool = true)
     per_dataset = _dataset_curves(configuration, relation, input)
     pool = _pooled_trend(configuration, relation, input)
     trend = pool.fitted.trend
+    isempty(per_dataset.curves) &&
+        !(trend isa ExtractedCurve) &&
+        throw(
+            ArgumentError(
+                "no dataset supports a segmented curve with min_points_per_segment = \
+             $(configuration.segments.min_points_per_segment)"
+            ),
+        )
+    yields = _mass_yield_input(configuration, inversion, retrievals)
+    refits = if leave_one_out && trend isa ExtractedCurve
+        _leave_one_out(pool.units, input.datasets, relation, configuration, yields.averaged)
+    else
+        (; entries = LeaveOneOut[], curves = ExtractedCurve[])
+    end
+    # The trend takes the jackknife over its refits before anything reads its uncertainty.
+    if trend isa ExtractedCurve && length(refits.curves) ≥ 2
+        propagated = trend.R_T.σ
+        trend = ExtractedCurve(trend, refits.curves)
+        @info "the uncertainty of the systematic trend is the larger of the propagated one and \
+               the jackknife over the leave-one-out refits" refits = length(refits.curves) masses = length(
+            trend.R_T
+        ) raised = count(trend.R_T.σ .> propagated)
+    end
     segmented_curves = copy(per_dataset.curves)
     trend isa ExtractedCurve && push!(segmented_curves, trend)
-    isempty(segmented_curves) && throw(
-        ArgumentError("no dataset supports a segmented curve with min_points_per_segment = \
-             $(configuration.segments.min_points_per_segment)"),
-    )
     for curve in segmented_curves
         @info "segmented curve" dataset = curve.label segments = segment_count(curve.fit) breakpoints =
             curve.fit.breakpoints reduced_chi_squared = curve.fit.wrss / curve.fit.dof
@@ -57,7 +78,6 @@ function run_pipeline(configuration::Configuration; leave_one_out::Bool = true)
         @warn message
     end
 
-    yields = _mass_yield_input(configuration, inversion, retrievals)
     heavy_masses = inversion.domain.heavy_masses
     total_average_R_T = _total_averages(segmented_curves, yields.averaged, heavy_masses)
     for curve in segmented_curves, distribution in yields.averaged
@@ -70,11 +90,6 @@ function run_pipeline(configuration::Configuration; leave_one_out::Bool = true)
         _segment_count_sensitivity(trend, pool.fitted, relation, configuration, yields.averaged)
     else
         Dict{String,Vector{Tuple{Int,Float64}}}()
-    end
-    refits = if leave_one_out && trend isa ExtractedCurve
-        _leave_one_out(pool.units, input.datasets, relation, configuration, yields.averaged)
-    else
-        LeaveOneOut[]
     end
 
     datasets = input.datasets
@@ -108,7 +123,7 @@ function run_pipeline(configuration::Configuration; leave_one_out::Bool = true)
             members in pool.units.members if length(members) > 1
         ],
         leave_one_out,
-        refits,
+        refits.entries,
         per_dataset.flags,
         retrievals,
     )
