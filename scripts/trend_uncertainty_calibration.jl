@@ -1,225 +1,308 @@
-# Calibration of the uncertainty of the systematic trend in simulated pools:
+# Calibration of the uncertainty of the systematic trend on the pool of a configuration:
 #
-#     julia scripts/trend_uncertainty_calibration.jl <workers> <ar1 | nugget> <replicates> <pool> …
+#     julia scripts/trend_uncertainty_calibration.jl <workers> <configuration.toml> <replicates> [<seed>]
 #
-# A pool is `<k>w`, k datasets measured at every mass number, or `<k>i`, k datasets measured on a
-# grid of 1.5 u and interpolated onto the mass numbers; for example `4w 14w 6i`. The replicates
-# are shared among `<workers>` processes, or run in this one for 0; a replicate of four datasets
-# takes about half a minute on one core, and the time grows with the number of datasets. The
-# method page quotes the tables this prints for `ar1 80 4w 6w 6i 14w` and `nugget 80 4w 6w 6i 14w`.
+# The pooled datasets of the configuration, the datasets of one experiment as one, keep their mass
+# numbers, their quoted uncertainties and their measured fractions, and take simulated values
+# about a known curve, the trend their own values give:
 #
-# Every dataset follows one curve of three segments over A_H = 126 … 174, with an error that is
-# correlated along the mass axis and a quoted statistical uncertainty of 0.004. The error is
-# AR(1) with ρ = 0.8 and a standard deviation of 0.03 (`ar1`), or of 0.026 beside an
-# uncorrelated part of 0.015 (`nugget`). A replicate pools k such datasets, fits ρ to the
-# correlogram of their deviations, selects the number of segments and fits the trend as a run
-# does, and refits it with each dataset left out. Three uncertainties of the fitted r_ν follow:
-# the propagated one, the delete-one jackknife over the refits, and the larger of the two, which
-# is what a run reports.
+#     y_i(A) = r(A) + s_i e_i(A) + σ_i(A) ε_i(A).
 #
-# Two things are scored over the replicates. For a yield-weighted mean of the curve, which stands
-# for ⟨R_T⟩: the standard deviation of the mean over the replicates divided by the root mean
-# square of the uncertainty reported for it, 1 for a calibrated uncertainty and above 1 for one
-# that is too small. For the curve at each mass number: the root mean square of
-# z = (r̂ − r)/σ and the fractions of |z| below 1 and below 2, which are 0.683 and 0.954 for a
-# calibrated normal error. The seeds are fixed, so the same arguments print the same table
-# whatever the number of workers.
+# r is the fitted multiplicity ratio of that trend; σ_i is the uncertainty dataset i quotes, none
+# where it quotes none; ε_i is independent and standard normal; e_i has unit variance and the
+# correlation ρ^|A − A′| along the mass axis, ρ being the coefficient the run estimates; and
+# s_i² = max(⟨(y_i − r)²⟩ − ⟨σ_i²⟩, 0) is what the residuals of dataset i about the trend hold
+# beyond its quoted uncertainty. A replicate is then treated as a run treats the data: the pool
+# is combined, ρ is fitted to the correlogram of the deviations, the trend is fitted with the pin,
+# the required windows and the selection of the configuration, and it is refitted with half of the
+# pooled datasets left out, over the subsets `segments.jackknife_subsets` and
+# `segments.jackknife_seed` give. Three uncertainties of R_T follow: the propagated one, the
+# jackknife over the refits, and the larger of the two, which is what a run reports.
 #
-# The pooling and the jackknife are the package's own internal functions, so that what is scored
-# is what a run computes. Nothing is written.
+# Scored over the replicates, against the R_T of the known curve, at every mass number but a pinned
+# one: the root mean square of z = (R̂_T − R_T)/σ and the fractions of |z| below 1 and below 2,
+# which are 0.683 and 0.954 for a normal error with a known σ; and the 5 %, 50 % and 95 % quantiles
+# of σ over the root-mean-square error at its mass number, which say how far a single reported
+# uncertainty lies from the error it stands for. For ⟨R_T⟩ over the primary yield distribution, or
+# the unweighted mean over the range without one: the standard deviation over the replicates
+# divided by the root mean square of the uncertainty, 1 for a calibrated uncertainty and above 1
+# for one that is too small, with the resolution 1/√(2(n − 1)) the number of replicates gives it,
+# and the 5 %, 50 % and 95 % quantiles of the uncertainty over that standard deviation.
+#
+# The replicates are shared among `<workers>` processes, or run in this one for 0. A replicate
+# costs one trend fit and one per refit: about ten seconds for four pooled experiments and a few
+# minutes for thirteen. The seed of each replicate is drawn from one stream seeded by `<seed>`,
+# 20261127 where none is given, so the same arguments print the same table whatever the number of
+# workers. The first lines printed record the arguments and the design. The pooling, the fit and
+# the jackknife are the package's own internal functions, so that what is scored is what a run
+# computes. Nothing is written.
 
 include(joinpath(@__DIR__, "activate.jl"))
 
 using Distributed: @everywhere, addprocs, pmap
-using Printf: @printf, @sprintf
+using Printf: @printf
 using Statistics: mean, std
 
 const USAGE = "usage: julia scripts/trend_uncertainty_calibration.jl <workers> \
-               <ar1 | nugget> <replicates> <pool> …"
+               <configuration.toml> <replicates> [<seed>]"
+const ROOT = dirname(@__DIR__)
 
-# The workers run in this environment, which the activation above has resolved already.
-if length(ARGS) ≥ 4 && tryparse(Int, ARGS[1]) !== nothing && parse(Int, ARGS[1]) > 0
-    addprocs(parse(Int, ARGS[1]); exeflags = `--project=$(@__DIR__)`)
+# The arguments, or `nothing` where they are not ones the script can run on.
+function parsed(arguments::Vector{String})
+    length(arguments) in (3, 4) || return nothing
+    workers = tryparse(Int, arguments[1])
+    replicates = tryparse(Int, arguments[3])
+    seed = length(arguments) == 4 ? tryparse(Int, arguments[4]) : 20261127
+    (workers === nothing || replicates === nothing || seed === nothing) && return nothing
+    (workers ≥ 0 && replicates ≥ 2 && seed ≥ 0) || return nothing
+    # A path is taken as given when it exists from the working directory, and otherwise relative
+    # to the repository root, as `scripts/run.jl` takes it.
+    path = isfile(arguments[2]) ? abspath(arguments[2]) : joinpath(ROOT, arguments[2])
+    isfile(path) || return nothing
+    return (; workers, path, replicates, seed)
 end
 
+const SETTINGS = parsed(ARGS)
+if SETTINGS === nothing
+    println(USAGE)
+    exit(1)
+end
+
+# The workers run in this environment, which the activation above has resolved already.
+SETTINGS.workers > 0 && addprocs(SETTINGS.workers; exeflags = `--project=$(@__DIR__)`)
+
+@everywhere using FissionFragmentsDomain: mass_yield
 @everywhere using FissionTemperatureRatio:
-    FissionTemperatureRatio,
-    RatioCurve,
-    autocorrelation_decay,
-    covariance,
-    deviation_correlogram,
-    evaluate,
-    fit_segments,
-    pooled_correlation,
-    segment_count
+    FissionTemperatureRatio, ExtractedCurve, RatioCurve, evaluate, load_configuration
 @everywhere using LinearAlgebra: Symmetric, cholesky, diag, dot
+@everywhere using Logging: NullLogger, with_logger
 @everywhere using StableRNGs: StableRNG
 @everywhere using Statistics: mean
 
 @everywhere begin
-    const MASSES = collect(126:174)
-    const ρ_TRUE = 0.8
-    const σ_QUOTED = 0.004
-    const MAX_SEGMENTS = 6
-    const SEED = 20261127
+    const FTR = FissionTemperatureRatio
 
-    # The curve every simulated dataset follows: three segments, joined at 130 and 150.
-    function true_ratio(A)
-        A ≤ 130 && return 0.5 - 0.08 * (A - 126)
-        A ≤ 150 && return 0.18 + 0.021 * (A - 130)
-        return 0.60 + 0.25 * (A - 150) / 24
-    end
-
-    # The weights of the mean that stands for ⟨R_T⟩: a yield peak at A_H = 140, 6 u wide.
-    const YIELD_WEIGHTS = let weight = [exp(-((A - 140) / 6)^2 / 2) for A in MASSES]
-        weight ./ sum(weight)
-    end
-
-    # One dataset and the measured fraction of its points. An interpolated one is measured on a
-    # grid of 1.5 u and written at every mass number, each row counting for the share of a
-    # measured point that the retrieval of such a dataset records.
-    function simulated_dataset(rng, label, interpolated::Bool, model)
-        grid = interpolated ? collect(126:1.5:174) : Float64.(MASSES)
-        correlation = Symmetric([ρ_TRUE^abs(a - b) for a in grid, b in grid])
-        error =
-            model.correlated .* (cholesky(correlation).L * randn(rng, length(grid))) .+
-            model.uncorrelated .* randn(rng, length(grid))
-        measured = true_ratio.(grid) .+ error .+ σ_QUOTED .* randn(rng, length(grid))
-        σ = fill(σ_QUOTED, length(MASSES))
-        interpolated || return (RatioCurve(MASSES, measured, σ, label), ones(length(MASSES)))
-        written = map(MASSES) do A
-            below = searchsortedlast(grid, A)
-            below == length(grid) && return measured[end]
-            t = (A - grid[below]) / (grid[below + 1] - grid[below])
-            return (1 - t) * measured[below] + t * measured[below + 1]
-        end
-        fraction = fill(length(grid) / length(MASSES), length(MASSES))
-        return (RatioCurve(MASSES, written, σ, label), fraction)
-    end
-
-    # The trend of a combination, fitted as a run fits it.
-    function fitted_trend(pooled, correlation)
-        return fit_segments(
-            pooled.curve.A_H,
-            pooled.curve.ratio,
-            pooled.σ_measurement;
-            max_segments = MAX_SEGMENTS,
-            measured = pooled.measured,
-            min_points_per_segment = 4,
-            bounds = (0.0, 1.0),
-            correlation = correlation,
-        )
-    end
-
-    # One replicate: the error of the fitted curve and of its weighted mean, and the three
-    # uncertainties of each.
-    function replicate(seed, pool, model)
-        rng = StableRNG(seed)
-        sets = [
-            simulated_dataset(rng, "set $(i)", pool.interpolated, model) for i in 1:(pool.k)
-        ]
-        curves = first.(sets)
-        fractions = last.(sets)
-        pooled = FissionTemperatureRatio._consensus(curves, "systematic_trend", fractions)
-        correlogram = deviation_correlogram(curves, pooled.curve; weights = mean.(fractions))
-        ρ = autocorrelation_decay(correlogram; lags = 4)
-        fit = fitted_trend(
-            pooled, pooled_correlation(pooled.curve.A_H, pooled.members, pooled.shares, ρ)
-        )
-        r_ν = evaluate(fit, MASSES)
-        Σ = Matrix(covariance(fit, MASSES))
-
-        # A refit takes its points as independent: only its values are used.
-        refits = map(1:(pool.k)) do left_out
-            others = setdiff(1:(pool.k), left_out)
-            subset = FissionTemperatureRatio._consensus(
-                curves[others], "systematic_trend", fractions[others]
+    # The pool of the configuration and the simulation built on it: the known curve at the mass
+    # numbers of every pooled unit, what each quotes, what its residuals hold beyond that, and the
+    # factor of its correlation matrix.
+    function staged(path::AbstractString, data::AbstractString)
+        configuration = load_configuration(path; data_directory = data)
+        return with_logger(NullLogger()) do
+            retrievals = FTR._read_retrievals(FTR._retrieval_directories(configuration))
+            inversion = FTR._inversion(configuration, retrievals)
+            relation = (inversion.averaging, inversion.model, inversion.domain)
+            input = FTR._multiplicity_input(configuration, inversion, retrievals)
+            pool = FTR._pooled_trend(configuration, relation, input)
+            trend = pool.fitted.trend
+            trend isa ExtractedCurve ||
+                error("the configuration gives no systematic trend: $(trend.reason)")
+            units = pool.units
+            k = length(units.curves)
+            k ≥ 2 || error("one pooled dataset: there is nothing to leave out")
+            ρ = coalesce(pool.fitted.autocorrelation, 0.0)
+            known = [
+                Float64[first(evaluate(trend.fit, A)) for A in c.A_H] for c in units.curves
+            ]
+            quoted = [Float64[coalesce(σ, 0.0) for σ in c.σ] for c in units.curves]
+            unquoted = [
+                sqrt(max(mean(abs2, c.ratio .- r) - mean(abs2, q), 0.0)) for
+                (c, r, q) in zip(units.curves, known, quoted)
+            ]
+            factors = [
+                cholesky(Symmetric([ρ^abs(a - b) for a in c.A_H, b in c.A_H])).L for
+                c in units.curves
+            ]
+            yields = FTR._mass_yield_input(configuration, inversion, retrievals)
+            masses = trend.R_T.A_H
+            weight = if isempty(yields.averaged)
+                ones(length(masses))
+            else
+                primary = first(yields.averaged)
+                Float64[something(mass_yield(primary, A), (0.0, 0.0))[1] for A in masses]
+            end
+            d = FTR._jackknife_deleted(k)
+            settings = configuration.segments
+            chosen = FTR._left_out_subsets(
+                k, d, settings.jackknife_subsets, settings.jackknife_seed
             )
-            return evaluate(fitted_trend(subset, nothing), MASSES)
+            return (;
+                configuration,
+                relation,
+                units,
+                k,
+                d,
+                chosen,
+                ρ,
+                known,
+                quoted,
+                unquoted,
+                factors,
+                masses,
+                truth = trend.R_T.ratio,
+                pinned = trend.fit.pinned_value !== nothing,
+                weight = weight ./ sum(weight),
+                weighted = !isempty(yields.averaged),
+            )
         end
-        Σ_J = FissionTemperatureRatio._jackknife_covariance(MASSES, refits)
+    end
 
-        w = YIELD_WEIGHTS
-        σ = (; propagated = sqrt.(max.(diag(Σ), 0.0)), jackknife = sqrt.(diag(Σ_J)))
-        σ_mean = (; propagated = sqrt(max(dot(w, Σ, w), 0.0)), jackknife = sqrt(dot(w, Σ_J, w)))
+    # The trend of the units `kept` of `curves`, fitted as a run fits it and, for a refit, as a
+    # run fits its refits, with the autocorrelation fitted; `nothing` where there is no trend.
+    function fitted(stage, curves, kept; refit::Bool)
+        result = with_logger(NullLogger()) do
+            FTR._fit_trend(
+                curves[kept],
+                stage.units.weights[kept],
+                stage.relation,
+                stage.configuration.segments,
+                stage.configuration.system.compound.A;
+                estimate_autocorrelation = !refit,
+                quiet = true,
+            )
+        end
+        result.trend isa ExtractedCurve || return nothing
+        return (; trend = result.trend, ρ = coalesce(result.autocorrelation, 0.0))
+    end
+
+    # One replicate: the errors of R_T and of its weighted mean, with the three uncertainties of
+    # each; `nothing` where the replicate gives no trend over the mass numbers of the known curve
+    # or fewer than two refits.
+    function replicate(stage, seed::UInt64)
+        rng = StableRNG(seed)
+        curves = map(eachindex(stage.units.curves)) do i
+            curve = stage.units.curves[i]
+            n = length(curve.A_H)
+            values =
+                stage.known[i] .+ stage.unquoted[i] .* (stage.factors[i] * randn(rng, n)) .+
+                stage.quoted[i] .* randn(rng, n)
+            return RatioCurve(curve.A_H, values, curve.σ, curve.label)
+        end
+        everything = collect(1:(stage.k))
+        whole = fitted(stage, curves, everything; refit = false)
+        (whole === nothing || whole.trend.R_T.A_H != stage.masses) && return nothing
+        trend = whole.trend
+        refits = ExtractedCurve[]
+        for subset in stage.chosen.subsets
+            refit = fitted(stage, curves, setdiff(everything, subset); refit = true)
+            refit === nothing || push!(refits, refit.trend)
+        end
+        length(refits) ≥ 2 || return nothing
+        reported = ExtractedCurve(trend, refits; units = stage.k, deleted = stage.d)
+        Σ = trend.R_T_covariance
+        Σ_J = reported.R_T_jackknife_covariance
+        w = stage.weight
+        propagated = sqrt(max(dot(w, Σ, w), 0.0))
+        jackknife = sqrt(max(dot(w, Σ_J, w), 0.0))
         return (;
-            mean = dot(w, r_ν.ratio),
-            error = r_ν.ratio .- true_ratio.(MASSES),
-            σ = (; σ..., larger = max.(σ.propagated, σ.jackknife)),
-            σ_mean = (; σ_mean..., larger = max(σ_mean.propagated, σ_mean.jackknife)),
-            segments = segment_count(fit),
-            ρ,
+            error = trend.R_T.ratio .- stage.truth,
+            σ = (Float64.(trend.R_T.σ), sqrt.(max.(diag(Σ_J), 0.0)), Float64.(reported.R_T.σ)),
+            average = dot(w, trend.R_T.ratio) - dot(w, stage.truth),
+            σ_average = (propagated, jackknife, max(propagated, jackknife)),
+            segments = FTR.segment_count(trend.fit),
+            refits = length(refits),
+            ρ = whole.ρ,
         )
     end
 end
 
-# The standard deviations of the correlated and of the uncorrelated part of a dataset's error.
-function error_model(noise::AbstractString)
-    noise == "ar1" && return (; correlated = 0.03, uncorrelated = 0.0)
-    noise == "nugget" && return (; correlated = 0.026, uncorrelated = 0.015)
-    return throw(ArgumentError("the error model is ar1 or nugget, got $(repr(noise))"))
+const DATA = joinpath(ROOT, "data")
+@everywhere const STAGE = staged($(SETTINGS.path), $DATA)
+@everywhere job(seed::UInt64) = replicate(STAGE, seed)
+
+const NAMES = ("propagated", "jackknife", "reported")
+
+function quantile_of(values::Vector{Float64}, p::Real)
+    return sort(values)[clamp(round(Int, p * length(values)), 1, length(values))]
 end
 
-# A pool as the command line names it: the number of datasets and whether they are interpolated.
-function parse_pool(pool::AbstractString)
-    matched = match(r"^(\d+)([wi])$", pool)
-    matched === nothing && throw(ArgumentError("a pool is <k>w or <k>i, got $(repr(pool))"))
-    k = parse(Int, matched[1])
-    k ≥ 3 || throw(ArgumentError("a pool takes at least three datasets, got $(k)"))
-    return (; k, interpolated = matched[2] == "i")
-end
+function main()
+    stage = STAGE
+    seeds = rand(StableRNG(SETTINGS.seed), UInt64, SETTINGS.replicates)
+    elapsed = @elapsed outcomes = pmap(job, seeds)
+    rows = filter(!isnothing, outcomes)
+    length(rows) ≥ 2 || error("fewer than two replicates gave a trend with its refits")
 
-function calibrate(name::AbstractString, replicates::Integer, model)
-    pool = parse_pool(name)
-    rows = pmap(i -> replicate(SEED + 1000 * pool.k + i, pool, model), 1:replicates)
-    scatter = std([row.mean for row in rows])
-    # The relative standard error of a standard deviation of that many normal values.
-    resolution = 1 / sqrt(2 * (replicates - 1))
-    for (position, estimate) in enumerate((:propagated, :jackknife, :larger))
-        ratio = scatter / sqrt(mean(row.σ_mean[estimate]^2 for row in rows))
-        z = reduce(vcat, [row.error ./ row.σ[estimate] for row in rows])
-        @printf(
-            "%-5s %5s %6s  %-10s  %5.3f ± %5.3f  %6.3f  %6.3f  %6.3f\n",
-            position == 1 ? name : "",
-            position == 1 ? @sprintf("%.2f", mean(row.segments for row in rows)) : "",
-            position == 1 ? @sprintf("%.3f", mean(row.ρ for row in rows)) : "",
-            estimate,
-            ratio,
-            ratio * resolution,
-            sqrt(mean(abs2, z)),
-            mean(abs.(z) .< 1),
-            mean(abs.(z) .< 2),
-        )
-    end
-    return flush(stdout)
-end
-
-function main(arguments::Vector{String})
-    if length(arguments) < 4 || tryparse(Int, arguments[1]) === nothing
-        println(USAGE)
-        return 1
-    end
-    model = error_model(arguments[2])
-    replicates = parse(Int, arguments[3])
-    replicates ≥ 2 || throw(ArgumentError("at least two replicates, got $(replicates)"))
-    println("error model $(arguments[2]): correlated part $(model.correlated) with ρ = \
-             $(ρ_TRUE), uncorrelated part $(model.uncorrelated), quoted σ = $(σ_QUOTED); \
-             $(replicates) replicates")
-    println("mean: standard deviation over the replicates / rms of its σ, 1 calibrated; \
-             z = (r̂ − r)/σ at every mass number")
     @printf(
-        "%-5s %5s %6s  %-10s  %-13s  %6s  %6s  %6s\n",
-        "pool",
-        "segs",
-        "ρ",
-        "σ",
-        "mean",
-        "rms z",
-        "|z|<1",
-        "|z|<2",
+        "%s: %d replicates, seed %d, %d workers, %.1f min\n",
+        relpath(SETTINGS.path, ROOT),
+        SETTINGS.replicates,
+        SETTINGS.seed,
+        SETTINGS.workers,
+        elapsed / 60
     )
-    foreach(pool -> calibrate(pool, replicates, model), arguments[4:end])
+    @printf(
+        "  %d pooled datasets or experiments, %d left out of each of %d refits (%s); ρ = %.3f\n",
+        stage.k,
+        stage.d,
+        length(stage.chosen.subsets),
+        stage.chosen.complete ? "every subset" : "drawn of $(binomial(big(stage.k), stage.d))",
+        stage.ρ
+    )
+    println("  error beyond the quoted uncertainty, by pooled dataset or experiment:")
+    for (curve, s) in zip(stage.units.curves, stage.unquoted)
+        @printf("    %-50s %.4f\n", curve.label, s)
+    end
+    @printf(
+        "  %d replicates gave a trend over the range with its refits; on average %.2f \
+         segments selected, ρ fitted as %.3f, %.1f of %d refits with a curve\n",
+        length(rows),
+        mean(row.segments for row in rows),
+        mean(row.ρ for row in rows),
+        mean(row.refits for row in rows),
+        length(stage.chosen.subsets)
+    )
+
+    scored = (stage.pinned ? 2 : 1):length(stage.masses)
+    rmse = [sqrt(mean(abs2, [row.error[j] for row in rows])) for j in eachindex(stage.masses)]
+    scatter = std([row.average for row in rows])
+    resolution = 1 / sqrt(2 * (length(rows) - 1))
+    @printf(
+        "  %s: scatter over the replicates %.4f\n",
+        stage.weighted ? "⟨R_T⟩ over the primary yield" : "the unweighted mean of R_T",
+        scatter
+    )
+    @printf(
+        "  %-11s %7s %9s %9s   %s   %s   %s\n",
+        "uncertainty",
+        "rms z",
+        "P(|z|<1)",
+        "P(|z|<2)",
+        "σ / rms error: 5 %   50 %   95 %",
+        "mean: scatter / rms σ",
+        "σ / scatter: 5 %   50 %   95 %"
+    )
+    for (position, name) in enumerate(NAMES)
+        z = Float64[]
+        relative = Float64[]
+        # An uncertainty of zero beside an error, as the jackknife gives at a mass number fewer
+        # than two refits hold, covers nothing: it counts in the fractions and not in rms z.
+        zeros_found = 0
+        for row in rows, j in scored
+            σ = row.σ[position][j]
+            σ > 0 ? push!(z, row.error[j] / σ) : (zeros_found += 1)
+            push!(relative, σ / rmse[j])
+        end
+        total = length(z) + zeros_found
+        calibration = scatter / sqrt(mean(abs2, [row.σ_average[position] for row in rows]))
+        of_mean = [row.σ_average[position] / scatter for row in rows]
+        @printf(
+            "  %-11s %7.3f %9.3f %9.3f                  %5.2f  %5.2f  %5.2f        %5.3f ± %5.3f                %5.2f  %5.2f  %5.2f%s\n",
+            name,
+            sqrt(mean(abs2, z)),
+            count(<(1), abs.(z)) / total,
+            count(<(2), abs.(z)) / total,
+            quantile_of(relative, 0.05),
+            quantile_of(relative, 0.5),
+            quantile_of(relative, 0.95),
+            calibration,
+            calibration * resolution,
+            quantile_of(of_mean, 0.05),
+            quantile_of(of_mean, 0.5),
+            quantile_of(of_mean, 0.95),
+            zeros_found == 0 ? "" : "   ($(zeros_found) of $(total) uncertainties are zero)"
+        )
+    end
     return 0
 end
 
-exit(main(ARGS))
+exit(main())
