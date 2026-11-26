@@ -44,9 +44,10 @@ configuration that leaves the two new keys at their defaults. Inputs: ExforFissi
   of it with `deleted` of `units` pooled datasets left out, and the field
   `R_T_jackknife_covariance` that holds the jackknife covariance of `R_T`.
 - `scripts/trend_uncertainty_calibration.jl`, which simulates the pooled datasets of a
-  configuration about the trend they give and scores the propagated uncertainty, the jackknife and
-  the larger of the two against that known curve, with the package's own pooling, fit and
-  jackknife. The calibration table of the method page is what this script prints. The environment
+  configuration about the trend they give, with errors correlated along the mass axis so that
+  the pools reproduce the fitted `ρ` of the run, and scores the propagated uncertainty, the
+  jackknife and the larger of the two against that known curve, with the package's own pooling,
+  fit and jackknife. The calibration table of the method page is what this script prints. The environment
   of `scripts/` gains Distributed, Logging, StableRNGs and Statistics.
 - `TotalAverage.uncertainty_propagated`: the uncertainty of a total average with the fit
   covariance propagated alone.
@@ -64,13 +65,16 @@ configuration that leaves the two new keys at their defaults. Inputs: ExforFissi
   independent-points uncertainty of the trend's total average is formed from the tabulated
   uncertainties and changes with them. 0.6.0 stated that the propagated uncertainty is too small
   once the correlation is fitted and the number of segments selected, as a run does. Simulated on
-  the pools of the four shipped configurations, it holds 32 % to 43 % of the errors of `R_T`
-  where a normal error has 68.3 %, and the scatter of `⟨R_T⟩` exceeds it by a factor of 1.3 to
-  1.9; the reported uncertainty holds 62 % to 70 %, and 88 % to 96 % within twice it. Half of the
-  datasets are left out, and not one, because the breakpoints of a trend are selected: the delete-one jackknife is not consistent for such an estimate (Shao and Wu 1989,
-  [doi:10.1214/aos/1176347263](https://doi.org/10.1214/aos/1176347263)), and where the
-  leave-one-out refits divide between two sets of breakpoints it exceeds the distance between
-  them. For ²⁵²Cf at `A_H` = 130, where `R_T` = 1.74 has a propagated uncertainty of 0.069, it
+  the pools of the four shipped configurations, with errors as correlated along the mass axis
+  as the measured ones, it holds 30 % to 53 % of the errors of `R_T` where a normal error has
+  68.3 %; the reported uncertainty holds 60 % to 69 %, and 83 % to 94 % within twice it. The
+  simulation tests the rule and does not size the errors of the measured pools: for ²⁵²Cf the
+  simulated experiments differ more than the measured ones do. Half of the datasets are left
+  out, and not one, because the breakpoints of a trend are selected: the delete-one jackknife is inconsistent for estimates that are not smooth, and the
+  delete-d one with d a fixed fraction of k consistent (Shao and Wu 1989,
+  [doi:10.1214/aos/1176347263](https://doi.org/10.1214/aos/1176347263)); a selected fit is
+  covered by neither result, but where the leave-one-out refits divide between two sets of
+  breakpoints the delete-one form exceeds the distance between them. For ²⁵²Cf at `A_H` = 130, where `R_T` = 1.74 has a propagated uncertainty of 0.069, it
   gives 0.62; the jackknife with six of the thirteen experiments left out gives 0.21. The trend
   of a pool from which fewer than two refits give a curve, the trend of
   `run_pipeline(configuration; leave_one_out = false)` and the curve of every dataset carry the
