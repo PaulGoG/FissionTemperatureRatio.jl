@@ -229,7 +229,10 @@ end
 # and its uncertainty the largest a member quotes with half the difference between the members
 # added in quadrature, which carries the uncertainty of the reduction. A mass number one member
 # alone holds takes that member's value and uncertainty; where no member quotes an uncertainty
-# the point quotes none. Returned with the mean measured fraction of the members at each mass.
+# the point quotes none. Returned with the measured fraction of each point, which divides the
+# quoted part alone: with f̄ the mean fraction of the members there, (σ² + d²)/(σ²/f̄ + d²),
+# σ the largest uncertainty quoted and d the half difference. Interpolation spreads a
+# statistical error over the rows written; the difference between two reductions is not one.
 function _alternative_analyses(
     curves::Vector{RatioCurve}, fractions::AbstractVector{<:Real}, label::AbstractString
 )
@@ -251,7 +254,15 @@ function _alternative_analyses(
         half_difference = (maximum(values) - minimum(values)) / 2
         push!(ratio, mean(values))
         push!(σ, isempty(quoted) ? missing : hypot(maximum(quoted), half_difference))
-        push!(measured, mean(held))
+        f̄ = mean(held)
+        if isempty(quoted)
+            push!(measured, f̄)
+        else
+            s = maximum(quoted)
+            d = half_difference
+            total = s^2 + d^2
+            push!(measured, total == 0 ? f̄ : total / (s^2 / f̄ + d^2))
+        end
     end
     return RatioCurve(masses, ratio, σ, String(label)), measured
 end

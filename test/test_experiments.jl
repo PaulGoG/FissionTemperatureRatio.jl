@@ -227,7 +227,7 @@ function test_republication()
 end
 
 function test_interpolated_alternative_analyses()
-    @testset "interpolated analyses enter at the mean of their pooling factors" begin
+    @testset "interpolated analyses enter at the fraction of their quoted part" begin
         mktempdir() do directory
             # Pooling weights 20/29 and 1/2.
             entries = (
@@ -242,7 +242,20 @@ function test_interpolated_alternative_analyses()
             either, measured = FissionTemperatureRatio._alternative_analyses(
                 [first_, second], [20 / 29, 0.5], "either"
             )
-            @test all(measured .≈ (20 / 29 + 0.5) / 2)
+            # With f̄ the mean pooling factor, the fraction of a point divides its quoted part
+            # alone: (σ² + d²)/(σ²/f̄ + d²), σ the largest uncertainty quoted and d the half
+            # difference of the analyses.
+            f̄ = (20 / 29 + 0.5) / 2
+            @test first_.A_H == second.A_H
+            expected_fraction = map(eachindex(first_.A_H)) do index
+                quoted = collect(skipmissing((first_.σ[index], second.σ[index])))
+                isempty(quoted) && return f̄
+                σ = maximum(quoted)
+                d = abs(first_.ratio[index] - second.ratio[index]) / 2
+                return σ^2 + d^2 == 0 ? f̄ : (σ^2 + d^2) / (σ^2 / f̄ + d^2)
+            end
+            @test measured ≈ expected_fraction
+            @test all(f̄ - 1e-12 .≤ measured .≤ 1)
             # The two-unit pool, the experiment carrying its measured fraction point by point.
             expected = FissionTemperatureRatio._consensus(
                 [either, other], "expected", [measured, ones(length(other))]
@@ -301,11 +314,18 @@ end
         @test curve.σ[1] ≈ hypot(0.04, 0.045)
     end
 
-    @testset "the measured fraction is the mean pooling factor of the analyses at a point" begin
+    @testset "the measured fraction of a point divides its quoted part alone" begin
+        # At 130 the analyses differ by 0.04 and quote at most 0.03: with the mean factor 0.75,
+        # (0.03² + 0.02²)/(0.03²/0.75 + 0.02²) = 0.8125. At 131 they agree and the mean factor
+        # stands; at 132 one analysis alone holds the point.
         _, measured = analyses([a₃, b], [1.0, 0.5])
-        @test measured ≈ [0.75, 0.75, 1.0]
+        @test measured ≈ [0.8125, 0.75, 1.0]
         _, measured = analyses([a₃, b], [0.5, 1.0])
-        @test measured ≈ [0.75, 0.75, 0.5]
+        @test measured ≈ [0.8125, 0.75, 0.5]
+        # Where no analysis quotes an uncertainty there is no quoted part to divide.
+        silent(value) = RatioCurve([130], [value], Union{Missing,Float64}[missing], "silent")
+        _, measured = analyses([silent(0.30), silent(0.36)], [1.0, 0.5])
+        @test measured == [0.75]
     end
 
     @testset "the uncertainty is not reduced as that of independent measurements is" begin
