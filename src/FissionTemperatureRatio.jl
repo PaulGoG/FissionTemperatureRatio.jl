@@ -110,6 +110,7 @@ using LinearAlgebra: Symmetric, cond, diag, dot, eigmin, tr
 using Measurements: Measurements
 using PrecompileTools: @compile_workload, @setup_workload
 using SHA: sha1, sha256
+using StableRNGs: StableRNG
 using Statistics: mean, median, std
 using TOML: TOML
 
@@ -140,7 +141,8 @@ export MeanKineticEnergy, read_mean_kinetic_energy
 export RetrievalRecord, retrieval_record, retrieval_records
 export SegmentedFit, fit_segments, segment_count, InsufficientDataError
 export ExtractedCurve, TotalAverage, range_mean
-export ExtractionResult, LeaveOneOut, run_pipeline, write_results, systematic_trend
+export ExtractionResult,
+    LeaveOneOut, JackknifeDesign, run_pipeline, write_results, systematic_trend
 export leave_one_out_spread, run_identifier, run_metadata
 export publication_theme, plot_multiplicities, plot_ratio, save_figure, write_figures
 

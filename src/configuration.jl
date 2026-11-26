@@ -135,6 +135,12 @@ together, [`breakpoint_set_count`](@ref). The search is exhaustive and its size 
 combinatorially with `max_segments`; a fit above the limit is refused before its search starts,
 and the run stops there. The refits of the systematic trend with one and two segments more than
 selected are left out above it instead, and their columns of the total averages are then empty.
+
+`jackknife_subsets` is the largest number of refits made for the jackknife uncertainty of the
+systematic trend, each with half of the pooled datasets or experiments left out. Where there are
+no more such subsets than that, every one is refitted; otherwise that many are drawn with
+`jackknife_seed`. With two or three pooled units the subsets are the leave-one-out refits,
+whatever the limit.
 """
 struct SegmentSettings
     max_segments::Int
@@ -145,6 +151,8 @@ struct SegmentSettings
     min_pair_coverage::Float64
     autocorrelation_lags::Int
     max_breakpoint_sets::Int
+    jackknife_subsets::Int
+    jackknife_seed::Int
 end
 
 """
@@ -450,6 +458,13 @@ end
 # sets, and refuses 8 segments of 2 points, 24128307 sets, and 9 of 3, 11025278.
 const DEFAULT_MAX_BREAKPOINT_SETS = 10_000_000
 
+# The largest number of refits behind the jackknife of the trend where the configuration does
+# not say: C(7, 3) = 35, every subset for up to seven pooled datasets or experiments.
+const DEFAULT_JACKKNIFE_SUBSETS = 35
+
+# The seed of the draw of those subsets where the configuration does not say.
+const DEFAULT_JACKKNIFE_SEED = 1
+
 # Every key of every section. The loader checks each value against its entry here and nothing
 # else; what depends on another key is checked where the settings are built, and by the
 # `Configuration` constructor.
@@ -498,6 +513,8 @@ const CONFIGURATION_KEYS = (
             Integer, DEFAULT_AUTOCORRELATION_LAGS, (1, CORRELOGRAM_LAGS)
         ),
         max_breakpoint_sets = Key(Integer, DEFAULT_MAX_BREAKPOINT_SETS, (1, 10^9)),
+        jackknife_subsets = Key(Integer, DEFAULT_JACKKNIFE_SUBSETS, (2, 10^6)),
+        jackknife_seed = Key(Integer, DEFAULT_JACKKNIFE_SEED, (0, 10^9)),
     ),
     retrieval = (min_package_version = Key(String, DEFAULT_MIN_RETRIEVAL_VERSION, nothing),),
     output = (significant_digits = Key(Integer, 6, (1, 15)),),
@@ -891,6 +908,8 @@ function load_configuration(path::AbstractString; data_directory::AbstractString
         Float64(entry.min_pair_coverage),
         entry.autocorrelation_lags,
         entry.max_breakpoint_sets,
+        entry.jackknife_subsets,
+        entry.jackknife_seed,
     )
 
     configuration = Configuration(

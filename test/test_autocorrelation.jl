@@ -408,6 +408,34 @@ using Statistics: mean, var
         @test leave_one_out_spread(LeaveOneOut[], "Y") === nothing
     end
 
+    @testset "the subsets the jackknife refits leave out" begin
+        subsets = FissionTemperatureRatio._left_out_subsets
+        # Half of the units, rounded down.
+        @test FissionTemperatureRatio._jackknife_deleted.(2:14) ==
+            [1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7]
+        # Every subset where there are no more than the limit, in lexicographic order.
+        pairs_of_four = subsets(4, 2, 6, 1)
+        @test pairs_of_four.complete
+        @test pairs_of_four.subsets == [[1, 2], [1, 3], [1, 4], [2, 3], [2, 4], [3, 4]]
+        @test subsets(3, 1, 35, 1).subsets == [[1], [2], [3]]
+        @test length(subsets(7, 3, 35, 1).subsets) == 35 && subsets(7, 3, 35, 1).complete
+        # Above the limit, that many distinct subsets drawn with the seed.
+        drawn = subsets(13, 6, 35, 1)
+        @test !drawn.complete
+        @test length(drawn.subsets) == 35
+        @test allunique(drawn.subsets)
+        @test all(
+            s -> length(s) == 6 && issorted(s) && allunique(s) && all(in(1:13), s),
+            drawn.subsets,
+        )
+        @test subsets(13, 6, 35, 1).subsets == drawn.subsets
+        @test subsets(13, 6, 35, 2).subsets != drawn.subsets
+        # One short of all of them: the draw ends, and leaves one subset out.
+        most = subsets(4, 2, 5, 1)
+        @test !most.complete && length(most.subsets) == 5 && allunique(most.subsets)
+        @test issubset(most.subsets, pairs_of_four.subsets)
+    end
+
     @testset "a curve that resolves no minimum says so" begin
         turning = fit_segments(A_H, r, σ; max_segments = 3)
         @test unresolved_minimum(turning) === nothing

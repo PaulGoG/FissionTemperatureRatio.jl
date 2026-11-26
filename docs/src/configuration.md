@@ -107,7 +107,10 @@ run stops there with the number in the message; the number rests on the data, so
 configuration does not check it. The refits of the systematic trend with one and two segments more than selected are
 left out above the limit instead, with a message, and their columns of the total averages are then
 empty. The default, 10⁷, admits every segment limit at four points per segment over such a
-range, at most 1.09 × 10⁶ sets, and refuses 8 segments of 2 points and 9 segments of 3.
+range, at most 1.09 × 10⁶ sets, and refuses 8 segments of 2 points and 9 segments of 3. The
+jackknife uncertainty of the systematic trend is formed over its refits with half of the pooled
+datasets or experiments left out; the default of `jackknife_subsets`, 35, refits every such subset
+for up to seven of them.
 
 | Key | Type | Default | Constraint | In the identifier | Meaning |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -119,6 +122,8 @@ range, at most 1.09 × 10⁶ sets, and refuses 8 segments of 2 points and 9 segm
 | `min_pair_coverage` | real | `0.3` | 0 to 1 | `h` | the fraction of the range's heavy masses a dataset must pair to offer a curve of its own |
 | `autocorrelation_lags` | integer | `4` | 1 to 8 | `h` | lags of the deviation correlogram the trend's autocorrelation is fitted to |
 | `max_breakpoint_sets` | integer | `10000000` | 1 to 10⁹ | `h`, where not the default | breakpoint sets one fit may examine, all segment counts together; a fit above it stops the run, and a refit of the trend with more segments than selected is left out |
+| `jackknife_subsets` | integer | `35` | 2 to 10⁶ | `h`, where not the default | refits behind the jackknife uncertainty of the systematic trend, each with half of the pooled datasets or experiments left out: every such subset where there are at most this many, and this many drawn otherwise |
+| `jackknife_seed` | integer | `1` | 0 to 10⁹ | `h`, where not the default | seed of that draw |
 
 ## `[retrieval]`, optional
 

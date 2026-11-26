@@ -58,6 +58,8 @@ function _configuration_values(configuration::Configuration)
             "min_pair_coverage" => segments.min_pair_coverage,
             "autocorrelation_lags" => segments.autocorrelation_lags,
             "max_breakpoint_sets" => segments.max_breakpoint_sets,
+            "jackknife_subsets" => segments.jackknife_subsets,
+            "jackknife_seed" => segments.jackknife_seed,
         ),
         "retrieval" => Dict{String,Any}(
             "min_package_version" => string(configuration.min_retrieval_version)
@@ -103,7 +105,8 @@ names the directory the identifier sits in. Neither are `[retrieval]`, a guard o
 `[output]`, which changes how a number is rendered and not the number.
 `segments.max_breakpoint_sets`, a guard on the cost of the search, is a parameter only where it is
 not its default: another value can leave a refit of the trend with more segments than selected
-out of the total averages.
+out of the total averages. So are `segments.jackknife_subsets` and `segments.jackknife_seed`:
+another value changes which refits the uncertainty of the trend is formed from.
 
 Every value is one TOML represents, so the table read back from `metadata.toml` gives the same
 identifier through [`run_identifier`](@ref).
@@ -129,9 +132,15 @@ function run_parameters(configuration::Configuration)
     segments = parameters["segments"]
     # A guard on the cost of the search. Where it is not its default it can leave a refit of the
     # trend out, and enters; at its default it does not, which keeps every identifier formed
-    # before the key existed.
+    # before the key existed. The limit and the seed of the jackknife subsets enter likewise
+    # where they are not their defaults: another value changes which refits form the
+    # uncertainty of the trend.
     configuration.segments.max_breakpoint_sets == DEFAULT_MAX_BREAKPOINT_SETS &&
         delete!(segments, "max_breakpoint_sets")
+    configuration.segments.jackknife_subsets == DEFAULT_JACKKNIFE_SUBSETS &&
+        delete!(segments, "jackknife_subsets")
+    configuration.segments.jackknife_seed == DEFAULT_JACKKNIFE_SEED &&
+        delete!(segments, "jackknife_seed")
     if isempty(configuration.segments.required_windows)
         delete!(segments, "required_windows")
         delete!(segments, "windows_apply_to_datasets")
@@ -412,7 +421,9 @@ function _inputs_record(result::ExtractionResult)
             data.label => _qualifiers(data.record) for
             data in result.datasets if !isempty(_flagged(_qualifiers(data.record)))
         ),
-        # Interpolated datasets, pooled at their measured values over their rows written.
+        # The measured fraction each interpolated dataset's record states, its measured values
+        # over its rows written. A dataset pooled on its own enters at it; one combined with
+        # others of its experiment enters through the fractions of the experiment's curve.
         "pooling_weights" => Dict{String,Any}(
             data.label => w for data in result.datasets for
             w in (_measured_fraction(data.record),) if w < 1
@@ -461,8 +472,11 @@ end
 # The correlogram, with NaN at a lag that holds no value, whether an autocorrelation could be
 # fitted to it and, where it could, the coefficient the covariance was formed with, the scale of
 # the trend's covariance against the expectation of χ², whether the trend carries the jackknife
-# over its refits and where that is the larger, and the leave-one-out spread of ⟨R_T⟩ over each
-# yield distribution it was formed for, with the propagated uncertainty of that ⟨R_T⟩.
+# over its refits with pooled datasets left out, its design, and the mass numbers where its
+# variance exceeds the propagated one; for each yield distribution the trend has a total average
+# over, the uncertainty of that ⟨R_T⟩, the propagated one and, for a trend that carries a
+# jackknife, the jackknife, each with the yield term; and the leave-one-out spread of ⟨R_T⟩ over
+# each yield distribution it was formed for.
 function _trend_uncertainty_record(result::ExtractionResult)
     ρ = deviation_autocorrelation(result)
     record = Dict{String,Any}(
@@ -472,6 +486,7 @@ function _trend_uncertainty_record(result::ExtractionResult)
         "autocorrelation_estimated" => !ismissing(ρ),
     )
     ismissing(ρ) || (record["deviation_autocorrelation"] = ρ)
+    totals = Dict{String,Any}()
     index = findfirst(_is_trend, result.segmented_curves)
     if index !== nothing
         fit = result.segmented_curves[index].fit
@@ -481,23 +496,48 @@ function _trend_uncertainty_record(result::ExtractionResult)
         record["covariance_scale"] = _covariance_scale(
             fit.wrss, fit.expected_wrss, fit.weights_imputed, fit.points
         )
-        # Whether the trend carries the jackknife over its refits, how many gave a curve, and
-        # the mass numbers where the jackknife of R_T is the larger of the two uncertainties.
+        # Whether the trend carries the jackknife over its refits, the design of that
+        # jackknife, and the mass numbers where its variance of R_T exceeds the propagated one.
         trend = result.segmented_curves[index]
         Σ_J = trend.R_T_jackknife_covariance
         record["jackknife_applied"] = Σ_J !== nothing
         if Σ_J !== nothing
-            record["jackknife_refits"] = count(
-                entry -> entry.segments > 0, result.leave_one_out
-            )
+            design = result.jackknife
+            if design !== nothing
+                record["jackknife_units"] = design.units
+                record["jackknife_deleted"] = design.deleted
+                record["jackknife_subsets"] = design.subsets
+                record["jackknife_complete"] = design.complete
+                record["jackknife_refits"] = design.refits
+            end
             record["jackknife_larger_at"] = Int[
-                A for (i, A) in enumerate(trend.R_T.A_H) if
-                Σ_J[i, i] > 0 && trend.R_T.σ[i] == sqrt(Σ_J[i, i])
+                A for
+                (i, A) in enumerate(trend.R_T.A_H) if Σ_J[i, i] > trend.R_T_covariance[i, i]
             ]
         end
+        # The uncertainty of each total average of the trend, the propagated one and, where the
+        # trend carries a jackknife, the jackknife, each with the yield term.
+        averages = get(result.total_average_R_T, SYSTEMATIC_TREND_LABEL, nothing)
+        if averages !== nothing
+            for distribution in result.mass_yields
+                average = get(averages, distribution.label, nothing)
+                average === nothing && continue
+                entry = Dict{String,Any}(
+                    "uncertainty" => average.uncertainty,
+                    "uncertainty_propagated" => average.uncertainty_propagated,
+                )
+                if Σ_J !== nothing
+                    jackknife_variance = (_, w) -> dot(w, Σ_J, w)
+                    entry["uncertainty_jackknife"] = last(
+                        _total_average(trend, distribution, jackknife_variance)
+                    )
+                end
+                totals[distribution.label] = entry
+            end
+        end
     end
+    record["total_average"] = totals
     spreads = Dict{String,Any}()
-    averages = get(result.total_average_R_T, SYSTEMATIC_TREND_LABEL, nothing)
     for distribution in result.mass_yields
         spread = leave_one_out_spread(result, distribution.label)
         spread === nothing && continue
@@ -506,13 +546,6 @@ function _trend_uncertainty_record(result::ExtractionResult)
             "max" => spread.max,
             "uncertainty" => spread.uncertainty,
             "refits" => spread.refits,
-        )
-        # The uncertainty of ⟨R_T⟩ with the propagated covariance alone, beside the jackknife:
-        # the total averages state the larger of the two.
-        average = averages === nothing ? nothing : get(averages, distribution.label, nothing)
-        average === nothing || (
-            spreads[distribution.label]["uncertainty_propagated"] =
-                average.uncertainty_propagated
         )
     end
     record["leave_one_out"] = spreads

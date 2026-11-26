@@ -24,12 +24,14 @@ segments to the temperature ratio a second time. The inversion is exact, whereas
 would discard the uncertainty of the first and impose a piecewise-linear shape on a quantity that
 is not piecewise-linear.
 
-`leave_one_out` refits the systematic trend once with each pooled dataset left out, the datasets
-of one experiment together, [`LeaveOneOut`](@ref). The refits cost one trend fit per pooled
-dataset or experiment and can be skipped where only the curves are wanted; the result then
-carries none, and records that they were not asked for. With at least two refits the trend
-carries their jackknife: its uncertainties are the larger of the propagated one and the
-jackknife. Without the refits it carries the propagated uncertainty alone.
+`leave_one_out` asks for the refits of the systematic trend with pooled datasets left out, the
+datasets of one experiment together: one with each left out in turn, [`LeaveOneOut`](@ref), and
+those with half of them left out behind its jackknife uncertainty, [`JackknifeDesign`](@ref).
+With at least two of the latter that gave a curve the trend carries their jackknife: its
+uncertainties are the larger of the propagated one and the jackknife. The refits cost one trend
+fit per pooled dataset or experiment and at most `segments.jackknife_subsets` more, and can be
+skipped where only the curves are wanted; the result then carries none, records that they were
+not asked for, and the trend carries the propagated uncertainty alone.
 
 Nothing is written. [`write_results`](@ref) writes the tables and the manifest of a result into a
 directory of the caller's choosing; `scripts/run.jl` names that directory by the run identifier
@@ -59,13 +61,22 @@ function run_pipeline(configuration::Configuration; leave_one_out::Bool = true)
         (; entries = LeaveOneOut[], curves = ExtractedCurve[])
     end
     # The trend takes the jackknife over its refits before anything reads its uncertainty.
-    if trend isa ExtractedCurve && length(refits.curves) ≥ 2
-        propagated = trend.R_T.σ
-        trend = ExtractedCurve(trend, refits.curves)
-        @info "the uncertainty of the systematic trend is the larger of the propagated one and \
-               the jackknife over the leave-one-out refits" refits = length(refits.curves) masses = length(
-            trend.R_T
-        ) raised = count(trend.R_T.σ .> propagated)
+    jackknife = nothing
+    if leave_one_out && trend isa ExtractedCurve
+        resampled = _jackknife_refits(pool.units, relation, configuration, refits.curves)
+        if resampled !== nothing && resampled.design.refits ≥ 2
+            design = resampled.design
+            propagated = trend.R_T.σ
+            trend = ExtractedCurve(
+                trend, resampled.curves; units = design.units, deleted = design.deleted
+            )
+            jackknife = design
+            @info "the uncertainty of the systematic trend is the larger of the propagated one \
+                   and the jackknife over the refits with pooled datasets left out" units =
+                design.units deleted = design.deleted refits = design.refits masses = length(
+                trend.R_T
+            ) raised = count(trend.R_T.σ .> propagated)
+        end
     end
     segmented_curves = copy(per_dataset.curves)
     trend isa ExtractedCurve && push!(segmented_curves, trend)
@@ -124,6 +135,7 @@ function run_pipeline(configuration::Configuration; leave_one_out::Bool = true)
         ],
         leave_one_out,
         refits.entries,
+        jackknife,
         per_dataset.flags,
         retrievals,
     )
@@ -302,18 +314,25 @@ function _pooled_trend(configuration::Configuration, relation, input)
                 datasets[j].label
         end
     end
-    # Interpolated datasets count by their measured points, not their written rows.
-    for i in admitted
-        fraction = _measured_fraction(datasets[i].record)
-        fraction < 1 &&
-            @info "interpolated dataset pooled at reduced weight" dataset = datasets[i].label weight =
-                fraction
-    end
     units = _pool_units(datasets, input.r_ν, admitted)
     for members in units.members
         length(members) > 1 && @info "datasets of one experiment pooled as one" datasets = [
             datasets[i].label for i in members
         ]
+    end
+    # Interpolated datasets count by their measured points, not their written rows: on its own
+    # at its measured fraction, combined with others of its experiment through the measured
+    # fraction of each point of the experiment's curve.
+    for members in units.members, i in members
+        fraction = _measured_fraction(datasets[i].record)
+        fraction < 1 || continue
+        if length(members) == 1
+            @info "interpolated dataset pooled at reduced weight" dataset = datasets[i].label weight =
+                fraction
+        else
+            @info "interpolated dataset combined into the curve of its experiment, which carries \
+                   the measured fraction of each point" dataset = datasets[i].label fraction
+        end
     end
     fitted = _fit_trend(
         units.curves,

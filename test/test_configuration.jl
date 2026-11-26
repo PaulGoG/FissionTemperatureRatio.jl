@@ -378,6 +378,22 @@ end
                 "segments.max_breakpoint_sets",
             ),
             (
+                "jackknife subset limit below two",
+                replace(
+                    MINIMAL_CONFIGURATION,
+                    "max_segments = 3" => "max_segments = 3\njackknife_subsets = 1",
+                ),
+                "segments.jackknife_subsets",
+            ),
+            (
+                "negative jackknife seed",
+                replace(
+                    MINIMAL_CONFIGURATION,
+                    "max_segments = 3" => "max_segments = 3\njackknife_seed = -1",
+                ),
+                "segments.jackknife_seed",
+            ),
+            (
                 "absolute input path",
                 replace(
                     MINIMAL_CONFIGURATION,
@@ -486,6 +502,8 @@ end
                 settings.min_pair_coverage,
                 settings.autocorrelation_lags,
                 settings.max_breakpoint_sets,
+                settings.jackknife_subsets,
+                settings.jackknife_seed,
             )
             @test_throws "segments.required_windows[1]" rebuilt(segments = windows)
             fragmentation = loaded.fragmentation
@@ -522,6 +540,8 @@ end
                 settings.min_pair_coverage,
                 settings.autocorrelation_lags,
                 settings.max_breakpoint_sets,
+                settings.jackknife_subsets,
+                settings.jackknife_seed,
             )
             @test_throws "has no symmetric split" rebuilt(
                 system = odd_system, fragmentation = odd_fragmentation, segments = unpinned
@@ -718,6 +738,43 @@ end
             @test run_parameters(limited)["segments"]["max_breakpoint_sets"] == 500000
             @test run_identifier(limited) != identifier
             @test !occursin("breakpoint", run_identifier(limited))
+
+            # The limit and the seed of the jackknife subsets decide which refits form the
+            # uncertainty of the trend. At their defaults they are no parameters, as above;
+            # another value of either enters h.
+            @test configuration.segments.jackknife_subsets == 35
+            @test configuration.segments.jackknife_seed == 1
+            @test !haskey(run_parameters(configuration)["segments"], "jackknife_subsets")
+            @test !haskey(run_parameters(configuration)["segments"], "jackknife_seed")
+            other = write_beside(
+                path,
+                replace(
+                    MINIMAL_CONFIGURATION,
+                    "max_segments = 3" => "max_segments = 3\njackknife_subsets = 35\njackknife_seed = 1",
+                ),
+            )
+            @test run_identifier(load_configuration(other; data_directory = directory)) ==
+                identifier
+            other = write_beside(
+                path,
+                replace(
+                    MINIMAL_CONFIGURATION,
+                    "max_segments = 3" => "max_segments = 3\njackknife_subsets = 20",
+                ),
+            )
+            subsets = load_configuration(other; data_directory = directory)
+            @test run_parameters(subsets)["segments"]["jackknife_subsets"] == 20
+            @test run_identifier(subsets) != identifier
+            other = write_beside(
+                path,
+                replace(
+                    MINIMAL_CONFIGURATION,
+                    "max_segments = 3" => "max_segments = 3\njackknife_seed = 5",
+                ),
+            )
+            seeded = load_configuration(other; data_directory = directory)
+            @test run_parameters(seeded)["segments"]["jackknife_seed"] == 5
+            @test run_identifier(seeded) != identifier
 
             # A list enters in full, so two window sets are two runs.
             other = write_beside(

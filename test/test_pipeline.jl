@@ -149,6 +149,154 @@ function test_trend_covariance(directory, configuration, result, written)
     return nothing
 end
 
+function test_delete_half_jackknife(directory)
+    @testset "the trend of five pooled datasets carries the jackknife with two left out" begin
+        # Five datasets that depart from the reference ratio each in their own way, by more than
+        # they quote, so that the jackknife is the larger uncertainty at most mass numbers. Two
+        # of the five are left out of each refit: k = 5, d = 2, N = 10, scale = 3/2 · 9/10.
+        function write_departing(path, departure)
+            rows = Dict{Int,Float64}()
+            for A_H in 127:140
+                r = reference_ratio(A_H) + departure(A_H)
+                rows[A_H] = 4 * r
+                rows[252 - A_H] = 4 * (1 - r)
+            end
+            rows[126] = 2.0
+            open(path, "w") do io
+                println(io, "A nu nu_uncertainty")
+                for A in sort!(collect(keys(rows)))
+                    println(io, A, " ", rows[A], " 0.05")
+                end
+            end
+        end
+        five = joinpath(directory, "five")
+        mkpath(five)
+        departures = (
+            A -> 0.04 * (A - 133) / 7,
+            A -> -0.04 * (A - 133) / 7,
+            A -> 0.06 * sin((A - 126) / 3),
+            A -> -0.05,
+            A -> 0.03 * (-1)^A,
+        )
+        for (name, departure) in zip("abcde", departures)
+            write_departing(joinpath(five, "$(name).dat"), departure)
+        end
+        base = replace(
+            PIPELINE_CONFIGURATION, "subdirectory = \"datasets\"" => "subdirectory = \"five\""
+        )
+        function load(name, text)
+            path = joinpath(directory, name)
+            write(path, text)
+            return load_configuration(path; data_directory = directory)
+        end
+        configuration = load("five.toml", base)
+        result = run_pipeline(configuration)
+        plain = run_pipeline(configuration; leave_one_out = false)
+        labels = pooled_datasets(result)
+        @test length(labels) == 5
+        @test result.jackknife == JackknifeDesign(5, 2, 10, true, 10)
+        @test length(result.leave_one_out) == 5
+        @test plain.jackknife === nothing
+
+        # The ten refits, each a run that excludes the two datasets it leaves out, in
+        # lexicographic order of the pairs.
+        trends = Dict{Vector{Int},ExtractedCurve}()
+        for i in 1:5, j in (i + 1):5
+            exclusions = join(
+                ("{ dataset = \"$(labels[k])\", reason = \"left out\" }" for k in (i, j)), ", "
+            )
+            excluded = load(
+                "five_without_$(i)_$(j).toml",
+                replace(base, "[multiplicity]" => "[multiplicity]\nexclude = [$(exclusions)]"),
+            )
+            trends[[i, j]] = systematic_trend(run_pipeline(excluded; leave_one_out = false))
+        end
+        @test length(trends) == 10
+
+        # The delete-d jackknife at each mass number over the refits that hold it, compared
+        # with the larger of that and the propagated uncertainty of the trend of the run
+        # without refits.
+        raised = systematic_trend(result)
+        propagated_trend = systematic_trend(plain)
+        function compare_uncertainties(tabulated_trend, quantity, subsets)
+            tabulated = getfield(tabulated_trend, quantity)
+            propagated = getfield(propagated_trend, quantity)
+            for (index, A) in enumerate(tabulated.A_H)
+                held = Float64[]
+                for subset in subsets
+                    refit = getfield(trends[subset], quantity)
+                    found = findfirst(==(A), refit.A_H)
+                    found === nothing || push!(held, refit.ratio[found])
+                end
+                n = length(held)
+                σ_J = if n ≥ 2
+                    sqrt(3 / 2 * 9 / 10 / (n - 1) * sum(abs2, held .- sum(held) / n))
+                else
+                    0.0
+                end
+                @test tabulated.σ[index] ≈ max(propagated.σ[index], σ_J) rtol = 1e-8 atol =
+                    1e-12
+            end
+            return nothing
+        end
+        for quantity in (:r_ν, :R_T)
+            compare_uncertainties(raised, quantity, keys(trends))
+        end
+        @test raised.R_T.ratio == propagated_trend.R_T.ratio
+        @test raised.r_ν.ratio == propagated_trend.r_ν.ratio
+        @test raised.R_T.A_H == propagated_trend.R_T.A_H
+        @test raised.R_T_covariance == propagated_trend.R_T_covariance
+        @test any(raised.R_T.σ .> propagated_trend.R_T.σ)
+
+        record = run_metadata(result)["result"]["trend_uncertainty"]
+        @test record["jackknife_applied"]
+        @test record["jackknife_units"] == 5
+        @test record["jackknife_deleted"] == 2
+        @test record["jackknife_subsets"] == 10
+        @test record["jackknife_complete"]
+        @test record["jackknife_refits"] == 10
+        values = run_metadata(result)["configuration"]["segments"]
+        @test values["jackknife_subsets"] == 35
+        @test values["jackknife_seed"] == 1
+        # The design is not a parameter of the run until it departs from its defaults.
+        parameters = run_parameters(configuration)["segments"]
+        @test !haskey(parameters, "jackknife_subsets")
+        @test !haskey(parameters, "jackknife_seed")
+
+        # A limit below the ten: that many subsets drawn with the seed, and the jackknife over
+        # their refits alone.
+        limited_configuration = load(
+            "five_limited.toml",
+            replace(base, "max_segments = 3" => "max_segments = 3\njackknife_subsets = 4"),
+        )
+        limited = run_pipeline(limited_configuration)
+        @test limited.jackknife == JackknifeDesign(5, 2, 4, false, 4)
+        chosen = FissionTemperatureRatio._left_out_subsets(5, 2, 4, 1).subsets
+        @test all(in(keys(trends)), chosen)
+        compare_uncertainties(systematic_trend(limited), :R_T, chosen)
+        @test systematic_trend(limited).R_T.ratio == propagated_trend.R_T.ratio
+        identifier = run_identifier(configuration)
+        @test run_identifier(limited_configuration) != identifier
+        @test run_parameters(limited_configuration)["segments"]["jackknife_subsets"] == 4
+
+        # Another seed draws other subsets.
+        reseeded_configuration = load(
+            "five_reseeded.toml",
+            replace(
+                base,
+                "max_segments = 3" => "max_segments = 3\njackknife_subsets = 4\njackknife_seed = 7",
+            ),
+        )
+        reseeded_identifier = run_identifier(reseeded_configuration)
+        @test reseeded_identifier != identifier
+        @test reseeded_identifier != run_identifier(limited_configuration)
+        @test run_parameters(reseeded_configuration)["segments"]["jackknife_seed"] == 7
+        @test run_pipeline(reseeded_configuration).jackknife ==
+            JackknifeDesign(5, 2, 4, false, 4)
+    end
+    return nothing
+end
+
 function test_leave_one_out(directory, configuration, result, written)
     @testset "the trend is refitted with each pooled dataset left out" begin
         @test [only(entry.datasets) for entry in result.leave_one_out] == pooled_datasets(result)
@@ -603,6 +751,7 @@ end
         end
 
         test_trend_covariance(directory, configuration, result, written)
+        test_delete_half_jackknife(directory)
         test_leave_one_out(directory, configuration, result, written)
         test_experiments_pooled_as_one(directory, configuration, result, written)
         test_flagged_curves(directory, configuration, result, written)
@@ -859,10 +1008,13 @@ end
             # The trend carries the jackknife over the same three refits: each of its
             # uncertainties is the larger of the propagated one, which a run without the refits
             # writes, and the jackknife of the same quantity. The refit curves are the trends of
-            # the runs that exclude the dataset left out.
+            # the runs that exclude the dataset left out. Three pooled datasets: k = 3, d = 1,
+            # N = 3, scale = 2 · 2/3 = 4/3.
             plain_run = run_pipeline(
                 load_configuration(path; data_directory = directory); leave_one_out = false
             )
+            @test with_yields.jackknife == JackknifeDesign(3, 1, 3, true, 3)
+            @test plain_run.jackknife === nothing
             plain = systematic_trend(plain_run)
             raised = systematic_trend(with_yields)
             reference_trends = [systematic_trend(run) for run in exclusion_runs]
@@ -883,7 +1035,9 @@ end
                         found = findfirst(==(A), refit.A_H)
                         found === nothing || push!(held, refit.ratio[found])
                     end
-                    σ_J = length(held) ≥ 2 ? jackknife(held) : 0.0
+                    # Where n refits hold the mass: 4/3/(n − 1) Σ (θ − θ̄)², and none below two.
+                    n = length(held)
+                    σ_J = n ≥ 2 ? sqrt(4 / 3 / (n - 1) * sum(abs2, held .- sum(held) / n)) : 0.0
                     @test tabulated.σ[index] ≈ max(propagated.σ[index], σ_J) rtol = 1e-8 atol =
                         1e-12
                 end
@@ -906,7 +1060,6 @@ end
             # The propagated uncertainty stays on record beside the larger of the two.
             @test raised_entry.uncertainty_propagated == plain_entry.uncertainty
             @test plain_entry.uncertainty_propagated == plain_entry.uncertainty
-            @test record["A. Both 2000"]["uncertainty_propagated"] == plain_entry.uncertainty
             @test row.R_T_uncertainty ≈ raised_entry.uncertainty rtol = 1e-5
             masses = plain.R_T.A_H
             @test all(reference.R_T.A_H == masses for reference in reference_trends)
@@ -919,14 +1072,34 @@ end
                     first(total_average(reference, unquoted)) for reference in reference_trends
                 ]),
             ) rtol = 1e-8
+            # The record of the average: the uncertainty, the propagated one and the jackknife,
+            # the last two each with the yield term the primary distribution quotes.
             uncertainty_record = run_metadata(with_yields)["result"]["trend_uncertainty"]
+            total = uncertainty_record["total_average"]["A. Both 2000"]
+            yield_term = plain_entry.uncertainty^2 - last(total_average(plain, unquoted))^2
+            @test total["uncertainty"] == raised_entry.uncertainty
+            @test total["uncertainty_propagated"] == plain_entry.uncertainty
+            @test total["uncertainty_jackknife"] ≈ sqrt(jackknife(references)^2 + yield_term) rtol =
+                1e-8
+            @test total["uncertainty"] ≈
+                max(total["uncertainty_propagated"], total["uncertainty_jackknife"]) rtol =
+                1e-14
+            @test !haskey(record["A. Both 2000"], "uncertainty_propagated")
             @test uncertainty_record["jackknife_applied"]
+            @test uncertainty_record["jackknife_units"] == 3
+            @test uncertainty_record["jackknife_deleted"] == 1
+            @test uncertainty_record["jackknife_subsets"] == 3
+            @test uncertainty_record["jackknife_complete"]
             @test uncertainty_record["jackknife_refits"] == 3
             @test uncertainty_record["jackknife_larger_at"] ==
                 [A for (A, σ, σ₀) in zip(raised.R_T.A_H, raised.R_T.σ, plain.R_T.σ) if σ > σ₀]
             plain_record = run_metadata(plain_run)["result"]["trend_uncertainty"]
             @test !plain_record["jackknife_applied"]
             @test !haskey(plain_record, "jackknife_refits")
+            @test !haskey(plain_record, "jackknife_units")
+            @test !haskey(
+                plain_record["total_average"]["A. Both 2000"], "uncertainty_jackknife"
+            )
             # The pivots of the trend are written with the uncertainty of its tabulated r_ν.
             pivot_table = CSV.read(
                 written_yields["r_nu_pivots/$(SYSTEMATIC_TREND_LABEL)"], DataFrame

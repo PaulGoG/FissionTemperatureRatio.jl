@@ -169,19 +169,33 @@ end
             RatioCurve([130, 131, 132], [2.0, 2.0, 1.0], fill(0.1, 3), "b"),
             RatioCurve([130, 131], [3.0, 5.0], fill(0.1, 2), "c"),
         ]
-        Σ = FissionTemperatureRatio._jackknife_covariance([130, 131, 132, 133], refits)
-        # Worked by hand. At 130 the values 1, 2, 3 deviate from their mean by −1, 0, 1, and at
+        # Three leave-one-out refits of three units: k = 3, d = 1, N = 3, scale = 2 · 2/3 = 4/3.
+        Σ = FissionTemperatureRatio._jackknife_covariance([130, 131, 132, 133], refits, 4 / 3)
+        # Worked by hand. A mass held by n refits scales its squared deviations by
+        # (4/3)/(n − 1). At 130 the values 1, 2, 3 deviate from their mean by −1, 0, 1, and at
         # 131 the values 2, 2, 5 by −1, −1, 2, each scaled by √(2/3); at 132 two refits hold 4
-        # and 1, which deviate by ±1.5, scaled by √(1/2); at 133 one refit alone holds a value.
+        # and 1, which deviate by ±1.5, scaled by √(4/3); at 133 one refit alone holds a value.
         @test Σ ≈ [
-            4 / 3 2 -sqrt(3) / 2 0
+            4 / 3 2 -sqrt(2) 0
             2 4 0 0
-            -sqrt(3) / 2 0 9 / 4 0
+            -sqrt(2) 0 6 0
             0 0 0 0
         ] atol = 1e-14
         @test Σ == Σ'
-        @test FissionTemperatureRatio._jackknife_covariance([130, 131], RatioCurve[]) ==
+        @test FissionTemperatureRatio._jackknife_covariance([130, 131], RatioCurve[], 4 / 3) ==
             zeros(2, 2)
+        # Half of four units left out: k = 4, d = 2, N = 6, scale = 2/2 · 5/6 = 5/6.
+        single(value) = RatioCurve([130], [value], [0.1], "s")
+        # All six refits: (k − d)/(d N) Σ (θ − θ̄)² = 17.5/6.
+        complete = FissionTemperatureRatio._jackknife_covariance(
+            [130], [single(value) for value in 1.0:6.0], 5 / 6
+        )
+        @test only(complete) ≈ 35 / 12 atol = 1e-14
+        # Four of the six: the estimate of that value, (5/6)/3 · 5.
+        partial = FissionTemperatureRatio._jackknife_covariance(
+            [130], [single(value) for value in 1.0:4.0], 5 / 6
+        )
+        @test only(partial) ≈ 25 / 18 atol = 1e-14
     end
 
     @testset "a curve with refits carries the larger of its propagated uncertainty and the jackknife" begin
@@ -237,6 +251,16 @@ end
         @test σ_mean > last(range_mean(curve))
         @test σ_mean ≈ jackknife([first(range_mean(refit)) for refit in refits]) rtol = 1e-10
 
+        # A quoted yield uncertainty adds the same term, Σ ((R_T − ⟨R_T⟩) σ_Y/ΣY)², to the
+        # uncertainty and to its propagated counterpart.
+        quoted = MassYield(A_H, yields.Y, fill(0.01, length(A_H)), "q", "")
+        yield_term = sum(abs2, (raised.R_T.ratio .- value) ./ sum(yields.Y) .* 0.01)
+        @test last(total_average(raised, quoted)) ≈ sqrt(σ^2 + yield_term) rtol = 1e-12
+        entry = TotalAverage(raised, quoted, domain.heavy_masses)
+        @test entry.uncertainty ≈ sqrt(σ^2 + yield_term) rtol = 1e-12
+        @test entry.uncertainty_propagated ≈
+            sqrt(last(total_average(curve, yields))^2 + yield_term) rtol = 1e-12
+
         # Where the propagated uncertainty is the larger it stands: refits that barely differ.
         unraised = ExtractedCurve(curve, [tilted(shift) for shift in (-1e-6, 0.0, 1e-6)])
         @test unraised.R_T.σ == curve.R_T.σ
@@ -244,5 +268,33 @@ end
         @test last(total_average(unraised, yields)) == last(total_average(curve, yields))
 
         @test_throws ArgumentError ExtractedCurve(curve, refits[1:1])
+
+        # The same three refits as three of the six that leave two of four units out:
+        # scale = (4 − 2)/2 · 5/6 = 5/6, and the variance at a mass held by three refits is
+        # 5/6/2 · Σ (θ − θ̄)².
+        halved = ExtractedCurve(curve, refits; units = 4, deleted = 2)
+        for index in eachindex(A_H)
+            θ = [refit.R_T.ratio[index] for refit in refits]
+            σ_R = sqrt(5 / 6 / 2 * sum(abs2, θ .- sum(θ) / 3))
+            @test sqrt(halved.R_T_jackknife_covariance[index, index]) ≈ σ_R atol = 1e-14
+            @test halved.R_T.σ[index] ≈ max(curve.R_T.σ[index], σ_R) atol = 1e-14
+        end
+        @test halved.R_T.ratio == curve.R_T.ratio
+        # A design leaves out 1 to units − 1 of the units, and has no more refits than subsets.
+        @test_throws ArgumentError ExtractedCurve(curve, refits; units = 4, deleted = 0)
+        @test_throws ArgumentError ExtractedCurve(curve, refits; units = 4, deleted = 4)
+        @test_throws ArgumentError ExtractedCurve(curve, refits; units = 2, deleted = 1)
+
+        # A refit that holds the pinned mass number without being pinned there is refused.
+        free = fit_segments(A_H, base, fill(0.004, length(A_H)); max_segments = 3)
+        unpinned = ExtractedCurve(
+            "refit",
+            free,
+            RatioCurve(A_H, base, fill(0.004, length(A_H)), "refit"),
+            ChargeResolved(),
+            BSFG_MODEL,
+            domain,
+        )
+        @test_throws ArgumentError ExtractedCurve(curve, [refits[1], refits[2], unpinned])
     end
 end

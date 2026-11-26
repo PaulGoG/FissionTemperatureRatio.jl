@@ -179,7 +179,7 @@ function write_results(result::ExtractionResult, directory::AbstractString)
 end
 
 # The ratio tables: r_ν and R_T point by point for every dataset, the combination the trend was
-# fitted to, and for every segmented curve its pivots, with the propagated uncertainty at each,
+# fitted to, and for every segmented curve its pivots, with the uncertainty of the curve at each,
 # and its r_ν and R_T at every mass number of its range.
 function _write_ratio_tables!(
     written::Dict{String,String},
@@ -271,11 +271,12 @@ function _segmented_curve_rows(
 end
 
 # The total average over each yield distribution: one row per segmented curve and distribution,
-# which is how the literature tabulates it. The covariance-propagated uncertainty first; the
+# which is how the literature tabulates it. The uncertainty of the curve first, the propagated
+# one and, for a trend that carries a jackknife, the larger of that and the jackknife; the
 # independent-points one, the published approximation, beside it; then the fraction of the
 # distribution's yield the curve takes in. For the systematic trend, ⟨R_T⟩ refitted with one and
-# two segments more than selected, and the jackknife uncertainty over the pooled datasets with the
-# extremes of ⟨R_T⟩ with one of them left out.
+# two segments more than selected, and, as a diagnostic, the delete-one jackknife of ⟨R_T⟩ over
+# the pooled datasets with the extremes of ⟨R_T⟩ with one of them left out.
 function _total_average_rows(result::ExtractionResult, digits::Integer)
     rounded(x) = round(x; sigdigits = digits)
     rows = NamedTuple{

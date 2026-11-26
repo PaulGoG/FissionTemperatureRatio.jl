@@ -56,6 +56,30 @@ struct LeaveOneOut
 end
 
 """
+    JackknifeDesign
+
+The refits of the systematic trend its jackknife uncertainty is formed over: the trend refitted
+without each of a set of subsets of `d = k ÷ 2` of the `k` pooled datasets or experiments. With
+two or three of them, `d = 1` and the refits are the [`LeaveOneOut`](@ref) refits.
+
+# Fields
+
+- `units`: `k`, the pooled datasets or experiments.
+- `deleted`: `d = k ÷ 2`, the number left out of each refit.
+- `subsets`: the refits asked for: every subset of `d` of the `k` where there are at most
+  `segments.jackknife_subsets`, and that many drawn with `segments.jackknife_seed` otherwise.
+- `complete`: whether those are every subset.
+- `refits`: how many of them gave a curve; the jackknife is formed over these.
+"""
+struct JackknifeDesign
+    units::Int
+    deleted::Int
+    subsets::Int
+    complete::Bool
+    refits::Int
+end
+
+"""
     ExtractionResult
 
 Everything a run produces, held together so that it can be inspected interactively as well as
@@ -75,8 +99,9 @@ written to disk by [`write_results`](@ref).
 - `segmented_curves`: one [`ExtractedCurve`](@ref) per dataset that supports a fit and reaches the
   coverage floor, followed by the systematic-trend curve. A consuming code takes one of them.
 - `range_mean_R_T`: for each segmented curve, the mean of its temperature ratio over its mass
-  range with the uncertainty propagated through the curve's covariance; see [`range_mean`](@ref)
-  for why this is not the total average.
+  range with the uncertainty propagated through the curve's covariance, and for a trend that
+  carries a jackknife the larger of that and the jackknife; see [`range_mean`](@ref) for why
+  this is not the total average.
 - `mass_yields`: the fragment mass yield distributions read, symmetrized where the configuration
   says so, empty when it names none.
 - `mass_yield_records`: the [`RetrievalRecord`](@ref) of each of them, by label, where one lists
@@ -106,10 +131,13 @@ written to disk by [`write_results`](@ref).
 - `correlation_groups`: the labels of the pooled datasets that belong to one experiment, as
   their retrieval records name one another, one list per experiment. Such datasets are combined
   into one before they are pooled, so that the experiment counts once.
-- `leave_one_out_requested`: whether the run was asked for the leave-one-out refits,
-  [`run_pipeline`](@ref)'s `leave_one_out`.
+- `leave_one_out_requested`: whether the run was asked for the leave-one-out refits and the
+  refits behind the jackknife of the systematic trend, [`run_pipeline`](@ref)'s `leave_one_out`.
 - `leave_one_out`: one [`LeaveOneOut`](@ref) per pooled dataset or experiment, in the order read;
-  empty with fewer than two of them or where the run was asked to skip them.
+  empty with fewer than two of them or where the run was asked to skip the refits.
+- `jackknife`: the [`JackknifeDesign`](@ref) of the jackknife the systematic trend carries;
+  `nothing` where it carries none: with fewer than two pooled datasets or experiments, fewer than
+  two refits that gave a curve, or a run asked to skip the refits.
 - `curve_flags`: for each dataset curve that resolves no minimum over a range covering a
   required window, by label, the reason
   [`unresolved_minimum`](@ref) gives; such a curve stays in the manifest.
@@ -144,6 +172,7 @@ struct ExtractionResult
     correlation_groups::Vector{Vector{String}}
     leave_one_out_requested::Bool
     leave_one_out::Vector{LeaveOneOut}
+    jackknife::Union{Nothing,JackknifeDesign}
     curve_flags::Dict{String,String}
     retrievals::RetrievalDocuments
 end

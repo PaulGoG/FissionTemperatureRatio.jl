@@ -58,10 +58,12 @@ mass axis, `ρ^|A − A′|` between two of its mass numbers: [`autocorrelation_
 
 A dataset departs from the others by a slow drift along the mass axis rather than point by point;
 with independent points the uncertainty of a smooth curve through the combined values would be
-low by about `√((1 + ρ)/(1 − ρ))`. The covariance of the trend, and with it the uncertainty of
-every tabulated `R_T` of the trend and of its total average, is formed with the correlation
-matrix [`pooled_correlation`](@ref) builds from `ρ` and from the datasets combined at each mass
-number. The curve of a single dataset is fitted to its points as independent ones.
+low by about `√((1 + ρ)/(1 − ρ))`. The propagated covariance of the trend is formed with the
+correlation matrix [`pooled_correlation`](@ref) builds from `ρ` and from the datasets combined at
+each mass number. The uncertainty reported for every tabulated `R_T` of the trend and for its
+total average is the propagated one, or, where the trend carries a jackknife, the larger of the
+propagated one and the jackknife. The curve of a single dataset is fitted to its points as
+independent ones.
 
 `missing` where no lag could be estimated, the trend then being fitted with independent points.
 """
@@ -80,9 +82,10 @@ jackknife standard error over the pooled datasets or experiments,
 σ = [(k − 1)/k Σᵢ (θᵢ − θ̄)²]^(1/2),
 ```
 
-and `k`. This is the uncertainty of the trend's `⟨R_T⟩` that comes from the datasets differing
-from one another by more than their errors along the mass axis, which the covariance of the trend
-does not contain. `nothing` where fewer than two refits hold a value.
+and `k`. This is the delete-one jackknife of the trend's `⟨R_T⟩`, a diagnostic of how far the
+average rests on single datasets or experiments. The uncertainty a run reports for the trend is
+formed from the refits of its [`JackknifeDesign`](@ref), which coincide with these for two or
+three pooled datasets or experiments. `nothing` where fewer than two refits hold a value.
 
 A refit that gave no curve holds no value and is not among the `k`. With two refits the standard
 error is half their difference, `|θ₁ − θ₂|/2`: each refit then rests on a single dataset or
@@ -111,7 +114,7 @@ end
 # The trend refitted with each pooled dataset left out in turn, the datasets of one experiment
 # together: how far ⟨R_T⟩, the number of segments and the breakpoints rest on one of them. Only the
 # values of a refit are used, so it takes the points as independent. The curves of the refits
-# are returned beside their records; the jackknife of the trend is formed from them.
+# are returned beside their records.
 function _leave_one_out(
     units,
     datasets::Vector{Multiplicity},
@@ -168,15 +171,104 @@ function _leave_one_out(
             ),
         )
     end
-    # What the jackknife over the refits can and cannot say here.
     failed = [join(entry.datasets, " + ") for entry in refits if entry.segments == 0]
-    isempty(failed) ||
-        @warn "a leave-one-out refit gave no curve; the jackknife uncertainty of the trend is \
-               formed over the other refits" left_out = failed
-    length(units.curves) == 2 &&
+    isempty(failed) || @warn "a leave-one-out refit gave no curve" left_out = failed
+    return (; entries = refits, curves)
+end
+
+# The number of pooled units left out of each refit behind the jackknife of the trend.
+_jackknife_deleted(k::Integer) = k ÷ 2
+
+# The subsets of `d` of the pooled units `1:k` the trend is refitted without, each sorted
+# ascending: every one, in lexicographic order, where there are at most `limit`; otherwise
+# `limit` distinct ones drawn uniformly with the seed `seed`, in the order drawn, each as the
+# first `d` positions of a partial Fisher-Yates shuffle of `1:k`. `complete` says which.
+function _left_out_subsets(k::Integer, d::Integer, limit::Integer, seed::Integer)
+    if binomial(big(k), d) ≤ limit
+        subsets = Vector{Int}[]
+        subset = collect(1:d)
+        while true
+            push!(subsets, copy(subset))
+            # The next subset in lexicographic order: the last position that can still advance
+            # is advanced, and the positions after it follow it consecutively.
+            i = d
+            while i ≥ 1 && subset[i] == k - d + i
+                i -= 1
+            end
+            i == 0 && break
+            subset[i] += 1
+            for j in (i + 1):d
+                subset[j] = subset[j - 1] + 1
+            end
+        end
+        return (; subsets, complete = true)
+    end
+    rng = StableRNG(seed)
+    subsets = Vector{Int}[]
+    drawn = Set{Vector{Int}}()
+    while length(subsets) < limit
+        pool = collect(1:k)
+        for i in 1:d
+            j = rand(rng, i:k)
+            pool[i], pool[j] = pool[j], pool[i]
+        end
+        subset = sort!(pool[1:d])
+        subset in drawn && continue
+        push!(drawn, subset)
+        push!(subsets, subset)
+    end
+    return (; subsets, complete = false)
+end
+
+# The refits of the trend its jackknife is formed over: without each subset of `d = k ÷ 2` of
+# the `k` pooled units, every one or a draw of them as `_left_out_subsets` gives, and fitted as
+# the leave-one-out refits are. With two or three units `d` is one and the subsets are the
+# leave-one-out refits, whose curves `delete_one` holds, and no fit is made. Returned with the
+# design, or `nothing` for fewer than two units.
+function _jackknife_refits(
+    units, relation, configuration::Configuration, delete_one::Vector{ExtractedCurve}
+)
+    k = length(units.curves)
+    k < 2 && return nothing
+    d = _jackknife_deleted(k)
+    settings = configuration.segments
+    if d == 1
+        curves = delete_one
+        design = JackknifeDesign(k, 1, k, true, length(delete_one))
+    else
+        drawn = _left_out_subsets(k, d, settings.jackknife_subsets, settings.jackknife_seed)
+        subsets = drawn.subsets
+        @info "refits of the systematic trend for its jackknife uncertainty" units = k left_out =
+            d refits = length(subsets) complete = drawn.complete
+        curves = ExtractedCurve[]
+        for subset in subsets
+            others = setdiff(1:k, subset)
+            refitted = _fit_trend(
+                units.curves[others],
+                units.weights[others],
+                relation,
+                settings,
+                configuration.system.compound.A;
+                estimate_autocorrelation = false,
+                quiet = true,
+            )
+            refit = refitted.trend
+            refit isa ExtractedCurve && push!(curves, refit)
+        end
+        design = JackknifeDesign(k, d, length(subsets), drawn.complete, length(curves))
+    end
+    design.refits < design.subsets &&
+        @warn "$(design.subsets - design.refits) of the refits behind the jackknife of the \
+               trend gave no curve; the jackknife is formed over the others" refits =
+            design.refits subsets = design.subsets
+    if design.refits < 2
+        @warn "fewer than two refits behind the jackknife of the trend gave a curve; the trend \
+               carries the propagated uncertainty alone" refits = design.refits
+    elseif k == 2
         @warn "two pooled experiments: each leave-one-out refit rests on one of them, and the \
                jackknife uncertainty of the trend is half the difference of the two"
-    return (; entries = refits, curves)
+    end
+    return (; design, curves)
 end
 
 # The experiments among the datasets `candidates` indexes: the connected components of the

@@ -1,12 +1,18 @@
 # One segmented description of the multiplicity ratio, carried through to the temperature ratio
 # with the covariance the transformation gives it.
 
-# The delete-one jackknife covariance of the values of `refits` at `masses`, the Gram matrix of
-# their scaled deviations: Σ[a, b] = Σᵢ dᵢ(a) dᵢ(b), with dᵢ(a) = √((m − 1)/m) (θᵢ(a) − θ̄(a))
-# over the m refits that hold the mass a. A refit that does not hold a mass contributes nothing
-# there, and neither does a mass fewer than two refits hold.
+# The delete-d jackknife covariance of the values of `refits` at `masses`, the Gram matrix of
+# their scaled deviations: Σ[a, b] = Σ_S d_S(a) d_S(b), with
+# d_S(a) = √(scale/(n − 1)) (θ_S(a) − θ̄(a)) over the n refits that hold the mass a, θ̄ being
+# their mean. For refits each made without one of the N = C(k, d) subsets S of d of the k pooled
+# units, scale = (k − d)/d · (N − 1)/N, and the variance at a is
+# v(a) = (k − d)/d · (N − 1)/N · 1/(n − 1) · Σ_S (θ_S(a) − θ̄(a))².
+# Where all N refits hold the mass this is the delete-d jackknife (k − d)/(d N) Σ_S (θ_S − θ̄)²,
+# and with d = 1 and n = k the delete-one jackknife (k − 1)/k Σᵢ (θᵢ − θ̄)²; with fewer refits
+# it estimates the value of the complete design from those that hold the mass. A refit that does
+# not hold a mass contributes nothing there, and neither does a mass fewer than two refits hold.
 function _jackknife_covariance(
-    masses::AbstractVector{<:Integer}, refits::AbstractVector{RatioCurve}
+    masses::AbstractVector{<:Integer}, refits::AbstractVector{RatioCurve}, scale::Real
 )
     deviation = zeros(length(refits), length(masses))
     for (column, mass) in enumerate(masses)
@@ -18,12 +24,12 @@ function _jackknife_covariance(
             push!(held, row)
             push!(θ, refit.ratio[index])
         end
-        m = length(θ)
-        m < 2 && continue
+        n = length(θ)
+        n < 2 && continue
         θ̄ = mean(θ)
-        scale = sqrt((m - 1) / m)
+        factor = sqrt(scale / (n - 1))
         for (row, value) in zip(held, θ)
-            deviation[row, column] = scale * (value - θ̄)
+            deviation[row, column] = factor * (value - θ̄)
         end
     end
     return Matrix(Symmetric(deviation' * deviation))
@@ -47,12 +53,25 @@ the fit at every mass number of its range, inverts the relation between `R_T` an
 as `averaging` prescribes, and propagates the coefficient covariance through the exact slope of
 that inverse.
 
-`ExtractedCurve(curve, refits)` gives `curve` with the delete-one jackknife over `refits`, which
-are the same curve fitted with each pooled dataset left out in turn: `r_ν.σ` and `R_T.σ` become
-the larger of the propagated uncertainty and the jackknife at each mass number, and
-`R_T_jackknife_covariance` holds the jackknife covariance of `R_T`. The values, the fit and
-`R_T_covariance` are those of `curve`. It throws an `ArgumentError` for fewer than two refits.
-The method page gives the estimator and what it was calibrated against.
+`ExtractedCurve(curve, refits; units, deleted)` gives `curve` with the jackknife over `refits`,
+which are the same curve fitted with `deleted` of the `units` pooled datasets left out, one refit
+for each subset of the design; the defaults, `units = length(refits)` and `deleted = 1`, make
+them the complete leave-one-out refits. With `k = units`, `d = deleted`, `N = C(k, d)` and
+`θ_S(A)` the value of the refit without the subset `S`, the variance at a mass number held by
+`n ≥ 2` of the refits, `θ̄` being their mean, is
+
+```
+v(A) = (k − d)/d · (N − 1)/N · 1/(n − 1) · Σ_S (θ_S(A) − θ̄(A))²,
+```
+
+the delete-d jackknife `(k − d)/(d N) Σ_S (θ_S − θ̄)²` where all `N` refits hold the mass number,
+and its estimate from those that hold it otherwise. `r_ν.σ` and `R_T.σ` become the larger of the
+propagated uncertainty and the jackknife at each mass number, and `R_T_jackknife_covariance`
+holds the jackknife covariance of `R_T`. The values, the fit and `R_T_covariance` are those of
+`curve`. It throws an `ArgumentError` for fewer than two refits, for `deleted` outside
+`1:(units − 1)`, for more refits than `C(units, deleted)`, and for a refit that holds the pinned
+mass number of a pinned `curve` without being pinned there. The method page gives the estimator
+and what it was calibrated against.
 
 # Fields
 
@@ -68,11 +87,14 @@ The method page gives the estimator and what it was calibrated against.
   the square of `R_T.σ`, except for a curve that carries a jackknife, where `R_T.σ` is the
   larger of the two.
 - `coverage`: the fraction of the mass numbers of the fragmentation range those points reach.
-- `R_T_jackknife_covariance`: the delete-one jackknife covariance of `R_T.ratio` over the
-  leave-one-out refits, for the systematic trend of a run that made at least two; `nothing` for
-  every other curve. Where it is present, the uncertainty of `r_ν` and of `R_T` at each mass
-  number, and that of every average of the curve, is the larger of the propagated one and the
-  jackknife of the same quantity.
+- `R_T_jackknife_covariance`: the delete-d jackknife covariance `Σ_J` of `R_T.ratio` over the
+  refits of the trend with pooled datasets left out, for the systematic trend of a run where at
+  least two of them gave a curve; `nothing` for every other curve. Where it is present, the
+  uncertainty of `r_ν` and of `R_T` at each mass number, and that of every average of the curve,
+  is the larger of the propagated one and the jackknife of the same quantity. The jackknife of
+  an average with weights `w`, `wᵀ Σ_J w`, equals the jackknife of that average over the refits
+  where every refit holds every mass number the weights reach; otherwise it is formed mass
+  number by mass number.
 """
 struct ExtractedCurve
     label::String
@@ -119,14 +141,52 @@ struct ExtractedCurve
         )
     end
 
-    function ExtractedCurve(curve::ExtractedCurve, refits::AbstractVector{ExtractedCurve})
+    function ExtractedCurve(
+        curve::ExtractedCurve,
+        refits::AbstractVector{ExtractedCurve};
+        units::Integer = length(refits),
+        deleted::Integer = 1,
+    )
         length(refits) < 2 && throw(
             ArgumentError(
                 "the jackknife of a curve takes at least two refits, got $(length(refits))"
             ),
         )
-        Σ_r = _jackknife_covariance(curve.r_ν.A_H, RatioCurve[refit.r_ν for refit in refits])
-        Σ_J = _jackknife_covariance(curve.R_T.A_H, RatioCurve[refit.R_T for refit in refits])
+        1 ≤ deleted ≤ units - 1 || throw(
+            ArgumentError(
+                "a jackknife over $(units) pooled units leaves out 1 to $(units - 1) of them \
+                 in each refit, got deleted = $(deleted)",
+            ),
+        )
+        subsets = binomial(big(units), deleted)
+        length(refits) ≤ subsets || throw(
+            ArgumentError(
+                "$(length(refits)) refits exceed the $(subsets) subsets of $(deleted) of \
+                 $(units) pooled units"
+            ),
+        )
+        # A refit that reaches the pin of the curve must be pinned there as well.
+        pinned_value = curve.fit.pinned_value
+        if pinned_value !== nothing
+            x₀ = curve.fit.x₀
+            for (position, refit) in enumerate(refits)
+                x₀ in refit.r_ν.A_H || continue
+                refit.fit.pinned_value == pinned_value && refit.fit.x₀ == x₀ && continue
+                throw(
+                    ArgumentError(
+                        "the refit at position $(position) holds the pinned mass number \
+                         $(x₀) without being pinned there"
+                    ),
+                )
+            end
+        end
+        scale = (units - deleted) / deleted * (1 - 1 / Float64(subsets))
+        Σ_r = _jackknife_covariance(
+            curve.r_ν.A_H, RatioCurve[refit.r_ν for refit in refits], scale
+        )
+        Σ_J = _jackknife_covariance(
+            curve.R_T.A_H, RatioCurve[refit.R_T for refit in refits], scale
+        )
         # A pinned value is exact, and a refit that reaches the pin holds it as well: what the
         # refits differ by there is rounding, and the curve keeps a zero uncertainty at its pin.
         if curve.fit.pinned_value !== nothing
@@ -180,7 +240,7 @@ end
 The unweighted mean of the temperature ratio of a segmented curve over its mass range, with the
 uncertainty propagated through the curve's covariance. For a systematic trend that carries a
 jackknife, the term from the curve is the larger of the propagated one and the jackknife of the
-same average over the leave-one-out refits.
+same average over the refits of the trend with pooled datasets left out.
 
 This is *not* the total average the literature quotes: it weights every mass number equally and
 so is dominated by the far-asymmetric tail, where the yield is negligible. It is the only summary
@@ -203,7 +263,8 @@ The uncertainty differs: the tabulated points are functions of a few fitted coef
 ratio term is `wᵀ C w` with `w` the normalized yield weights and `C` the curve's covariance,
 rather than the sum of squares the independent-points form takes. For a systematic trend that
 carries a jackknife, the term from the curve is the larger of the propagated one and the
-jackknife of the same average over the leave-one-out refits. The yield term is unchanged.
+jackknife of the same average over the refits of the trend with pooled datasets left out. The
+yield term is unchanged.
 The independent-points uncertainty, which is the published approximation and remains available
 as `total_average(curve.R_T, yields)`, understates the propagated one; the method page
 quantifies the difference for the shipped runs.
@@ -255,7 +316,7 @@ approximation the published tables use and is kept for comparison with them, and
 the distribution's yield over the fragmentation range that the curve takes in,
 [`yield_fraction`](@ref). For a systematic trend that carries a jackknife, the term from the
 curve is the larger of the propagated one and the jackknife of the same average over the
-leave-one-out refits; `uncertainty_propagated` is the uncertainty with the propagated term
+refits of the trend with pooled datasets left out; `uncertainty_propagated` is the uncertainty with the propagated term
 alone, and equals `uncertainty` for every other curve.
 
     TotalAverage(curve, yields, heavy_masses)

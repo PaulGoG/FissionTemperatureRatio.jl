@@ -43,6 +43,8 @@ windows_apply_to_datasets = false             # apply the windows to each datase
 min_pair_coverage = 0.3                       # fraction of the range's heavy masses a nu(A) dataset must pair to offer a curve of its own, 0 to 1
 autocorrelation_lags = 4                      # lags of the deviation correlogram the trend's autocorrelation is fitted to, 1 to 8
 max_breakpoint_sets = 10000000                # breakpoint sets one fit may examine before the run is refused, 1 to 1000000000
+jackknife_subsets = 35                        # refits with half of the pooled datasets left out, for the trend's jackknife uncertainty: all where there are no more, 2 to 1000000
+jackknife_seed = 1                            # seed of the draw of those subsets where not all are refitted, 0 to 1000000000
 
 [retrieval]
 min_package_version = "0.2.7"                 # lowest ExforFissionData version whose retrieval records are accepted
