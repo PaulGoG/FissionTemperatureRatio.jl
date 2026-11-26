@@ -889,6 +889,53 @@ end
             @test !startswith(lower_pair.dataset_outcomes["sparse"], "coverage")
         end
 
+        @testset "a refit of the trend above the limit on the search is left out" begin
+            # Over the heavy masses 126:140 at two points per segment, the search over one to
+            # three segments examines 1 + 12 + 55 = 68 breakpoint sets and selects two
+            # segments; the refits with three and four segments examine 55 and 120.
+            function limited(name, limit)
+                path = joinpath(directory, name)
+                write(
+                    path,
+                    replace(
+                        PIPELINE_CONFIGURATION,
+                        "max_segments = 3" =>
+                            "max_segments = 3\nmin_points_per_segment = 2\n" *
+                            "max_breakpoint_sets = $(limit)",
+                    ) *
+                    "\n[yield]\nsubdirectory = \"yields\"\n" *
+                    "mass_yield_file = \"yields/10000001_A.Both_2000.dat\"\n",
+                )
+                return load_configuration(path; data_directory = directory)
+            end
+            unlimited = run_pipeline(limited("limit_unlimited.toml", 10_000_000))
+            trend = only(
+                filter(c -> c.label == SYSTEMATIC_TREND_LABEL, unlimited.segmented_curves)
+            )
+            @test segment_count(trend.fit) == 2
+            orders = unlimited.segment_count_sensitivity["A. Both 2000"]
+            @test first.(orders) == [2, 3, 4]
+
+            capped = @test_logs (:info, r"not refitted with 4 segments") match_mode = :any begin
+                run_pipeline(limited("limit_100.toml", 100))
+            end
+            @test capped.segment_count_sensitivity["A. Both 2000"] == orders[1:2]
+            written_ = write_results(capped, joinpath(directory, "output", "limited"))
+            table = CSV.read(written_["total_average_R_T"], DataFrame)
+            row = only(
+                filter(
+                    r ->
+                        r.segmented_curve == SYSTEMATIC_TREND_LABEL &&
+                        r.mass_yield == "A. Both 2000",
+                    eachrow(table),
+                ),
+            )
+            @test !ismissing(row.R_T_one_more_segment)
+            @test ismissing(row.R_T_two_more_segments)
+
+            @test_throws ArgumentError run_pipeline(limited("limit_67.toml", 67))
+        end
+
         @testset "the trend of a pool of one interpolated dataset is that dataset's fit" begin
             single = joinpath(directory, "single")
             mkpath(single)
