@@ -103,7 +103,9 @@ exhaustive, so its cost grows combinatorially with `max_segments` and falls as
 `min_points_per_segment` rises. Over the 49 heavy masses of the ²⁵²Cf range the shipped settings,
 6 and 4, examine 191350 breakpoint sets in a fit without windows; 8 and 2 examine 2.4 × 10⁷. A fit
 that would examine more than `max_breakpoint_sets` is refused before it starts, with the number in
-the message. The default, 10⁷, admits every segment limit at four points per segment over such a
+the message. The refits of the systematic trend with one and two segments more than selected are
+left out above the limit instead, with a message, and their columns of the total averages are then
+empty. The default, 10⁷, admits every segment limit at four points per segment over such a
 range, at most 1.09 × 10⁶ sets, and refuses 8 segments of 2 points and 9 segments of 3.
 
 | Key | Type | Default | Constraint | In the identifier | Meaning |

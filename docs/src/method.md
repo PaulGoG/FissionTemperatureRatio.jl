@@ -187,7 +187,8 @@ fit in breakpoints, coefficients, ``\chi^2``, degrees of freedom and covariance.
 
 The sensitivity of a result to the selected order is reported with it: the systematic trend is
 refitted with one and two more segments, and its total average at each order is written beside the
-selected one.
+selected one. An order whose search would examine more than `max_breakpoint_sets` breakpoint sets
+is not refitted, and its column is left empty.
 
 The propagated uncertainty of a curve is that of its coefficients at the selected breakpoints. It
 does not contain the uncertainty of the order or of the breakpoint positions. Where two orders are

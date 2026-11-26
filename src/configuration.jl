@@ -132,7 +132,9 @@ the systematic trend is fitted to, [`autocorrelation_decay`](@ref).
 
 `max_breakpoint_sets` is the largest number of breakpoint sets one fit may examine, all orders
 together, [`breakpoint_set_count`](@ref). The search is exhaustive and its size grows
-combinatorially with `max_segments`; a fit above the limit is refused before it starts.
+combinatorially with `max_segments`; a fit above the limit is refused before it starts. The
+refits of the systematic trend with one and two segments more than selected are left out
+above it instead, and their columns of the total averages are then empty.
 """
 struct SegmentSettings
     max_segments::Int

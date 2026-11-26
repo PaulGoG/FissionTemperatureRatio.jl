@@ -61,7 +61,11 @@ ExforFissionData.jl v0.8.0.
 - **Breaking:** a run whose breakpoint search would examine more than
   `segments.max_breakpoint_sets` sets is refused before it starts, with the number in the
   message: over 49 heavy masses, 8 segments of 2 points (24128307 sets) or 9 segments of 3
-  (11025278). Such configurations loaded, and each of their fits took several minutes.
+  (11025278). Such configurations loaded, and each of their fits took several minutes. The
+  refits of the trend with one and two segments more than selected are left out above the limit,
+  with a message, and leave `R_T_one_more_segment` or `R_T_two_more_segments` empty: over 49
+  masses without windows, 6 segments of 2 points examine 988359 sets and the refit with 8
+  segments would examine 18643560.
 - **Breaking:** `SegmentSettings` has the field `max_breakpoint_sets` and `ExtractionResult` the
   field `retrievals`, each last.
 - **Breaking:** refused with an `ArgumentError` where they were accepted: an infinite quoted

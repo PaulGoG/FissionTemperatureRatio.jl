@@ -397,17 +397,34 @@ function _segment_count_sensitivity(
     sensitivity = Dict{String,Vector{Tuple{Int,Float64}}}()
     isempty(averaged) && return sensitivity
     selected = segment_count(trend.fit)
+    settings = configuration.segments
     alternatives = ExtractedCurve[trend]
     for extra in 1:2
+        order = selected + extra
+        # The limit on the search holds for these refits as well. One above it is left out, as
+        # an order the data cannot support is, rather than stopping a run whose own searches
+        # stayed within it. The count of the single order bounds what the fit counts.
+        sets = breakpoint_set_count(
+            fitted.combined.A_H,
+            order - 1;
+            min_points_per_segment = settings.min_points_per_segment,
+            required_windows = fitted.windows,
+        )
+        if sets > settings.max_breakpoint_sets
+            @info "the trend is not refitted with $(order) segments: the search would examine \
+                   $(sets) breakpoint sets, above max_breakpoint_sets" max_breakpoint_sets =
+                settings.max_breakpoint_sets
+            continue
+        end
         refit = _segment(
             fitted.combined,
             relation,
-            configuration.segments,
+            settings,
             SYSTEMATIC_TREND_LABEL,
             fitted.windows,
             configuration.system.compound.A;
             measured = fitted.pooled.measured,
-            order = selected + extra,
+            order = order,
         )
         refit isa ExtractedCurve && push!(alternatives, refit)
     end
