@@ -612,21 +612,25 @@ the values ``\theta_S`` of the refits give the delete-``d`` jackknife variance
 \sigma_{\mathrm{jack}}^2 = \frac{k - d}{d\,N} \sum_{S} \left(\theta_S - \bar{\theta}\right)^2 .
 ```
 
-For the mean of ``k`` independent values this is the variance of the mean exactly, whatever
-``d``. With two or three pooled datasets ``d = 1``, and it is the delete-one jackknife
-``\frac{k-1}{k} \sum_i (\theta_i - \bar{\theta})^2`` over the leave-one-out refits.
+For the mean of ``k`` values it is ``s^2/k``, the usual estimate of the variance of a mean,
+whatever ``d``. With two or three pooled datasets ``d = 1``, and it is the delete-one jackknife
+``\frac{k-1}{k} \sum_i (\theta_i - \bar{\theta})^2`` over the leave-one-out refits. With four,
+each refit rests on two.
 
 Half of the datasets are left out, and not one, because the trend is not a smooth function of the
-data: its breakpoints are selected, and a refit either keeps them or moves them. The delete-one
-jackknife is not consistent for such an estimate [ShaoWu1989](@cite). Where a fraction ``p`` of
+data: its breakpoints are selected, and a refit either keeps them or moves them. For estimates
+that are not smooth, such as quantiles, the delete-one jackknife is known to be inconsistent, and
+the delete-``d`` jackknife with ``d`` a fixed fraction of ``k`` to be consistent
+[ShaoWu1989](@cite). A fit with selected breakpoints is covered by neither result, and the choice
+rests on what the delete-one form does here and on the simulations below. Where a fraction ``p`` of
 the ``k`` leave-one-out refits moves a breakpoint and shifts ``R_T`` at a mass number by
 ``\Delta``, it gives ``\Delta\,[(k - 1)\,p\,(1 - p)]^{1/2}`` there, which grows with ``k``, although
 an estimate that takes one of two values ``\Delta`` apart has a standard deviation of at most
 ``\Delta/2``. For ²⁵²Cf at ``A_H = 130``, eight of the thirteen leave-one-out refits keep the
 breakpoints at 129 and 133 and five place one at 130, which moves ``R_T`` by 0.37: the delete-one
 jackknife there is 0.62, against 0.21 with six left out. Refits without half of the datasets
-move the breakpoints in nearly every refit, as another pool of the same kind would, and the spread
-of their values is that of the estimate.
+move the breakpoints in nearly every refit, so that no single change of breakpoints is multiplied
+by ``k - 1``.
 
 Where there are at most `jackknife_subsets` subsets, 35 by default, every one is refitted; that
 holds for up to seven pooled datasets or experiments. Above that, that many distinct subsets are
@@ -639,8 +643,11 @@ mass number that ``n`` of the refits reach, the variance is
 ```
 
 which is the form above for ``n = N`` and the estimate of it from the ``n`` refits otherwise. A
-draw of 35 subsets adds a sampling error of about 12 % to the jackknife standard deviation, below
-the 20 % that thirteen experiments leave in it.
+draw adds its own sampling error. Between sixteen draws of 35 subsets, the jackknife standard
+deviation of the ²⁵²Cf trend varies by 12 % at the median mass number, by up to 28 % at one, and
+by 9 % for ``\langle R_T \rangle``; between draws of 140 it varies by 4 %, 18 % and 2 %. Thirteen
+experiments leave about 20 % in it whatever the draw. Another `jackknife_seed` shows the size of
+the effect for a given pool.
 
 For the temperature ratio at the mass numbers of the trend, the same sum taken over products gives
 the jackknife covariance ``\Sigma_J(A, A')``, and ``(w^\mathsf{T} \Sigma_J\, w)^{1/2}`` is the
@@ -648,17 +655,24 @@ jackknife of the average ``w^\mathsf{T} R_T``. Where every refit reaches every m
 weights reach, it is the jackknife of the average itself, since the average of a refit is the same
 weighted sum of its values; otherwise it is formed mass number by mass number. A refit that does
 not reach a mass number is left out of the sum there, and a mass number that fewer than two refits
-reach has no jackknife. Where one experiment alone covers a mass number, only the refits that keep
-that experiment reach it, and the jackknife there does not contain that experiment's own error.
+reach has no jackknife. Where only some of the pooled datasets cover a mass number the jackknife
+there is biased, since the refits that reach it are those that keep some of them: for a mean of
+the datasets that cover it, low by about a fifth where two of four cover it and high by a quarter
+where three do, and where one experiment alone covers it the jackknife does not contain that
+experiment's own error at all. The covariance between two mass numbers that different refits
+reach is damped as well, which lowers the jackknife of an average that draws on both. A refit
+whose datasets do not reach the symmetric split is fitted unpinned, and one whose datasets admit
+no breakpoint in a required window without it; both enter the jackknife at the mass numbers they
+hold, and the design counts them.
 A refit that gives no curve is left out, and the log says how many. With two pooled experiments
 the jackknife is half the difference of the two refits; the log notes this case. Where the trend
 is pinned, every refit that reaches the pin holds the same value, and the jackknife is zero as the
 propagated uncertainty is.
 
 The jackknife is an estimate from ``k`` pooled datasets and carries about ``k - 1`` degrees of
-freedom: for four experiments its standard deviation is itself uncertain by about 40 %, and an
-error in units of it has tails like those of a ``t`` distribution with three degrees of freedom,
-not those of a normal one.
+freedom where all of them cover a mass number, and fewer where fewer do: for four experiments its
+standard deviation is itself uncertain by about 40 %, and an error in units of it has tails like
+those of a ``t`` distribution with three degrees of freedom, not those of a normal one.
 
 The refits with one dataset left out are written as well, in `leave_one_out_<run>.csv`: the
 ``\langle R_T \rangle`` of every refit over each yield distribution averaged over, its number of
@@ -700,7 +714,9 @@ alone, as the curve of every dataset does. The refits cost one trend fit per poo
 experiment, for the leave-one-out table, and at most `jackknife_subsets` more. The record
 `trend_uncertainty` of the metadata states what a trend carries: `jackknife_applied`; the design,
 `jackknife_units`, `jackknife_deleted`, `jackknife_subsets` and `jackknife_complete`, with the
-number of refits that gave a curve, `jackknife_refits`; the mass numbers `jackknife_larger_at` at
+number of refits that gave a curve, `jackknife_refits`, and how many of those were fitted unpinned
+or without the required windows, `jackknife_unpinned` and `jackknife_without_windows`; the mass
+numbers `jackknife_larger_at` at
 which the jackknife of ``R_T`` is the larger of the two; and, in `total_average`, for each yield
 distribution the uncertainty of ``\langle R_T \rangle`` as reported, with the propagated term
 alone and with the jackknife alone, each with the term of the yields.
@@ -778,8 +794,11 @@ datasets differ by more than the kernel describes. For ²⁵²Cf, with thirteen 
 the mass numbers the reported ``\sigma(R_T)`` exceeds the propagated one by a median factor of
 1.04, 1.96, 1.49 and 1.18, and by up to 3.1, 7.1, 2.3 and 5.4. The largest factors are near the
 minimum, where the refits place the breakpoints differently, 0.21 against 0.069 for ²⁵²Cf at
-``A_H = 130``, and where few experiments reach: 0.17 against 0.024 for ²³⁵U at ``A_H = 121``, and
-0.29 against 0.055 for ²³³U at ``A_H = 150``.
+``A_H = 130``; next to the pin, where the pinned value holds the propagated uncertainty down and
+the experiments disagree, 0.17 against 0.024 for ²³⁵U at ``A_H = 121``; and towards the end of
+the range, where the experiments end one after another, 0.29 against 0.055 for ²³³U at
+``A_H = 150``. None of the refits of the four systems is fitted unpinned or without its required
+window.
 
 The refits with one dataset left out give the delete-one jackknife of ``\langle R_T \rangle``,
 `R_T_uncertainty_leave_one_out`, and the least and the greatest ``\langle R_T \rangle`` among

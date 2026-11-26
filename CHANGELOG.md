@@ -37,8 +37,9 @@ configuration that leaves the two new keys at their defaults. Inputs: ExforFissi
   subsets are drawn where there are more. Each enters the run identifier only where it is not its
   default.
 - `JackknifeDesign` and `ExtractionResult.jackknife`: the pooled datasets or experiments, the
-  number left out of each refit, the refits asked for, whether they are every subset, and how many
-  gave a curve.
+  number left out of each refit, the refits asked for, whether they are every subset, how many
+  gave a curve, and how many of those were fitted unpinned or without the required windows
+  because the datasets they keep allow nothing else.
 - `ExtractedCurve(curve, refits; units, deleted)`, which gives a curve the jackknife over refits
   of it with `deleted` of `units` pooled datasets left out, and the field
   `R_T_jackknife_covariance` that holds the jackknife covariance of `R_T`.
@@ -80,9 +81,10 @@ configuration that leaves the two new keys at their defaults. Inputs: ExforFissi
   `uncertainty_propagated`, `ExtractionResult` the new field `jackknife`, and `SegmentSettings`
   the new fields `jackknife_subsets` and `jackknife_seed`. The record `trend_uncertainty` of the
   metadata gains `jackknife_applied`, `jackknife_units`, `jackknife_deleted`,
-  `jackknife_subsets`, `jackknife_complete`, `jackknife_refits`, `jackknife_larger_at` and the
-  table `total_average`, which holds for each yield distribution the uncertainty of the trend's
-  `⟨R_T⟩` as reported, with the propagated term alone and with the jackknife alone.
+  `jackknife_subsets`, `jackknife_complete`, `jackknife_refits`, `jackknife_unpinned`,
+  `jackknife_without_windows`, `jackknife_larger_at` and the table `total_average`, which holds
+  for each yield distribution the uncertainty of the trend's `⟨R_T⟩` as reported, with the
+  propagated term alone and with the jackknife alone.
 - `R_T_uncertainty_leave_one_out` of the total averages stays the delete-one jackknife of `⟨R_T⟩`
   over the leave-one-out refits. It is a diagnostic of how far the average rests on single
   datasets; the uncertainty of the trend is formed from those refits only for a pool of two or
