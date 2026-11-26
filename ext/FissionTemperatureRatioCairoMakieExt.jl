@@ -119,6 +119,12 @@ end
 # elsewhere.
 _band_width(curve::RatioCurve) = Float64[coalesce(σ, 0.0) for σ in curve.σ]
 
+# The top of the uncertainty bands of `curves`, zero where there is none to draw.
+function _band_top(curves::AbstractVector{RatioCurve})
+    tops = [maximum(c.ratio .+ _band_width(c)) for c in curves if !isempty(c)]
+    return isempty(tops) ? 0.0 : maximum(tops)
+end
+
 # Mass-number ticks at multiples of ten strictly inside the limits: the label of a tick on a
 # limit would run past the edge of the figure.
 function _mass_ticks(low::Real, high::Real)
@@ -402,10 +408,15 @@ function FissionTemperatureRatio.write_figures(
     trend_R_T = [c.R_T for c in result.segmented_curves if c.label == SYSTEMATIC_TREND_LABEL]
 
     # The temperature ratio is unbounded above and its far-asymmetric tail runs away, so the view
-    # is bounded by the bulk of the measurements, as the multiplicity figure is.
+    # is bounded by the bulk of the measurements, as the multiplicity figure is, and by the
+    # uncertainty band of the trend where that reaches higher.
     R_T_data = filter(!isempty, result.R_T)
     R_T_values = reduce(vcat, (curve.ratio for curve in R_T_data); init = Float64[])
-    R_T_upper = isempty(R_T_values) ? nothing : 1.15 * quantile(R_T_values, 0.99)
+    R_T_upper = if isempty(R_T_values)
+        nothing
+    else
+        max(1.15 * quantile(R_T_values, 0.99), 1.05 * _band_top(trend_R_T))
+    end
     R_T_lower = R_T_upper === nothing ? nothing : 0
 
     with_theme(FissionTemperatureRatio.publication_theme()) do
@@ -470,13 +481,16 @@ function FissionTemperatureRatio.write_figures(
             index = findfirst(c -> c.label == curve.label, result.R_T)
             (index === nothing || isempty(result.R_T[index])) && continue
             data = result.R_T[index]
+            drawn = vcat(RatioCurve[curve.R_T], trend_R_T)
             upper = quantile(data.ratio, 0.99)
             isempty(curve.R_T) || (upper = max(upper, maximum(curve.R_T.ratio)))
+            # The bands of the curve and of the trend stay inside the view.
+            upper = max(upper, _band_top(drawn) / 1.1)
             written["figure/R_T_vs_A_H/$(curve.label)"] = FissionTemperatureRatio.save_figure(
                 joinpath(directory, "R_T_vs_A_H_segmented_$(token).pdf"),
                 FissionTemperatureRatio.plot_ratio(
                     RatioCurve[data],
-                    vcat(RatioCurve[curve.R_T], trend_R_T);
+                    drawn;
                     ylabel = L"R_T = T_L / T_H",
                     reference = 1.0,
                     reference_label = "Equal temperatures",
