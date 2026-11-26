@@ -254,11 +254,13 @@ R_T_uncertainty_independent_points, R_T_uncertainty_leave_one_out, R_T_leave_one
 R_T_leave_one_out_max, yield_fraction, R_T_one_more_segment, R_T_two_more_segments`. The three
 leave-one-out columns and the last two are filled for the systematic trend only. For the trend of a
 run that made the refits, `R_T_uncertainty` takes the larger of the term propagated from the fit
-covariance and the jackknife of the average over the refits, before the term of the yields is
-added; that jackknife is `R_T_uncertainty_leave_one_out` where every refit spans the mass numbers
-of the trend.
+covariance and the jackknife of the average over the refits with half of the pooled datasets left
+out, before the term of the yields is added. `R_T_uncertainty_leave_one_out` is the delete-one
+jackknife of the average over the leave-one-out refits: a diagnostic of how far the average rests
+on single datasets, and the jackknife `R_T_uncertainty` takes only for a pool of two or three.
 `R_T_uncertainty_independent_points` is the approximation of the published tables over the
-tabulated points of a curve.
+tabulated points of a curve, formed from their tabulated uncertainties: for a trend that carries
+a jackknife, from the larger of the two at each mass number.
 
 `leave_one_out_<run>.csv` has the columns `dataset_left_out, accession, mass_yield, R_T, segments,
 breakpoints, reduced_chi_squared, outcome`, one row per dataset or experiment left out and yield

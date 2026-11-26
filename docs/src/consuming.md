@@ -73,11 +73,12 @@ square root of the diagonal of the propagated covariance of the curve. That cova
 the selected breakpoints and does not contain the uncertainty of the number of segments: near a
 breakpoint that a neighbouring order places elsewhere, the curve of that order can lie several
 times `R_T_uncertainty` away. For the systematic trend, `R_T_uncertainty` is the larger of that
-and the delete-one jackknife over refits of the trend with each pooled dataset left out, each of
+and the jackknife over refits of the trend with half of the pooled datasets left out, each of
 which selects its own breakpoints; the [method](method.md) page gives the rule and its
-calibration. Where the refits disagree on the breakpoints the jackknife is several times the
-propagated uncertainty, for ²⁵²Cf 0.62 against 0.069 at `A_H` = 130. There it states that the data
-do not settle the curve, and it is not the width of a normal error. The tabulated points are not
+calibration. Near the minimum, where the refits place the breakpoints differently, the jackknife
+is several times the propagated uncertainty, for ²⁵²Cf 0.21 against 0.069 at `A_H` = 130. It is an
+estimate with one degree of freedom fewer than there are pooled experiments, and an error in
+units of it has heavier tails than a normal one. The tabulated points are not
 independent, so summing their uncertainties in quadrature understates the uncertainty of any
 average over them. `total_average_R_T_<run identifier>.csv` carries the uncertainty of each total
 average with the fit covariance propagated, which for the trend is the larger of that and the

@@ -8,16 +8,16 @@ the minor version and a patch release carries none.
 ## [Unreleased]
 
 The results change. Each uncertainty of a systematic trend is now the larger of the one propagated
-from the fit and the delete-one jackknife over its leave-one-out refits, and the unit of two
-alternative analyses enters the pool with a measured fraction that divides its quoted part alone.
-The systematic trends, `⟨R_T⟩` over the primary yield with the reported uncertainty and, in
-brackets, the propagated one and the jackknife: ²⁵²Cf 1.0863 ± 0.0144 (0.0144, 0.0100), ²³⁵U
-1.1210 ± 0.0223 (0.0152, 0.0223), ²³⁹Pu 1.0296 ± 0.0274 (0.0231, 0.0274), ²³³U 1.0657 ± 0.1408
-(0.0883, 0.1408), against 1.0861 ± 0.0144, 1.1210 ± 0.0152, 1.0285 ± 0.0228 and 1.0657 ± 0.0883
-in 0.6.0. The tabulated `R_T_uncertainty` of the trends is larger by a median factor of 1.16,
-1.80, 1.59 and 1.42. The values of the ²³⁵U and ²³³U trends, the curves of single datasets and
-their total averages are unchanged, and so is every run identifier. Inputs: ExforFissionData.jl
-v0.8.0.
+from the fit and a jackknife over refits of the trend with half of its pooled datasets left out,
+and the unit of two alternative analyses enters the pool with a measured fraction that divides its
+quoted part alone. The systematic trends, `⟨R_T⟩` over the primary yield with the reported
+uncertainty and, in brackets, the propagated one and the jackknife: ²⁵²Cf 1.0863 ± 0.0144 (0.0144,
+0.0086), ²³⁵U 1.1210 ± 0.0231 (0.0152, 0.0231), ²³⁹Pu 1.0296 ± 0.0305 (0.0231, 0.0305), ²³³U
+1.0657 ± 0.0883 (0.0883, 0.0781), against 1.0861 ± 0.0144, 1.1210 ± 0.0152, 1.0285 ± 0.0228 and
+1.0657 ± 0.0883 in 0.6.0. The tabulated `R_T_uncertainty` of the trends is larger by a median
+factor of 1.04, 1.96, 1.49 and 1.18. The values of the ²³⁵U and ²³³U trends, the curves of single
+datasets and their total averages are unchanged, and so is the run identifier of every
+configuration that leaves the two new keys at their defaults. Inputs: ExforFissionData.jl v0.8.0.
 
 ### Fixed
 
@@ -32,46 +32,69 @@ v0.8.0.
 
 ### Added
 
-- `ExtractedCurve(curve, refits)`, which gives a curve the delete-one jackknife over refits of
-  it, and the field `R_T_jackknife_covariance` that holds the jackknife covariance of `R_T`.
-- `scripts/trend_uncertainty_calibration.jl`, which scores the propagated uncertainty of a trend,
-  the jackknife and the larger of the two against the scatter over simulated pools, with the
-  package's own pooling and jackknife. The simulation figures of the method page are the tables
-  this script prints. The environment of `scripts/` gains Distributed, StableRNGs and Statistics.
+- `segments.jackknife_subsets`, 35 by default, and `segments.jackknife_seed`, 1 by default: the
+  largest number of refits behind the jackknife of the trend, and the seed with which their
+  subsets are drawn where there are more. Each enters the run identifier only where it is not its
+  default.
+- `JackknifeDesign` and `ExtractionResult.jackknife`: the pooled datasets or experiments, the
+  number left out of each refit, the refits asked for, whether they are every subset, and how many
+  gave a curve.
+- `ExtractedCurve(curve, refits; units, deleted)`, which gives a curve the jackknife over refits
+  of it with `deleted` of `units` pooled datasets left out, and the field
+  `R_T_jackknife_covariance` that holds the jackknife covariance of `R_T`.
+- `scripts/trend_uncertainty_calibration.jl`, which simulates the pooled datasets of a
+  configuration about the trend they give and scores the propagated uncertainty, the jackknife and
+  the larger of the two against that known curve, with the package's own pooling, fit and
+  jackknife. The calibration table of the method page is what this script prints. The environment
+  of `scripts/` gains Distributed, Logging, StableRNGs and Statistics.
 - `TotalAverage.uncertainty_propagated`: the uncertainty of a total average with the fit
   covariance propagated alone.
 
 ### Changed
 
 - **Breaking:** every uncertainty of the systematic trend is the larger of the propagated one and
-  the delete-one jackknife of the same quantity over the leave-one-out refits. That holds for
-  `R_T_uncertainty` at each mass number of the tabulated trend, for `r_nu_uncertainty` at its
-  pivots, and for the term of the curve in the uncertainty of `⟨R_T⟩` and of the range mean, which
-  is `max(wᵀ C w, wᵀ Σ_J w)` with `Σ_J` the jackknife covariance of `R_T` over the refits. The
+  the jackknife of the same quantity over refits of the trend with `d = k ÷ 2` of its `k` pooled
+  datasets or experiments left out, `(k − d)/(d N) Σ (θ_S − θ̄)²` over the `N` subsets: every
+  subset where there are at most `jackknife_subsets`, and that many drawn otherwise. With two or
+  three pooled datasets these are the leave-one-out refits. That holds for `R_T_uncertainty` at
+  each mass number of the tabulated trend, for `r_nu_uncertainty` at its pivots, and for the term
+  of the curve in the uncertainty of `⟨R_T⟩` and of the range mean, which is
+  `max(wᵀ C w, wᵀ Σ_J w)` with `Σ_J` the jackknife covariance of `R_T` over the refits. The
   independent-points uncertainty of the trend's total average is formed from the tabulated
   uncertainties and changes with them. 0.6.0 stated that the propagated uncertainty is too small
-  once the correlation is fitted and the number of segments selected, as a run does. In simulated
-  pools of 4 and 6 datasets the scatter of a yield-weighted mean of the trend exceeds the propagated
-  uncertainty by 30 % to 81 % and is within 12 % of the reported one. The jackknife uses neither the
-  fitted correlation nor the selected breakpoints, since every refit selects its own, and the
-  expectation of its variance is not below the variance of the estimate (Efron and Stein 1981,
-  [doi:10.1214/aos/1176345462](https://doi.org/10.1214/aos/1176345462)). For one pool it can lie far
-  from that expectation. Where the refits divide between two sets of breakpoints it exceeds the
-  distance between them: for ²⁵²Cf at `A_H` = 130, `R_T` = 1.74 has a propagated uncertainty of
-  0.069 and a reported one of 0.62, the refits giving 1.71 to 1.77 with one set and 2.10 to 2.13
-  with the other. Such a value states that the data do not settle the breakpoints there; it is not
-  the width of a normal error. The trend of a pool from which fewer than two refits give a curve,
-  the trend of `run_pipeline(configuration; leave_one_out = false)` and the curve of every dataset
-  carry the propagated uncertainty as before. At a pinned mass number both uncertainties are zero.
+  once the correlation is fitted and the number of segments selected, as a run does. Simulated on
+  the pools of the four shipped configurations, it holds 32 % to 43 % of the errors of `R_T`
+  where a normal error has 68.3 %, and the scatter of `⟨R_T⟩` exceeds it by a factor of 1.3 to
+  1.9; the reported uncertainty holds 62 % to 70 %, and 88 % to 96 % within twice it. Half of the
+  datasets are left out, and not one, because the breakpoints of a trend are selected: the delete-one jackknife is not consistent for such an estimate (Shao and Wu 1989,
+  [doi:10.1214/aos/1176347263](https://doi.org/10.1214/aos/1176347263)), and where the
+  leave-one-out refits divide between two sets of breakpoints it exceeds the distance between
+  them. For ²⁵²Cf at `A_H` = 130, where `R_T` = 1.74 has a propagated uncertainty of 0.069, it
+  gives 0.62; the jackknife with six of the thirteen experiments left out gives 0.21. The trend
+  of a pool from which fewer than two refits give a curve, the trend of
+  `run_pipeline(configuration; leave_one_out = false)` and the curve of every dataset carry the
+  propagated uncertainty as before. At a pinned mass number both uncertainties are zero.
 - **Breaking:** `ExtractedCurve` has the new field `R_T_jackknife_covariance`, `nothing` for a
   curve without a jackknife. `R_T_covariance` stays the propagated covariance; its diagonal is
   the square of `R_T.σ` for a curve without a jackknife only. `TotalAverage` has the new field
-  `uncertainty_propagated`. The record `trend_uncertainty` of the metadata gains
-  `jackknife_applied`, `jackknife_refits` and `jackknife_larger_at`, and each entry of its
-  `leave_one_out` table gains `uncertainty_propagated`.
-- `run_pipeline` forms the leave-one-out refits before the symmetry diagnostics, the total
-  averages and the sensitivity to the number of segments, which all read the uncertainty the
-  trend reports. The log lines of a run follow that order.
+  `uncertainty_propagated`, `ExtractionResult` the new field `jackknife`, and `SegmentSettings`
+  the new fields `jackknife_subsets` and `jackknife_seed`. The record `trend_uncertainty` of the
+  metadata gains `jackknife_applied`, `jackknife_units`, `jackknife_deleted`,
+  `jackknife_subsets`, `jackknife_complete`, `jackknife_refits`, `jackknife_larger_at` and the
+  table `total_average`, which holds for each yield distribution the uncertainty of the trend's
+  `⟨R_T⟩` as reported, with the propagated term alone and with the jackknife alone.
+- `R_T_uncertainty_leave_one_out` of the total averages stays the delete-one jackknife of `⟨R_T⟩`
+  over the leave-one-out refits. It is a diagnostic of how far the average rests on single
+  datasets; the uncertainty of the trend is formed from those refits only for a pool of two or
+  three.
+- The package depends on StableRNGs.jl, so that the subsets drawn are the same on every Julia
+  version.
+- `run_pipeline` forms the refits before the total averages, which read the uncertainty the trend
+  reports. The log lines of a run follow that order, and the line of an interpolated dataset says
+  whether it is pooled on its own at its measured fraction or through the curve of its
+  experiment.
+- The figures of `R_T` bound the ordinate by the uncertainty band of the trend where it reaches
+  above the bulk of the points.
 
 ## [0.6.0] - 2026-11-26
 

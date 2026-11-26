@@ -138,14 +138,16 @@ Regenerate the figures shown below, from the configuration and the input data:
 julia docs/assets.jl
 ```
 
-Repeat the calibration of the systematic trend's uncertainty that the method page quotes, in
-simulated pools, here on four worker processes:
+Repeat the calibration of the systematic trend's uncertainty that the method page quotes: the
+pooled datasets of a configuration simulated about a known curve, here 200 replicates on four
+worker processes:
 
 ```
-julia scripts/trend_uncertainty_calibration.jl 4 ar1 80 4w 6w 6i 14w
+julia scripts/trend_uncertainty_calibration.jl 4 config/U233_nth.toml 200
 ```
 
-It takes some core-hours: every replicate fits the trend once per dataset of its pool.
+A replicate fits the trend once and once per refit of its jackknife: about ten seconds for the
+four pooled experiments of ²³³U, and a few minutes for the thirteen of ²⁵²Cf.
 
 ## Status
 
@@ -201,14 +203,15 @@ every added segment and breakpoint. The selected orders are five, six, four and 
 
 The systematic trend of each shipped configuration gives the following `⟨R_T⟩` over the primary
 yield distribution. Its uncertainty is the larger of the one propagated from the fit covariance
-and the jackknife over the refits with each pooled dataset or experiment left out:
+and the jackknife over refits with half of the pooled datasets or experiments left out; the run
+metadata holds the two:
 
-| System | `R_T` ± `R_T_uncertainty` | Propagated | `R_T_uncertainty_leave_one_out` |
+| System | `R_T` ± `R_T_uncertainty` | Propagated | Jackknife |
 |---|---|---|---|
-| ²⁵²Cf(sf) | 1.0863 ± 0.0144 | 0.0144 | 0.0100 |
-| ²³⁵U(nth,f) | 1.1210 ± 0.0223 | 0.0152 | 0.0223 |
-| ²³⁹Pu(nth,f) | 1.0296 ± 0.0274 | 0.0231 | 0.0274 |
-| ²³³U(nth,f) | 1.0657 ± 0.1408 | 0.0883 | 0.1408 |
+| ²⁵²Cf(sf) | 1.0863 ± 0.0144 | 0.0144 | 0.0086 |
+| ²³⁵U(nth,f) | 1.1210 ± 0.0231 | 0.0152 | 0.0231 |
+| ²³⁹Pu(nth,f) | 1.0296 ± 0.0305 | 0.0231 | 0.0305 |
+| ²³³U(nth,f) | 1.0657 ± 0.0883 | 0.0883 | 0.0781 |
 
 The inputs are the retrieval of ExforFissionData.jl v0.8.0; [`data/README.md`](data/README.md)
 records their provenance.
@@ -352,7 +355,7 @@ FissionTemperatureRatio/
 │   ├── activate.jl
 │   ├── Project.toml
 │   ├── run.jl                      pipeline entry point
-│   └── trend_uncertainty_calibration.jl   the trend's uncertainty against simulated pools
+│   └── trend_uncertainty_calibration.jl   the trend's uncertainty against a configuration's pool, simulated
 ├── src/
 │   ├── autocorrelation.jl          errors of pooled datasets along the mass axis: correlogram, decay
 │   ├── configuration.jl            TOML configuration, parsed and validated; model builders
@@ -366,7 +369,7 @@ FissionTemperatureRatio/
 │   ├── output.jl                   tabulated output, the manifest and the file names
 │   ├── pipeline.jl                 the run, from input to segmented curves and total averages
 │   ├── plotting.jl                 figure interface; the implementation is in ext/
-│   ├── pooling.jl                  the datasets pooled into the systematic trend; leave-one-out refits
+│   ├── pooling.jl                  the datasets pooled into the systematic trend; its refits with datasets left out
 │   ├── precompile.jl               the calls of a first extraction, compiled with the package
 │   ├── provenance.jl               run identification and metadata
 │   ├── retrieval.jl                the retrieval records beside the inputs, read once and checked
