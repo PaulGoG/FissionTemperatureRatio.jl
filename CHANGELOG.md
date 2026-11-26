@@ -7,7 +7,7 @@ the minor version and a patch release carries none.
 
 ## [Unreleased]
 
-## [0.6.0] - 2026-11-25
+## [0.6.0] - 2026-11-26
 
 The results change. The measured fraction of a combined point follows its variance, so that a
 trend pooled from interpolated datasets that disagree counts its points as the measurements they
