@@ -184,6 +184,13 @@ end
         @test Σ == Σ'
         @test FissionTemperatureRatio._jackknife_covariance([130, 131], RatioCurve[], 4 / 3) ==
             zeros(2, 2)
+        # The jackknife of a linear functional is the quadratic form, and never negative: for
+        # weights the refits do not differ along, rounding can leave the form just below zero.
+        variance = FissionTemperatureRatio._jackknife_variance
+        @test variance(Σ, [1.0, 0.0, 0.0, 0.0]) ≈ 4 / 3 atol = 1e-14
+        @test variance(Σ, [0.5, 0.5, 0.0, 0.0]) ≈ (4 / 3 + 2 * 2 + 4) / 4 atol = 1e-14
+        @test variance([1.0 -1.0; -1.0 1.0] .* (1 + 1e-16), [0.3, 0.3]) == 0.0
+        @test variance(-1e-20 .* [1.0 0.0; 0.0 1.0], [1.0, 1.0]) == 0.0
         # Half of four units left out: k = 4, d = 2, N = 6, scale = 2/2 · 5/6 = 5/6.
         single(value) = RatioCurve([130], [value], [0.1], "s")
         # All six refits: (k − d)/(d N) Σ (θ − θ̄)² = 17.5/6.

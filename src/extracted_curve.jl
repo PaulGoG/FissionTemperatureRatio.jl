@@ -225,13 +225,19 @@ function _propagated_variance(curve::ExtractedCurve, w::AbstractVector{<:Real})
     return max(dot(w, curve.R_T_covariance, w), 0.0)
 end
 
+# The jackknife variance of a linear functional `wᵀ R_T` of a curve that carries a jackknife. The
+# matrix is positive semi-definite, and rounding can leave its quadratic form just below zero.
+function _jackknife_variance(Σ_J::AbstractMatrix{<:Real}, w::AbstractVector{<:Real})
+    return max(dot(w, Σ_J, w), 0.0)
+end
+
 # The variance of a linear functional `wᵀ R_T` of the curve: the propagated one, and for a curve
 # that carries a jackknife the larger of that and the jackknife of the functional.
 function _functional_variance(curve::ExtractedCurve, w::AbstractVector{<:Real})
     propagated = _propagated_variance(curve, w)
     Σ_J = curve.R_T_jackknife_covariance
     Σ_J === nothing && return propagated
-    return max(propagated, dot(w, Σ_J, w))
+    return max(propagated, _jackknife_variance(Σ_J, w))
 end
 
 """

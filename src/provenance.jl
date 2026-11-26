@@ -530,7 +530,7 @@ function _trend_uncertainty_record(result::ExtractionResult)
                     "uncertainty_propagated" => average.uncertainty_propagated,
                 )
                 if Σ_J !== nothing
-                    jackknife_variance = (_, w) -> dot(w, Σ_J, w)
+                    jackknife_variance = (_, w) -> _jackknife_variance(Σ_J, w)
                     entry["uncertainty_jackknife"] = last(
                         _total_average(trend, distribution, jackknife_variance)
                     )
