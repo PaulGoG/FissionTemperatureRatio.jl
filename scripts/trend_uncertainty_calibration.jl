@@ -12,8 +12,11 @@
 # where it quotes none; s_i² = max(⟨(y_i − r)²⟩ − ⟨σ_i²⟩, 0) is what the residuals of dataset i
 # about the trend hold beyond its quoted uncertainty; and e_i has unit variance and the
 # correlation ρ^|A − A′| along the mass axis, as the covariance of a trend takes the errors of a
-# dataset to be correlated. ρ is the coefficient at which such pools give the fitted ρ of the run
-# on average, which is above that fitted ρ, since the fit to a correlogram is biased low. A
+# dataset to be correlated. At the symmetric split the simulated value is that of the curve: the
+# two fragments are one there, r_ν = 1/2 by its definition, and every dataset holds that value. ρ
+# is the coefficient at which such pools give the fitted ρ of the run on average, which is above
+# that fitted ρ, since the fit to a correlogram is biased low; the first lags of the measured
+# correlogram and of the simulated ones are printed side by side. A
 # replicate is then treated as a run treats the data: the pool is combined, ρ is fitted to the
 # correlogram of the deviations, the trend is fitted with the pin, the required windows and the
 # selection of the configuration, and it is refitted with half of the pooled datasets left out,
@@ -38,20 +41,22 @@
 # costs one trend fit and one per refit: about ten seconds for four pooled experiments and a few
 # minutes for thirteen. The seed of each replicate is drawn from one stream seeded by `<seed>`,
 # 20261127 where none is given, so the same arguments print the same table whatever the number of
-# workers. The first lines printed record the arguments and the design. The pooling, the fit and
-# the jackknife are the package's own internal functions, so that what is scored is what a run
-# computes. Nothing is written.
+# workers. The first lines printed record the arguments, the package version with the commit the
+# script started at, and the design. The pooling, the fit and the jackknife are the package's own
+# internal functions, so that what is scored is what a run computes. Nothing is written.
 
 include(joinpath(@__DIR__, "activate.jl"))
 
 using Distributed: @everywhere, addprocs, pmap
 using DrWatson: gitdescribe
-using Printf: @printf
+using Printf: @printf, @sprintf
 using Statistics: mean, std
 
 const USAGE = "usage: julia scripts/trend_uncertainty_calibration.jl <workers> \
                <configuration.toml> <replicates> [<seed>]"
 const ROOT = dirname(@__DIR__)
+# The commit the code is read at, taken before the run and not after it.
+const COMMIT = something(gitdescribe(ROOT; warn = false), "no commit")
 
 # The arguments, or `nothing` where they are not ones the script can run on.
 function parsed(arguments::Vector{String})
@@ -98,25 +103,26 @@ SETTINGS.workers > 0 && addprocs(SETTINGS.workers; exeflags = `--project=$(@__DI
 
     # The pooled units with simulated values: the known curve and an error of the standard
     # deviation [s² + σ²(A)]^(1/2), correlated along the mass axis as `factors` give it from the
-    # normal draws `z`.
-    function simulated(units, known, quoted, unquoted, factors, z)
+    # normal draws `z`, and none where `exact` marks the symmetric split.
+    function simulated(units, known, quoted, unquoted, exact, factors, z)
         return map(eachindex(units.curves)) do i
             curve = units.curves[i]
-            deviation = sqrt.(unquoted[i]^2 .+ quoted[i] .^ 2)
+            deviation = ifelse.(exact[i], 0.0, sqrt.(unquoted[i]^2 .+ quoted[i] .^ 2))
             values = known[i] .+ deviation .* (factors[i] * z[i])
             return RatioCurve(curve.A_H, values, curve.σ, curve.label)
         end
     end
 
-    # The autocorrelation a run fits to pooled units, by the steps of the package.
+    # The correlogram of pooled units and the autocorrelation a run fits to it, by the steps of
+    # the package.
     function fitted_coefficient(configuration, units, curves)
         pooled = FTR._consensus(curves, SYSTEMATIC_TREND_LABEL, units.weights)
         correlogram = FTR.deviation_correlogram(
             curves, pooled.curve; weights = mean.(units.weights)
         )
         lags = min(configuration.segments.autocorrelation_lags, length(correlogram))
-        all(ismissing, view(correlogram, 1:lags)) && return 0.0
-        return FTR.autocorrelation_decay(correlogram; lags = lags)
+        all(ismissing, view(correlogram, 1:lags)) && return (; correlogram, ρ = 0.0)
+        return (; correlogram, ρ = FTR.autocorrelation_decay(correlogram; lags = lags))
     end
 
     # The coefficient the errors are generated with: the one at which simulated pools give the
@@ -128,31 +134,40 @@ SETTINGS.workers > 0 && addprocs(SETTINGS.workers; exeflags = `--project=$(@__DI
     # closest is taken, and `reached` says so.
     const PILOTS = 200
     const GRID = (0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.85, 0.9, 0.95, 0.97, 0.99)
-    function generating_coefficient(configuration, units, known, quoted, unquoted, ρ::Real)
+    function generating_coefficient(
+        configuration, units, known, quoted, unquoted, exact, ρ::Real
+    )
         rng = StableRNG(20261127)
         draws = [[randn(rng, length(c.A_H)) for c in units.curves] for _ in 1:PILOTS]
-        function fitted_at(coefficient)
+        function pilots(coefficient)
             factors = correlation_factors(units, coefficient)
-            return mean(draws) do z
-                curves = simulated(units, known, quoted, unquoted, factors, z)
+            return map(draws) do z
+                curves = simulated(units, known, quoted, unquoted, exact, factors, z)
                 return fitted_coefficient(configuration, units, curves)
             end
         end
-        ρ > 0 || return (; ρ = 0.0, fitted = fitted_at(0.0), reached = true)
+        fitted_at(coefficient) = mean(pilot.ρ for pilot in pilots(coefficient))
+        # The coefficient chosen, the mean fitted ρ of the pilots at it and their mean correlogram.
+        function chosen(coefficient, reached)
+            results = pilots(coefficient)
+            correlogram = [
+                mean(skipmissing(pilot.correlogram[lag] for pilot in results)) for
+                lag in 1:min(4, length(first(results).correlogram))
+            ]
+            fitted = mean(pilot.ρ for pilot in results)
+            return (; ρ = coefficient, fitted, reached, correlogram)
+        end
+        ρ > 0 || return chosen(0.0, true)
         tried = [(coefficient, fitted_at(coefficient)) for coefficient in GRID]
         above = findfirst(pair -> last(pair) ≥ ρ, tried)
-        if above === nothing
-            closest = argmax(last.(tried))
-            return (; ρ = first(tried[closest]), fitted = last(tried[closest]), reached = false)
-        end
-        above == 1 && return (; ρ = 0.0, fitted = last(tried[1]), reached = true)
+        above === nothing && return chosen(first(tried[argmax(last.(tried))]), false)
+        above == 1 && return chosen(0.0, true)
         lower, upper = first(tried[above - 1]), first(tried[above])
         for _ in 1:10
             middle = (lower + upper) / 2
             fitted_at(middle) < ρ ? (lower = middle) : (upper = middle)
         end
-        coefficient = (lower + upper) / 2
-        return (; ρ = coefficient, fitted = fitted_at(coefficient), reached = true)
+        return chosen((lower + upper) / 2, true)
     end
 
     # The pool of the configuration and the simulation built on it: the known curve at the mass
@@ -177,13 +192,20 @@ SETTINGS.workers > 0 && addprocs(SETTINGS.workers; exeflags = `--project=$(@__DI
                 Float64[first(evaluate(trend.fit, A)) for A in c.A_H] for c in units.curves
             ]
             quoted = [Float64[coalesce(σ, 0.0) for σ in c.σ] for c in units.curves]
+            # The symmetric split, where a dataset holds r_ν = 1/2 exactly and errs by nothing.
+            A₀ = configuration.system.compound.A
+            exact = [2 .* c.A_H .== A₀ for c in units.curves]
             unquoted = [
-                sqrt(max(mean(abs2, c.ratio .- r) - mean(abs2, q), 0.0)) for
-                (c, r, q) in zip(units.curves, known, quoted)
+                sqrt(max(mean(abs2, (c.ratio .- r)[.!e]) - mean(abs2, q[.!e]), 0.0)) for
+                (c, r, q, e) in zip(units.curves, known, quoted, exact)
             ]
             generating = generating_coefficient(
-                configuration, units, known, quoted, unquoted, ρ
+                configuration, units, known, quoted, unquoted, exact, ρ
             )
+            measured = Float64[
+                coalesce(lag, NaN) for
+                lag in pool.fitted.correlogram[1:min(4, length(pool.fitted.correlogram))]
+            ]
             factors = correlation_factors(units, generating.ρ)
             yields = FTR._mass_yield_input(configuration, inversion, retrievals)
             masses = trend.R_T.A_H
@@ -207,9 +229,11 @@ SETTINGS.workers > 0 && addprocs(SETTINGS.workers; exeflags = `--project=$(@__DI
                 chosen,
                 ρ,
                 generating,
+                measured,
                 known,
                 quoted,
                 unquoted,
+                exact,
                 factors,
                 masses,
                 truth = trend.R_T.ratio,
@@ -264,7 +288,13 @@ SETTINGS.workers > 0 && addprocs(SETTINGS.workers; exeflags = `--project=$(@__DI
         rng = StableRNG(seed)
         z = [randn(rng, length(c.A_H)) for c in stage.units.curves]
         curves = simulated(
-            stage.units, stage.known, stage.quoted, stage.unquoted, stage.factors, z
+            stage.units,
+            stage.known,
+            stage.quoted,
+            stage.unquoted,
+            stage.exact,
+            stage.factors,
+            z,
         )
         whole = fitted(stage, curves, collect(1:(stage.k)); refit = false)
         (whole === nothing || whole.trend.R_T.A_H != stage.masses) && return nothing
@@ -324,7 +354,7 @@ function main()
         SETTINGS.workers,
         elapsed / 60,
         string(pkgversion(FissionTemperatureRatio)),
-        something(gitdescribe(ROOT; warn = false), "no commit")
+        COMMIT
     )
     @printf(
         "  %d pooled datasets or experiments, %d left out of each of %d refits (%s)\n",
@@ -341,6 +371,12 @@ function main()
         PILOTS,
         stage.generating.fitted,
         stage.generating.reached ? "" : ", the most any coefficient gives"
+    )
+    @printf(
+        "  correlogram, lags 1 to %d: measured %s; pilot pools %s\n",
+        length(stage.measured),
+        join([@sprintf("%.2f", lag) for lag in stage.measured], " "),
+        join([@sprintf("%.2f", lag) for lag in stage.generating.correlogram], " ")
     )
     println("  error beyond the quoted uncertainty, by pooled dataset or experiment:")
     for (curve, s) in zip(stage.units.curves, stage.unquoted)
