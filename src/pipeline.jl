@@ -58,12 +58,20 @@ function run_pipeline(configuration::Configuration; leave_one_out::Bool = true)
     refits = if leave_one_out && trend isa ExtractedCurve
         _leave_one_out(pool.units, input.datasets, relation, configuration, yields.averaged)
     else
-        (; entries = LeaveOneOut[], curves = ExtractedCurve[])
+        (; entries = LeaveOneOut[], curves = ExtractedCurve[], windows = Bool[])
     end
     # The trend takes the jackknife over its refits before anything reads its uncertainty.
     jackknife = nothing
     if leave_one_out && trend isa ExtractedCurve
-        resampled = _jackknife_refits(pool.units, relation, configuration, refits.curves)
+        resampled = _jackknife_refits(
+            pool.units,
+            relation,
+            configuration,
+            trend,
+            pool.fitted.windows,
+            refits.curves,
+            refits.windows,
+        )
         if resampled !== nothing && resampled.design.refits ≥ 2
             design = resampled.design
             propagated = trend.R_T.σ

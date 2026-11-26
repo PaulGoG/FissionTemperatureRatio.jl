@@ -114,7 +114,8 @@ end
 # The trend refitted with each pooled dataset left out in turn, the datasets of one experiment
 # together: how far ⟨R_T⟩, the number of segments and the breakpoints rest on one of them. Only the
 # values of a refit are used, so it takes the points as independent. The curves of the refits
-# are returned beside their records.
+# are returned beside their records, each with whether it was fitted with the required
+# windows.
 function _leave_one_out(
     units,
     datasets::Vector{Multiplicity},
@@ -122,9 +123,11 @@ function _leave_one_out(
     configuration::Configuration,
     averaged::Vector{MassYield},
 )
-    length(units.curves) ≥ 2 || return (; entries = LeaveOneOut[], curves = ExtractedCurve[])
+    length(units.curves) ≥ 2 ||
+        return (; entries = LeaveOneOut[], curves = ExtractedCurve[], windows = Bool[])
     refits = LeaveOneOut[]
     curves = ExtractedCurve[]
+    windows = Bool[]
     settings = configuration.segments
     @info "leave-one-out refits of the systematic trend" refits = length(units.curves)
     for j in eachindex(units.curves)
@@ -149,7 +152,8 @@ function _leave_one_out(
             )
             continue
         end
-        outcome = if refitted.windows == settings.required_windows
+        with_windows = refitted.windows == settings.required_windows
+        outcome = if with_windows
             "segmented curve"
         else
             "segmented curve, fitted without the required windows"
@@ -159,6 +163,7 @@ function _leave_one_out(
             distribution in averaged if _overlaps(refit.R_T, distribution)
         )
         push!(curves, refit)
+        push!(windows, with_windows)
         push!(
             refits,
             LeaveOneOut(
@@ -173,7 +178,7 @@ function _leave_one_out(
     end
     failed = [join(entry.datasets, " + ") for entry in refits if entry.segments == 0]
     isempty(failed) || @warn "a leave-one-out refit gave no curve" left_out = failed
-    return (; entries = refits, curves)
+    return (; entries = refits, curves, windows)
 end
 
 # The number of pooled units left out of each refit behind the jackknife of the trend.
@@ -223,10 +228,20 @@ end
 # The refits of the trend its jackknife is formed over: without each subset of `d = k ÷ 2` of
 # the `k` pooled units, every one or a draw of them as `_left_out_subsets` gives, and fitted as
 # the leave-one-out refits are. With two or three units `d` is one and the subsets are the
-# leave-one-out refits, whose curves `delete_one` holds, and no fit is made. Returned with the
-# design, or `nothing` for fewer than two units.
+# leave-one-out refits, whose curves `delete_one` holds with the flags `delete_one_windows`
+# of whether each was fitted with the required windows, and no fit is made. A refit keeps
+# fewer datasets than the trend, so it can be unpinned although the trend is pinned, and
+# fitted without the required windows although the trend was fitted with them
+# (`trend_windows`); the design counts both. Returned with the design, or `nothing` for
+# fewer than two units.
 function _jackknife_refits(
-    units, relation, configuration::Configuration, delete_one::Vector{ExtractedCurve}
+    units,
+    relation,
+    configuration::Configuration,
+    trend::ExtractedCurve,
+    trend_windows::Vector{UnitRange{Int}},
+    delete_one::Vector{ExtractedCurve},
+    delete_one_windows::Vector{Bool},
 )
     k = length(units.curves)
     k < 2 && return nothing
@@ -234,13 +249,16 @@ function _jackknife_refits(
     settings = configuration.segments
     if d == 1
         curves = delete_one
-        design = JackknifeDesign(k, 1, k, true, length(delete_one))
+        flags = delete_one_windows
+        requested, complete = k, true
     else
         drawn = _left_out_subsets(k, d, settings.jackknife_subsets, settings.jackknife_seed)
         subsets = drawn.subsets
+        requested, complete = length(subsets), drawn.complete
         @info "refits of the systematic trend for its jackknife uncertainty" units = k left_out =
             d refits = length(subsets) complete = drawn.complete
         curves = ExtractedCurve[]
+        flags = Bool[]
         for subset in subsets
             others = setdiff(1:k, subset)
             refitted = _fit_trend(
@@ -253,10 +271,20 @@ function _jackknife_refits(
                 quiet = true,
             )
             refit = refitted.trend
-            refit isa ExtractedCurve && push!(curves, refit)
+            if refit isa ExtractedCurve
+                push!(curves, refit)
+                push!(flags, refitted.windows == settings.required_windows)
+            end
         end
-        design = JackknifeDesign(k, d, length(subsets), drawn.complete, length(curves))
     end
+    pinned = trend.fit.pinned_value !== nothing
+    unpinned = pinned ? count(curve -> curve.fit.pinned_value === nothing, curves) : 0
+    with_windows =
+        trend_windows == settings.required_windows && !isempty(settings.required_windows)
+    without_windows = with_windows ? count(!, flags) : 0
+    design = JackknifeDesign(
+        k, d, requested, complete, length(curves), unpinned, without_windows
+    )
     design.refits < design.subsets &&
         @warn "$(design.subsets - design.refits) of the refits behind the jackknife of the \
                trend gave no curve; the jackknife is formed over the others" refits =
@@ -268,6 +296,10 @@ function _jackknife_refits(
         @warn "two pooled experiments: each leave-one-out refit rests on one of them, and the \
                jackknife uncertainty of the trend is half the difference of the two"
     end
+    unpinned + without_windows > 0 &&
+        @warn "$unpinned of the refits behind the jackknife of the trend were fitted unpinned \
+               and $without_windows without the required windows, as the datasets they keep \
+               allow; they enter the jackknife" unpinned without_windows
     return (; design, curves)
 end
 

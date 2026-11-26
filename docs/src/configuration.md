@@ -122,7 +122,7 @@ for up to seven of them.
 | `min_pair_coverage` | real | `0.3` | 0 to 1 | `h` | the fraction of the range's heavy masses a dataset must pair to offer a curve of its own |
 | `autocorrelation_lags` | integer | `4` | 1 to 8 | `h` | lags of the deviation correlogram the trend's autocorrelation is fitted to |
 | `max_breakpoint_sets` | integer | `10000000` | 1 to 10⁹ | `h`, where not the default | breakpoint sets one fit may examine, all segment counts together; a fit above it stops the run, and a refit of the trend with more segments than selected is left out |
-| `jackknife_subsets` | integer | `35` | 2 to 10⁶ | `h`, where not the default | refits behind the jackknife uncertainty of the systematic trend, each with half of the pooled datasets or experiments left out: every such subset where there are at most this many, and this many drawn otherwise |
+| `jackknife_subsets` | integer | `35` | 2 to 10⁶ | `h`, where not the default | refits behind the jackknife uncertainty of the systematic trend, each with half of the pooled datasets or experiments left out: every such subset where there are at most this many, and this many drawn otherwise; with two or three of them the refits are the leave-one-out refits, whatever this value |
 | `jackknife_seed` | integer | `1` | 0 to 10⁹ | `h`, where not the default | seed of that draw |
 
 ## `[retrieval]`, optional

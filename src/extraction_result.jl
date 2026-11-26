@@ -70,6 +70,11 @@ two or three of them, `d = 1` and the refits are the [`LeaveOneOut`](@ref) refit
   `segments.jackknife_subsets`, and that many drawn with `segments.jackknife_seed` otherwise.
 - `complete`: whether those are every subset.
 - `refits`: how many of them gave a curve; the jackknife is formed over these.
+- `unpinned`: how many of the refits that gave a curve are not pinned at the symmetric split
+  although the trend is: the datasets such a refit keeps do not reach the split. They enter the
+  jackknife at the mass numbers they hold.
+- `without_windows`: how many of them were fitted without the required windows although the trend
+  was fitted with them, because no curve through the datasets kept satisfies the windows.
 """
 struct JackknifeDesign
     units::Int
@@ -77,6 +82,8 @@ struct JackknifeDesign
     subsets::Int
     complete::Bool
     refits::Int
+    unpinned::Int
+    without_windows::Int
 end
 
 """

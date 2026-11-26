@@ -194,7 +194,7 @@ function test_delete_half_jackknife(directory)
         plain = run_pipeline(configuration; leave_one_out = false)
         labels = pooled_datasets(result)
         @test length(labels) == 5
-        @test result.jackknife == JackknifeDesign(5, 2, 10, true, 10)
+        @test result.jackknife == JackknifeDesign(5, 2, 10, true, 10, 0, 0)
         @test length(result.leave_one_out) == 5
         @test plain.jackknife === nothing
 
@@ -270,7 +270,7 @@ function test_delete_half_jackknife(directory)
             replace(base, "max_segments = 3" => "max_segments = 3\njackknife_subsets = 4"),
         )
         limited = run_pipeline(limited_configuration)
-        @test limited.jackknife == JackknifeDesign(5, 2, 4, false, 4)
+        @test limited.jackknife == JackknifeDesign(5, 2, 4, false, 4, 0, 0)
         chosen = FissionTemperatureRatio._left_out_subsets(5, 2, 4, 1).subsets
         @test all(in(keys(trends)), chosen)
         compare_uncertainties(systematic_trend(limited), :R_T, chosen)
@@ -292,7 +292,39 @@ function test_delete_half_jackknife(directory)
         @test reseeded_identifier != run_identifier(limited_configuration)
         @test run_parameters(reseeded_configuration)["segments"]["jackknife_seed"] == 7
         @test run_pipeline(reseeded_configuration).jackknife ==
-            JackknifeDesign(5, 2, 4, false, 4)
+            JackknifeDesign(5, 2, 4, false, 4, 0, 0)
+        @test record["jackknife_unpinned"] == 0
+        @test record["jackknife_without_windows"] == 0
+
+        # A refit keeps fewer datasets than the trend and can be fitted to another
+        # specification, which the design counts. Two datasets, one from the symmetric split
+        # and one from 131: the refit without the first is not pinned, and where a breakpoint
+        # is required in 128 to 132 it cannot place one, four points to a segment, and is
+        # fitted without the window.
+        pair = joinpath(directory, "pair")
+        mkpath(pair)
+        write_multiplicity(joinpath(pair, "full.dat"), 126:140)
+        write_multiplicity(joinpath(pair, "partial.dat"), 131:140)
+        pair_base = replace(
+            PIPELINE_CONFIGURATION, "subdirectory = \"datasets\"" => "subdirectory = \"pair\""
+        )
+        unwindowed = run_pipeline(load("pair.toml", pair_base))
+        @test unwindowed.jackknife == JackknifeDesign(2, 1, 2, true, 2, 1, 0)
+        windowed = run_pipeline(
+            load(
+                "pair_windowed.toml",
+                replace(
+                    pair_base,
+                    "max_segments = 3" => "max_segments = 3\nrequired_windows = [[128, 132]]",
+                ),
+            ),
+        )
+        @test windowed.jackknife == JackknifeDesign(2, 1, 2, true, 2, 1, 1)
+        @test systematic_trend(windowed).fit.pinned_value == 0.5
+        @test any(in(128:132), systematic_trend(windowed).fit.breakpoints)
+        pair_record = run_metadata(windowed)["result"]["trend_uncertainty"]
+        @test pair_record["jackknife_unpinned"] == 1
+        @test pair_record["jackknife_without_windows"] == 1
     end
     return nothing
 end
@@ -1013,7 +1045,7 @@ end
             plain_run = run_pipeline(
                 load_configuration(path; data_directory = directory); leave_one_out = false
             )
-            @test with_yields.jackknife == JackknifeDesign(3, 1, 3, true, 3)
+            @test with_yields.jackknife == JackknifeDesign(3, 1, 3, true, 3, 0, 0)
             @test plain_run.jackknife === nothing
             plain = systematic_trend(plain_run)
             raised = systematic_trend(with_yields)

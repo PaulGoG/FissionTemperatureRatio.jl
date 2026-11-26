@@ -341,9 +341,10 @@ function run_metadata(result::ExtractionResult)
             # covers, and the ones not averaged over, with the reason.
             "mass_yield_coverage" => Dict{String,Any}(result.mass_yield_coverage),
             "mass_yields_not_averaged" => _not_averaged(result),
-            # How the covariance of the systematic trend was built: the correlogram of the pooled
-            # datasets' deviations, the autocorrelation fitted to it, the scale of the covariance
-            # against the expectation of χ², and the leave-one-out spread of ⟨R_T⟩ per yield.
+            # How the uncertainty of the systematic trend was built: the correlogram of the
+            # pooled datasets' deviations and its autocorrelation, the covariance scale, the
+            # jackknife and its design, the total averages and the leave-one-out spread; see
+            # `_trend_uncertainty_record`.
             "trend_uncertainty" => _trend_uncertainty_record(result),
             # The pooled datasets that belong to one experiment and were combined into one before
             # pooling, with the relation their retrieval record states.
@@ -509,6 +510,8 @@ function _trend_uncertainty_record(result::ExtractionResult)
                 record["jackknife_subsets"] = design.subsets
                 record["jackknife_complete"] = design.complete
                 record["jackknife_refits"] = design.refits
+                record["jackknife_unpinned"] = design.unpinned
+                record["jackknife_without_windows"] = design.without_windows
             end
             record["jackknife_larger_at"] = Int[
                 A for
