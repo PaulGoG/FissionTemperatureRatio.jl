@@ -42,9 +42,10 @@ and that of ``R_T`` follows from it by the slope of the inversion. Where a datas
 uncertainty for one fragment of a pair and none for the other, the term of the unquoted fragment
 is left out, as it was for the values of [Tudora2024](@cite), and the uncertainty carried at that
 pair is a lower bound. This holds at 53 pairs in 12 of the datasets read. The segment count of the
-²⁵²Cf trend depends on it: with those pairs read as quoting no uncertainty, the trend has four
-segments in place of six and ``\langle R_T \rangle`` is 1.0840 ± 0.0157 in place of
-1.0861 ± 0.0144. The ²³⁵U, ²³⁹Pu and ²³³U trends move by 0.001 or less under the same reading.
+²⁵²Cf trend depends on it: with those pairs read as quoting no uncertainty, the trend has five
+segments in place of six, and ``\langle R_T \rangle`` is 1.0862 in place of 1.0863, with a
+propagated uncertainty of 0.0157 in place of 0.0144. The ²³⁵U, ²³⁹Pu and ²³³U trends move by 0.001
+or less under the same reading.
 Where neither fragment quotes an uncertainty the pair quotes none.
 
 For a single effective ratio ``R_a`` in place of the per-charge ``\rho_Z`` the relation inverts in
@@ -194,9 +195,12 @@ is not refitted, and its column is left empty.
 The propagated uncertainty of a curve is that of its coefficients at the selected breakpoints. It
 does not contain the uncertainty of the order or of the breakpoint positions. Where two orders are
 about equally supported, the curves they give can differ by more than that uncertainty near the
-breakpoints in which they differ. For ²³⁹Pu the criterion differs by 0.41 between five and six
-segments, and ``R_T`` at ``A_H = 128`` is 1.66 ± 0.11 with six and 2.17 ± 0.26 with five; from
-``A_H = 136`` on the two curves agree within 0.002.
+breakpoints in which they differ. For ²³⁹Pu the criterion differs by 0.83 between five and six
+segments, and ``R_T`` at ``A_H = 128`` is 1.66 ± 0.11 with six and 2.18 ± 0.27 with five, each with
+its propagated uncertainty; from ``A_H = 136`` on the two curves agree within 0.002. The
+uncertainty a run reports for a systematic trend contains part of this, through the jackknife
+described under [The uncertainty of the trend](@ref): the refits behind it select their own
+breakpoints, and for ²³⁹Pu at ``A_H = 128`` it is 0.40.
 
 The coefficient covariance ``(X^\mathsf{T} W X)^{-1}`` is scaled by
 ``\max(1, \chi^2/\mathrm{dof})`` where the data quote uncertainties: it is inflated where the
@@ -310,6 +314,10 @@ yield term is common to both forms, so a multiplicity dataset quoting no uncerta
 an uncertain average. Correlations between the yields at different mass numbers are neglected,
 since the sources do not report them.
 
+For the systematic trend the first term is the larger of ``w^\mathsf{T} C w`` and the delete-one
+jackknife of the same average over the leave-one-out refits, as set out under
+[The uncertainty a run reports](@ref).
+
 ## Combining datasets
 
 Several measurements of one fissioning system are not merged into a single dataset. Each is fitted
@@ -379,7 +387,20 @@ r = \frac{r_a + r_b}{2}, \qquad
 ```
 
 A mass number one member alone holds takes that member's value and uncertainty, and where no
-member quotes an uncertainty the point quotes none. For a republication (one result published
+member quotes an uncertainty the point quotes none. The measured fraction of the point divides
+its quoted part alone. With ``\bar{f}`` the mean of the members' fractions at the mass number and
+``d`` the half difference,
+
+```math
+f = \frac{\sigma_{\max}^2 + d^2}{\sigma_{\max}^2/\bar{f} + d^2},
+```
+
+the ratio of the variance of the point to its variance as one whole measurement: interpolation
+spreads a statistical error over the rows written, and the difference between two reductions is
+not one. The fraction is ``\bar{f}`` where the analyses agree and tends to one where their
+difference dominates.
+
+For a republication (one result published
 twice), only the superseding dataset enters the pool. The superseded one, which its record marks
 with a qualifier beginning `superseded:`, is still read, fitted and written, and offers its own
 curve. Where its successor is itself excluded by the configuration or forms no
@@ -394,12 +415,12 @@ are alternative analyses of one experiment, for ²⁵²Cf (EXFOR 41720002 and 41
 
 Pooled as two measurements they would give the ²⁵²Cf trend 5 segments, breakpoints at 130, 137,
 143 and 149, `χ²/dof` = 1.56 and `⟨R_T⟩` = 1.0908; pooled as one it takes 6 segments, breakpoints
-at 129, 133, 137, 142 and 149, `χ²/dof` = 1.65 and `⟨R_T⟩` = 1.0861, and 1.0840 with the
+at 129, 133, 137, 142 and 149, `χ²/dof` = 1.63 and `⟨R_T⟩` = 1.0863, and 1.0840 with the
 experiment left out. For ²³⁹Pu, with Nishio 1995 still pooled, the grouping alone keeps 6
-segments, with breakpoints at 126, 130, 137, 148 and 154 in place of 126, 130, 137, 149 and 154,
-`χ²/dof` = 0.48 in place of 0.42 and `⟨R_T⟩` = 1.0106 in place of 1.0293. The shipped ²³⁹Pu pool,
+segments and the breakpoints at 126, 130, 137, 149 and 154, with `χ²/dof` = 0.47 in place of 0.42
+and `⟨R_T⟩` = 1.0116 in place of 1.0293. The shipped ²³⁹Pu pool,
 which excludes Nishio 1995 as well, takes 6 segments, breakpoints at 126, 130, 137, 144 and 155,
-`χ²/dof` = 0.54 and `⟨R_T⟩` = 1.0285, and 1.0216 with the experiment left out.
+`χ²/dof` = 0.53 and `⟨R_T⟩` = 1.0296, and 1.0216 with the experiment left out.
 
 The fixed-effect weights ``a = 1/v = f/\sigma^2`` are then the inverse variances of the values, so
 the statistic ``Q = \sum a\,(r - \bar{r}_a)^2`` the variance is estimated from has the
@@ -439,7 +460,7 @@ curve is largely an offset and a slow drift, correlated along the mass axis (nex
 combined curve therefore scatters about a smooth line far less than its standard
 error implies. For ²³⁵U the residuals of the trend give a reduced chi-squared of 5.4 against the
 quoted uncertainties alone and of 0.37 with ``\tau^2``, which is about sixteen times ``\sigma^2``
-at the median. ²³⁹Pu gives 0.54 with ``\tau^2``. The selection of the segment count does not
+at the median. ²³⁹Pu gives 0.53 with ``\tau^2``. The selection of the segment count does not
 depend on that scale, since the criterion takes the noise from the residuals. Nor is it limited by
 `max_segments`: with the limit raised from 6 to 12 every trend selects the order it selects at 6,
 six segments for ²⁵²Cf, ²³⁵U and ²³⁹Pu and three for ²³³U, and the criterion rises at every order
@@ -493,19 +514,13 @@ The estimate is biased low. Centred per dataset, it is the estimate of a short c
 series, and for a series of ``n`` points and a lag-one correlation ``\rho`` its expectation falls
 short of ``\rho`` by about ``(1 + 3\rho)/n`` to first order in ``1/n``
 [Marriott1954, Kendall1954](@cite). For the 30 to 50 masses of a dataset and ``\rho`` near 0.8
-that is 0.07 to 0.11, and a simulation of the estimator as written here gives 0.09 at ``n = 40``.
-The combined curve, moreover, carries a share of every other dataset's error into each deviation.
-The fitted ``\rho``, and with it the uncertainty of the trend, are therefore on the low side; no
-correction is applied. In simulated pools of six datasets measured at the integer masses of the
-²⁵²Cf range, each with an error of ``\rho = 0.8`` along the mass axis, the fitted ``\rho`` is
-0.73. The scatter of a yield-weighted mean of the trend over the replicates then exceeds the
-uncertainty the trend reports for it by a quarter with the breakpoints held at their true
-positions, and by a third with the number of segments selected as a run selects it; with
-``\rho`` and the breakpoints at their true values it exceeds it by 7 %. In pools of which half or
-all of the datasets are interpolated from a grid of 1.5 u, the fitted ``\rho`` is 0.74 and 0.78,
-and the excess with the number of segments selected is 39 % and 41 % (± 9 %): the same within
-the resolution of the simulation. The jackknife over the
-leave-one-out refits, written beside the propagated uncertainty, does not rest on ``\rho``.
+that is 0.07 to 0.11. The combined curve, moreover, carries a share of every other dataset's error
+into each deviation. The fitted ``\rho``, and with it the propagated uncertainty of the trend, are
+therefore on the low side; no correction is applied to ``\rho``. In the simulated pools of the
+calibration at the end of this section, whose datasets err with ``\rho = 0.8``, the fitted
+``\rho`` is 0.72 to 0.77. The uncertainty a run reports for the trend does not rest on the
+propagated one alone: it is the larger of that and the jackknife over leave-one-out refits, which
+does not use ``\rho``.
 
 The kernel ``\rho^k`` of an AR(1) error is fitted to the first lags of the correlogram in least
 squares, minimising ``\sum_k (\rho_k - \rho^k)^2`` over `autocorrelation_lags` of them, four by
@@ -555,65 +570,169 @@ own degrees of freedom, which count measured fractions and breakpoints:
 The two coincide for ``R = I``. The covariance is scaled by ``\max(1, \chi^2/\mathrm{E}[\chi^2])``,
 and by ``\chi^2/\mathrm{E}[\chi^2]`` alone where no point quotes an uncertainty. With positively
 correlated errors a smooth fit absorbs part of the error, and ``\mathrm{E}[\chi^2]`` falls below
-the degrees of freedom, to 0.653 of them for ²³⁵U and 0.486 for ²³⁹Pu. The reduced chi-squared of
+the degrees of freedom, to 0.653 of them for ²³⁵U and 0.485 for ²³⁹Pu. The reduced chi-squared of
 the ²³⁵U trend, 0.37, is consistent with correlated errors under a smooth fit: relative to its
-expectation, ``\chi^2`` is 0.57. That of the ²³⁹Pu trend, 0.54, is 1.10 times its expectation,
+expectation, ``\chi^2`` is 0.57. That of the ²³⁹Pu trend, 0.53, is 1.09 times its expectation,
 and the covariance of that trend is scaled by it.
 
-The table gives the values a run writes for the four shipped systems, with
-``\langle R_T \rangle`` over the primary yield distribution and inputs retrieved by
-ExforFissionData.jl v0.8.0. ``\rho``, ``\chi^2/\mathrm{dof}`` and ``\chi^2/\mathrm{E}[\chi^2]``
-are the columns `deviation_autocorrelation`, `reduced_chi_squared` and
-`chi_squared_over_expectation` of the curve table; ``\langle R_T \rangle``, its propagated
-uncertainty and the jackknife are the columns `R_T`, `R_T_uncertainty` and
-`R_T_uncertainty_leave_one_out` of the total averages:
+The table gives the values a run writes for the four shipped systems, with inputs retrieved by
+ExforFissionData.jl v0.8.0: the columns `deviation_autocorrelation`, `reduced_chi_squared` and
+`chi_squared_over_expectation` of the curve table.
 
-| System | ``\rho`` | ``\chi^2/\mathrm{dof}`` | ``\chi^2/\mathrm{E}[\chi^2]`` | ``\langle R_T \rangle`` ± `R_T_uncertainty` | `R_T_uncertainty_leave_one_out` |
-| :--- | ---: | ---: | ---: | ---: | ---: |
-| ²⁵²Cf(sf) | 0.865 | 1.65 | 3.28 | 1.0861 ± 0.0144 | 0.0100 |
-| ²³⁵U(nth,f) | 0.691 | 0.37 | 0.57 | 1.1210 ± 0.0152 | 0.0223 |
-| ²³⁹Pu(nth,f) | 0.812 | 0.54 | 1.10 | 1.0285 ± 0.0228 | 0.0274 |
-| ²³³U(nth,f) | 0.804 | 1.61 | 2.32 | 1.0657 ± 0.0883 | 0.1408 |
+| System | ``\rho`` | ``\chi^2/\mathrm{dof}`` | ``\chi^2/\mathrm{E}[\chi^2]`` |
+| :--- | ---: | ---: | ---: |
+| ²⁵²Cf(sf) | 0.865 | 1.63 | 3.27 |
+| ²³⁵U(nth,f) | 0.691 | 0.37 | 0.57 |
+| ²³⁹Pu(nth,f) | 0.811 | 0.53 | 1.09 |
+| ²³³U(nth,f) | 0.804 | 1.61 | 2.32 |
 
-Refitted with the combined points taken as independent, a number a run does not write, the four
-uncertainties of ``\langle R_T \rangle`` would be 0.0033, 0.0074, 0.0086 and 0.0295. The
-tabulated ``\sigma(R_T)`` of the trends is larger by a median factor of 3.6, 1.9, 2.2 and 2.7.
+Refitted with the combined points taken as independent, a number a run does not write, the
+propagated uncertainties of ``\langle R_T \rangle`` over the primary yield distribution would be
+0.0033, 0.0074, 0.0088 and 0.0295, against 0.0144, 0.0152, 0.0231 and 0.0883 with the correlation. The propagated
+``\sigma(R_T)`` of the trends is larger by a median factor of 3.6, 1.9, 2.2 and 2.7.
+
+### The jackknife over the pooled datasets
 
 The matrix does not account for a constant offset of one dataset from the others: the correlogram
 removes the mean of each dataset, so such an offset appears in no lag and in no matrix built from
-``\rho``. It is assessed by leave-one-out refits. The trend is refitted with each
-pooled dataset, or each experiment, left out, and the ``\langle R_T \rangle`` of every refit over
-each yield distribution averaged over, its number of segments, its breakpoints and its
-``\chi^2/\mathrm{dof}`` are written. The values ``\theta_i`` of the ``k`` refits give the
-delete-one jackknife standard error
+``\rho``. The propagated covariance is, moreover, that of the coefficients at the selected
+breakpoints, formed with a ``\rho`` that is biased low. What the datasets differ by beyond that is
+measured by leave-one-out refits. The trend is refitted with each pooled dataset, or each
+experiment, left out, every refit selecting its own number of segments and its own breakpoints.
+The ``\langle R_T \rangle`` of every refit over each yield distribution averaged over, its number
+of segments, its breakpoints and its ``\chi^2/\mathrm{dof}`` are written. For a quantity
+``\theta`` of the trend, the values ``\theta_i`` of the ``k`` refits give the delete-one jackknife
+standard error
 
 ```math
 \sigma_{\mathrm{jack}} = \left[\frac{k - 1}{k} \sum_{i=1}^{k} \left(\theta_i - \bar{\theta}\right)^2\right]^{1/2}.
 ```
 
-It is written beside the propagated uncertainty, with the least and greatest ``\theta_i``, and is
-the last column of the table above. A refit that gives no curve is not counted among the ``k`` and
-is reported in the log. With two pooled experiments the jackknife reduces to half the difference
-of the two refits; the log notes this case. The least and the greatest ``\langle R_T \rangle``
-among the refits are the columns `R_T_leave_one_out_min` and `R_T_leave_one_out_max` of the total
-averages:
+For the temperature ratio at the mass numbers of the trend, the same sum taken over products gives
+the jackknife covariance
+
+```math
+\Sigma_J(A, A') = \frac{k - 1}{k} \sum_{i=1}^{k}
+    \left[\theta_i(A) - \bar{\theta}(A)\right] \left[\theta_i(A') - \bar{\theta}(A')\right],
+```
+
+and ``(w^\mathsf{T} \Sigma_J\, w)^{1/2}`` is the jackknife of the average ``w^\mathsf{T} R_T``.
+Where every refit reaches every mass number of the trend it is the standard error above of the
+average itself, since the average of a refit is the same weighted sum of its values. A refit that
+does not reach a mass number is left out of the sum there, and the factor takes the number of
+refits that do reach it; a mass number that fewer than two refits reach has no jackknife. A refit that gives no curve is not counted among the ``k`` and is reported in the log.
+With two pooled experiments the jackknife reduces to half the difference of the two refits; the
+log notes this case. Where the trend is pinned, every refit holds the same value, and the
+jackknife is zero as the propagated uncertainty is.
+
+The expectation of the jackknife variance is not below the variance of the estimate, whatever the
+statistic [Efron1981](@cite): on average it is conservative. It is an estimate from ``k - 1``
+differences, though, and for one pool it can lie far from its expectation on either side. It
+comes out largest where the refits divide between two sets of breakpoints. For ²⁵²Cf at
+``A_H = 130``, eight of the thirteen refits keep the breakpoints at 129 and 133 and give ``R_T``
+between 1.71 and 1.77; the other five place one breakpoint at 130 and give 2.10 to 2.13. The
+jackknife there is 0.62, more than the distance between the two groups, against a propagated
+uncertainty of 0.069. A delete-one difference shrinks with the number of datasets where every
+dataset moves the curve a little, which is what the factor ``k - 1`` undoes; where one dataset
+decides between two descriptions it does not shrink, and the factor overstates it. At such a mass
+number the jackknife says that the data do not settle the breakpoints. It is not the width of a
+normal error.
+
+### The uncertainty a run reports
+
+Neither uncertainty is sufficient alone. The propagated one is low, for the two reasons given, and
+the jackknife of one pool can also come out too small, where its refits happen to agree. For
+every quantity of the trend a run reports the larger of the two,
+
+```math
+\sigma = \max\left(\sigma_{\mathrm{prop}},\, \sigma_{\mathrm{jack}}\right),
+```
+
+each taken for that quantity: `R_T_uncertainty` at every mass number of the tabulated trend, the
+uncertainty of ``r_\nu`` at its pivots, and the term of the curve in the uncertainty of an average,
+so that the total average of the trend has
+
+```math
+\sigma^2 = \max\left(w^\mathsf{T} C\, w,\; w^\mathsf{T} \Sigma_J\, w\right)
+         + \sum_{A_H} \left(\frac{R_T - \langle R_T \rangle}{\sum Y}\right)^2 \sigma_Y^2 .
+```
+
+The larger of two standard deviations of every average is not the quadratic form of one covariance
+matrix, and an `ExtractedCurve` keeps both: `R_T_covariance`, the propagated ``C``, and
+`R_T_jackknife_covariance`, ``\Sigma_J``. A single matrix with the larger standard deviation at
+each mass number and the propagated correlation would overstate the averages: the scatter the
+jackknife finds near a breakpoint is correlated over a few mass numbers, and the propagated error
+of a segment over all of them.
+
+The trend of a run that skips the refits, `run_pipeline(configuration; leave_one_out = false)`,
+and that of a pool from which fewer than two refits give a curve, carry the propagated uncertainty
+alone, as the curve of every dataset does. The refits cost one trend fit per pooled dataset or
+experiment. The record `trend_uncertainty` of the metadata states what a trend carries:
+`jackknife_applied`, the number of refits `jackknife_refits`, the mass numbers
+`jackknife_larger_at` at which the jackknife of ``R_T`` is the larger of the two, and, for each
+yield distribution, the propagated uncertainty of ``\langle R_T \rangle`` beside the jackknife.
+
+The rule was calibrated on simulated pools, with `scripts/trend_uncertainty_calibration.jl`. Every
+simulated dataset follows one curve of three segments over ``A_H`` = 126 to 174 with an error
+correlated along the mass axis: AR(1) with ``\rho = 0.8`` and a standard deviation of 0.03, or of
+0.026 beside an uncorrelated part of 0.015, and a quoted uncertainty of 0.004. A replicate pools
+``k`` datasets, fits ``\rho``, selects the number of segments and fits the trend as a run does,
+and refits it with each dataset left out. The table gives, over 80 replicates, the standard
+deviation of a yield-weighted mean of the fitted curve divided by the root mean square of the
+uncertainty reported for it, which is 1 for a calibrated uncertainty and above 1 for one that is
+too small: for the propagated uncertainty, for the jackknife, and for the larger of the two, which
+a run reports. The last two columns give the fraction of the mass numbers at which the fitted curve
+lies within the reported uncertainty of the true one and within twice it, 0.683 and 0.954 for a
+calibrated normal error. The interpolated datasets are measured on a grid of 1.5 u. The resolution
+of the three ratios is 8 %.
+
+| Pool | Uncorrelated part | Propagated | Jackknife | Reported | Within ``\sigma`` | Within ``2\sigma`` |
+| :--- | :--- | ---: | ---: | ---: | ---: | ---: |
+| 4 datasets | none | 1.534 | 0.978 | 0.966 | 0.676 | 0.892 |
+| 4 datasets | 0.015 | 1.810 | 0.952 | 0.947 | 0.671 | 0.890 |
+| 6 datasets | none | 1.635 | 1.132 | 1.119 | 0.664 | 0.915 |
+| 6 datasets | 0.015 | 1.682 | 1.037 | 1.032 | 0.677 | 0.921 |
+| 6 interpolated | none | 1.299 | 0.977 | 0.967 | 0.674 | 0.902 |
+| 6 interpolated | 0.015 | 1.456 | 1.007 | 1.003 | 0.666 | 0.906 |
+
+The propagated uncertainty of the mean is too small in every pool, by 30 % to 81 %, and at a mass
+number 40 % to 49 % of the errors lie within it. The reported uncertainty of the mean is within
+12 % of the scatter, and at a mass number 66 % to 68 % of the errors lie within it. Within twice
+it lie 89 % to 92 % of them, where a normal error has 95.4 %: the jackknife of a few datasets is
+an estimate from few differences, and an error in units of it has heavier tails than a normal
+one. The simulated datasets err along the mass axis and do not differ from one another by constant
+offsets, as the shipped ones do. Such offsets are what the jackknife is there to measure, and the
+simulation does not test that part of it.
+
+For the four shipped systems, over the primary yield distribution, a run writes the reported
+uncertainty as `R_T_uncertainty` of the total averages and the jackknife as
+`R_T_uncertainty_leave_one_out`; the propagated one is in the metadata:
+
+| System | Pooled | ``\langle R_T \rangle`` | Propagated | Jackknife | Reported | Jackknife larger at |
+| :--- | ---: | ---: | ---: | ---: | ---: | ---: |
+| ²⁵²Cf(sf) | 13 | 1.0863 | 0.0144 | 0.0100 | 0.0144 | 27 of 49 |
+| ²³⁵U(nth,f) | 7 | 1.1210 | 0.0152 | 0.0223 | 0.0223 | 42 of 43 |
+| ²³⁹Pu(nth,f) | 4 | 1.0296 | 0.0231 | 0.0274 | 0.0274 | 35 of 41 |
+| ²³³U(nth,f) | 4 | 1.0657 | 0.0883 | 0.1408 | 0.1408 | 37 of 43 |
+
+"Pooled" counts the datasets and experiments left out in turn, and the last column the mass
+numbers of the tabulated trend at which the jackknife of ``R_T`` is the larger. For ²³⁵U and ²³³U
+the jackknife of ``\langle R_T \rangle`` exceeds the propagated uncertainty by a factor of 1.5 and
+1.6: the datasets differ by offsets that the kernel does not describe, most of all for ²³³U,
+whose trend over four datasets moves between 0.97 and 1.17 when one of them is left out. For
+²³⁹Pu the jackknife is larger by a fifth; for ²⁵²Cf, with thirteen experiments, it is about two
+thirds of the propagated uncertainty, which is the one reported. At the mass numbers the reported
+``\sigma(R_T)`` exceeds the propagated one by a median factor of 1.16, 1.80, 1.59 and 1.42, and by
+up to 9.0, 4.2, 3.7 and 9.4 where the refits disagree on the breakpoints. The least and the
+greatest ``\langle R_T \rangle`` among the refits are the columns `R_T_leave_one_out_min` and
+`R_T_leave_one_out_max` of the total averages:
 
 | System | `R_T_leave_one_out_min` | `R_T_leave_one_out_max` |
 | :--- | ---: | ---: |
-| ²⁵²Cf(sf) | 1.0792 | 1.0910 |
+| ²⁵²Cf(sf) | 1.0795 | 1.0912 |
 | ²³⁵U(nth,f) | 1.1093 | 1.1356 |
-| ²³⁹Pu(nth,f) | 1.0202 | 1.0596 |
+| ²³⁹Pu(nth,f) | 1.0213 | 1.0601 |
 | ²³³U(nth,f) | 0.9721 | 1.1730 |
-
-For ²³⁵U and ²³³U the jackknife uncertainty exceeds the propagated one by a factor of 1.5 and
-1.6, 0.0223 against 0.0152 and 0.1408 against 0.0883: the datasets differ by offsets that the
-kernel does not describe, most of all for ²³³U, whose trend over four datasets moves between
-0.97 and 1.17 when one of them is left out. For ²³⁹Pu the jackknife is larger by a fifth, 0.0274
-against 0.0228; for ²⁵²Cf, with thirteen experiments, it is about two thirds of the propagated
-uncertainty, 0.0100 against 0.0144.
-
-`run_pipeline(configuration; leave_one_out = false)` skips the refits, which cost one trend fit per
-pooled dataset or experiment.
 
 The curve of a single dataset is fitted with its points taken as independent. For a dataset whose
 masses the retrieval interpolated onto the integers, neighbouring rows share their bracketing

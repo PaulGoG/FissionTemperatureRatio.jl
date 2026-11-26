@@ -28,7 +28,7 @@ consuming codes and the [naming](docs/src/naming.md) of files and columns.
 FissionTemperatureRatio/
 ├── config/          pipeline configurations, one TOML file per fissioning system
 ├── data/            input data, held locally, README.md on sources and terms; sims/ for run output
-├── scripts/run.jl   pipeline entry point, own environment with the plotting stack
+├── scripts/         run.jl, the pipeline entry point; own environment with the plotting stack
 ├── src/             configuration, inversion, segmented fit and curve, pipeline, provenance
 ├── ext/             CairoMakie extension: figures
 ├── test/            test suite, own environment
@@ -138,6 +138,15 @@ Regenerate the figures shown below, from the configuration and the input data:
 julia docs/assets.jl
 ```
 
+Repeat the calibration of the systematic trend's uncertainty that the method page quotes, in
+simulated pools, here on four worker processes:
+
+```
+julia scripts/trend_uncertainty_calibration.jl 4 ar1 80 4w 6w 6i 14w
+```
+
+It takes some core-hours: every replicate fits the trend once per dataset of its pool.
+
 ## Status
 
 | Component | State |
@@ -191,15 +200,15 @@ the data occupies, and the order is chosen by the Bayesian information criterion
 every added segment and breakpoint. The selected orders are five, six, four and five.
 
 The systematic trend of each shipped configuration gives the following `⟨R_T⟩` over the primary
-yield distribution, with the uncertainty propagated from the fit covariance and the jackknife over
-the refits with each pooled dataset or experiment left out:
+yield distribution. Its uncertainty is the larger of the one propagated from the fit covariance
+and the jackknife over the refits with each pooled dataset or experiment left out:
 
-| System | `R_T` ± `R_T_uncertainty` | `R_T_uncertainty_leave_one_out` |
-|---|---|---|
-| ²⁵²Cf(sf) | 1.0861 ± 0.0144 | 0.0100 |
-| ²³⁵U(nth,f) | 1.1210 ± 0.0152 | 0.0223 |
-| ²³⁹Pu(nth,f) | 1.0285 ± 0.0228 | 0.0274 |
-| ²³³U(nth,f) | 1.0657 ± 0.0883 | 0.1408 |
+| System | `R_T` ± `R_T_uncertainty` | Propagated | `R_T_uncertainty_leave_one_out` |
+|---|---|---|---|
+| ²⁵²Cf(sf) | 1.0863 ± 0.0144 | 0.0144 | 0.0100 |
+| ²³⁵U(nth,f) | 1.1210 ± 0.0223 | 0.0152 | 0.0223 |
+| ²³⁹Pu(nth,f) | 1.0296 ± 0.0274 | 0.0231 | 0.0274 |
+| ²³³U(nth,f) | 1.0657 ± 0.1408 | 0.0883 | 0.1408 |
 
 The inputs are the retrieval of ExforFissionData.jl v0.8.0; [`data/README.md`](data/README.md)
 records their provenance.
@@ -342,7 +351,8 @@ FissionTemperatureRatio/
 ├── scripts/                        pipeline entry point, own environment
 │   ├── activate.jl
 │   ├── Project.toml
-│   └── run.jl                      pipeline entry point
+│   ├── run.jl                      pipeline entry point
+│   └── trend_uncertainty_calibration.jl   the trend's uncertainty against simulated pools
 ├── src/
 │   ├── autocorrelation.jl          errors of pooled datasets along the mass axis: correlogram, decay
 │   ├── configuration.jl            TOML configuration, parsed and validated; model builders

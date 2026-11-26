@@ -52,7 +52,7 @@ shipped configurations and by default. That is the first version whose records n
 of one experiment. A run refuses a record that states no `[run] package_version`. A lower floor
 can still be set explicitly, and a run whose input directories were written by different versions
 says so in the log. Below 0.2.7 the datasets of an experiment would be pooled side by side rather
-than as one, giving for ²⁵²Cf `⟨R_T⟩` = 1.0908 in place of 1.0861. Inputs retrieved before 0.2.3
+than as one, giving for ²⁵²Cf `⟨R_T⟩` = 1.0908 in place of 1.0863. Inputs retrieved before 0.2.3
 can moreover carry the ²³⁹Pu multiplicities of Tsuchiya 2000 (22650004) off the scale of their
 subentry, and the ²⁵²Cf yields 41425015 and 41425016, which that release refuses. A directory
 holding no retrieval record, such as a tabulation of one's own, is not judged. A `⟨TKE⟩(A)`
@@ -233,8 +233,8 @@ IRMM. The software corrects the fragment kinetic energies for neutron emission. 
 the fragment velocities that carry the neutron spectrum into the fragment frame, and a deficit
 that grows with fragment velocity is what an error there produces. There is no indication that it
 is the better measurement, and the measurement published from IRMM in 2011 (23118006) is pooled.
-With it in the pool the ²⁵²Cf trend takes 4 segments, with `χ²/dof` = 2.26 and `⟨R_T⟩` = 1.0772;
-without it, 6 segments, 1.65 and 1.0861.
+With it in the pool the ²⁵²Cf trend takes 4 segments, with `χ²/dof` = 2.21 and `⟨R_T⟩` = 1.0773;
+without it, 6 segments, 1.63 and 1.0863.
 
 **Zeynalov 2019 (41738002), ²³⁵U.** It is the ²³⁵U result of the same
 paper and analysis. Here the total is right and its division between the wings is not. Weighted
@@ -264,8 +264,8 @@ excess lies on the heavy wing alone. Weighted with the Wagemans 1984 yields over
 by mass its `ν_H` lies within the range of the other four at `A_H` = 126 to 135 and above all four
 at every mass from 136 to 154. An excess on one wing does not cancel in `r_ν`. The rows of the
 published table that rest on it, as a `ν(A)` dataset and through its yield distribution, are
-unaffected. With it in the pool the ²³⁹Pu trend takes 6 segments, with `χ²/dof` = 0.48 and
-`⟨R_T⟩` = 1.0106; without it, 6 segments, 0.54 and 1.0285.
+unaffected. With it in the pool the ²³⁹Pu trend takes 6 segments, with `χ²/dof` = 0.47 and
+`⟨R_T⟩` = 1.0116; without it, 6 segments, 0.53 and 1.0296.
 
 ### Two ²³⁹Pu multiplicity datasets off the scale of ν̄
 

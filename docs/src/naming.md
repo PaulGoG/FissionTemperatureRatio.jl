@@ -252,7 +252,11 @@ filled for the systematic trend only, is the `ρ` its covariance was formed with
 `total_average_R_T_<run>.csv` has the columns `segmented_curve, mass_yield, R_T, R_T_uncertainty,
 R_T_uncertainty_independent_points, R_T_uncertainty_leave_one_out, R_T_leave_one_out_min,
 R_T_leave_one_out_max, yield_fraction, R_T_one_more_segment, R_T_two_more_segments`. The three
-leave-one-out columns and the last two are filled for the systematic trend only.
+leave-one-out columns and the last two are filled for the systematic trend only. For the trend of a
+run that made the refits, `R_T_uncertainty` takes the larger of the term propagated from the fit
+covariance and the jackknife of the average over the refits, before the term of the yields is
+added; that jackknife is `R_T_uncertainty_leave_one_out` where every refit spans the mass numbers
+of the trend.
 `R_T_uncertainty_independent_points` is the approximation of the published tables over the
 tabulated points of a curve.
 
