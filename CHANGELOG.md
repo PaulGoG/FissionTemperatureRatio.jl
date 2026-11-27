@@ -7,6 +7,8 @@ the minor version and a patch release carries none.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-27
+
 The results change. Each uncertainty of a systematic trend is now the larger of the one propagated
 from the fit and a jackknife over refits of the trend with half of its pooled datasets left out,
 and the unit of two alternative analyses enters the pool with a measured fraction that divides its
@@ -47,8 +49,8 @@ configuration that leaves the two new keys at their defaults. Inputs: ExforFissi
   configuration about the trend they give, with errors correlated along the mass axis so that
   the pools reproduce the fitted `ρ` of the run, and scores the propagated uncertainty, the
   jackknife and the larger of the two against that known curve, with the package's own pooling,
-  fit and jackknife. The calibration table of the method page is what this script prints. The environment
-  of `scripts/` gains Distributed, Logging, StableRNGs and Statistics.
+  fit and jackknife. The calibration table of the method page is what this script prints. The
+  environment of `scripts/` gains Distributed, Logging, StableRNGs and Statistics.
 - `TotalAverage.uncertainty_propagated`: the uncertainty of a total average with the fit
   covariance propagated alone.
 
@@ -1339,7 +1341,8 @@ branch:
   check so a partially present tree failed, and results were overwritten in place with no run
   identifier, commit or hardware record.
 
-[unreleased]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.6.0...HEAD
+[unreleased]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/PaulGoG/FissionTemperatureRatio.jl/compare/v0.5.0...v0.5.1
